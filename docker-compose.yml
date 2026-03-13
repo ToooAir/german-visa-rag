@@ -1,0 +1,151 @@
+version: '3.9'
+
+services:
+  # ============================================
+  # Qdrant Vector Database (Local)
+  # ============================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: visa-rag-qdrant
+    ports:
+      - "6333:6333" # REST APIdo
+      - "6334:6334" # gRPC
+    environment:
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-qdrant-dev-key}
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - visa-rag-net
+
+  # ============================================
+  # Redis Cache
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: visa-rag-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - visa-rag-net
+
+  # ============================================
+  # SQLite State Store (via simple file mount)
+  # (SQLite 本身無需容器，但可透過 app 容器訪問)
+  # ============================================
+
+  # ============================================
+  # MLflow Tracking Server (可選，評測用)
+  # ============================================
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: visa-rag-mlflow
+    ports:
+      - "5000:5000"
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlflow/mlflow.db --default-artifact-root /mlflow/artifacts
+    volumes:
+      - mlflow_data:/mlflow
+    networks:
+      - visa-rag-net
+
+  # ============================================
+  # FastAPI Application (RAG API)
+  # ============================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: visa-rag-api
+    ports:
+      - "8000:8000"
+    environment:
+      # App Config
+      ENVIRONMENT: development
+      DEBUG: "true"
+      LOG_LEVEL: DEBUG
+
+      # LLM Configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: gpt-4o-mini
+      EMBEDDING_MODEL: text-embedding-3-small
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
+
+      # Fallback: Ollama (如果本地運行)
+      OLLAMA_BASE_URL: http://localhost:11434
+      OLLAMA_MODEL: mistral
+      USE_OLLAMA: ${USE_OLLAMA:-false}
+
+      # Vector DB
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-qdrant-dev-key}
+      QDRANT_COLLECTION_NAME: german-visa-docs
+
+      # Redis Cache
+      REDIS_URL: redis://redis:6379/0
+      CACHE_TTL_SECONDS: 3600
+
+      # SQLite State Store
+      SQLITE_DB_PATH: /app/data/state.db
+
+      # API Security
+      API_KEY: ${API_KEY:-dev-key-12345}
+
+      # Ingestion Config
+      INGESTION_SCHEDULE_INTERVAL_HOURS: 24
+      CRAWLER_RATE_LIMIT_REQUESTS_PER_SECOND: 2
+      CRAWLER_TIMEOUT_SECONDS: 30
+
+      # MLflow Tracking
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_EXPERIMENT_NAME: german-visa-rag
+
+      # Reranker Config
+      RERANKER_API_TYPE: ${RERANKER_API_TYPE:-mock} # 'mock' | 'cohere' | 'jina'
+      RERANKER_API_KEY: ${RERANKER_API_KEY:-}
+
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - visa-rag-net
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "-H", "X-API-Key: ${API_KEY:-dev-key-12345}", "http://localhost:8000/v1/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  # ============================================
+  # Ollama (可選本地 LLM，需另行啟動)
+  # ============================================
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: visa-rag-ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   networks:
+  #     - visa-rag-net
+
+volumes:
+  qdrant_data:
+  redis_data:
+  mlflow_data:
+    # ollama_data:
+
+networks:
+  visa-rag-net:
+    driver: bridge

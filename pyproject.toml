@@ -1,0 +1,141 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "german-visa-rag"
+version = "0.1.0"
+description = "RAG-based Q&A API for German Visa & Chancenkarte regulations"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+requires-python = ">=3.11"
+
+dependencies = [
+    # ==================== Core Framework ====================
+    "fastapi>=0.104.1",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    
+    # ==================== Vector DB & Search ====================
+    "qdrant-client[fastembed]>=1.7.0",  # Qdrant + Fast Embeddings
+    "tenacity>=8.2.3",                   # Retry logic
+    
+    # ==================== LLM & Embedding ====================
+    "openai>=1.3.0",                     # OpenAI API client
+    "httpx>=0.25.0",                     # Async HTTP client
+    "tiktoken>=0.5.0",                   # Token counting
+    
+    # ==================== Data Processing ====================
+    "requests>=2.31.0",                  # HTTP requests
+    "beautifulsoup4>=4.12.0",            # HTML parsing
+    "lxml>=4.9.0",                       # XML/HTML processing
+    "markdown>=3.5.0",                   # HTML to Markdown
+    "markdownify>=0.11.0",               # Advanced HTML to MD
+    "python-dateutil>=2.8.0",            # Date utilities
+    
+    # ==================== Caching & State ====================
+    "redis>=5.0.0",                      # Redis client
+    "sqlalchemy>=2.0.0",                 # ORM for SQLite
+    "alembic>=1.12.0",                   # Database migrations
+    
+    # ==================== Task Scheduling ====================
+    "apscheduler>=3.10.0",               # Background job scheduling
+    
+    # ==================== Observability ====================
+    "mlflow>=2.9.0",                     # Experiment tracking
+    "prometheus-client>=0.18.0",         # Prometheus metrics
+    "python-json-logger>=2.0.7",         # JSON structured logging
+    "python-dotenv>=1.0.0",              # Environment variables
+    
+    # ==================== Evaluation ====================
+    "ragas>=0.1.0",                      # RAG evaluation framework
+    "datasets>=2.14.0",                  # HuggingFace datasets
+    
+    # ==================== Utilities ====================
+    "pyyaml>=6.0.0",                     # YAML parsing
+    "click>=8.1.0",                      # CLI utilities
+    "typer>=0.9.0",                      # Modern CLI
+    "loguru>=0.7.0",                     # Advanced logging
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.10.0",
+    "ruff>=0.1.0",
+    "mypy>=1.6.0",
+    "isort>=5.12.0",
+    "pre-commit>=3.5.0",
+]
+
+test = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.25.0",  # For testing async endpoints
+]
+
+ollama = [
+    # 可選支持本地 Ollama
+    "ollama>=0.0.1",
+]
+
+reranker = [
+    # 支持不同的 reranker 服務
+    "cohere>=5.0.0",          # Cohere Reranker
+    "jinaai>=0.3.0",          # Jina Reranker
+]
+
+deploy = [
+    "google-cloud-run>=0.1.0",
+    "google-cloud-secret-manager>=2.16.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/german-visa-rag"
+Documentation = "https://github.com/yourusername/german-visa-rag/docs"
+Repository = "https://github.com/yourusername/german-visa-rag.git"
+Issues = "https://github.com/yourusername/german-visa-rag/issues"
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.black]
+line-length = 120
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+select = ["E", "F", "I", "W"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+log_cli = true
+log_cli_level = "DEBUG"
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

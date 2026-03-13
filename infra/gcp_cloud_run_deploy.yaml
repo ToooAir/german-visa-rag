@@ -1,0 +1,120 @@
+# GCP Cloud Run Deployment Configuration
+# Use with: gcloud run deploy --from-source=.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: german-visa-rag
+  namespace: default
+
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      containers:
+        - name: api
+          image: gcr.io/PROJECT_ID/german-visa-rag:latest
+          ports:
+            - name: http1
+              containerPort: 8000
+          
+          env:
+            - name: ENVIRONMENT
+              value: "production"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: DEBUG
+              value: "false"
+            
+            # LLM
+            - name: OPENAI_MODEL
+              value: "gpt-4o-mini"
+            - name: EMBEDDING_MODEL
+              value: "text-embedding-3-small"
+            
+            # Secrets from Secret Manager
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: german-visa-rag-secrets
+                  key: openai-api-key
+            
+            # Qdrant Cloud
+            - name: QDRANT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: german-visa-rag-secrets
+                  key: qdrant-url
+            - name: QDRANT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: german-visa-rag-secrets
+                  key: qdrant-api-key
+            - name: QDRANT_COLLECTION_NAME
+              value: "german-visa-docs-prod"
+            
+            # API Key
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: german-visa-rag-secrets
+                  key: api-key
+            
+            # Redis (Cloud Memorystore)
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: german-visa-rag-secrets
+                  key: redis-url
+          
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "2"
+            limits:
+              memory: "2Gi"
+              cpu: "2"
+          
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: 8000
+              httpHeaders:
+                - name: X-API-Key
+                  value: ""  # Will be injected
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: 8000
+              httpHeaders:
+                - name: X-API-Key
+                  value: ""
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+# Service exposure
+---
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: german-visa-rag
+  namespace: default
+
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+        autoscaling.knative.dev/target-utilization-percentage: "70"
+    spec:
+      containers:
+        - image: gcr.io/PROJECT_ID/german-visa-rag:latest
+          ports:
+            - containerPort: 8000

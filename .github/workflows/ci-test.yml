@@ -1,0 +1,108 @@
+name: CI - Test & Lint
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+    
+    services:
+      qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+          - 6333:6333
+        options: >-
+          --health-cmd="curl -f http://localhost:6333/health"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -e ".[dev,test]"
+      
+      - name: Lint with Black
+        run: |
+          black --check src/ tests/ eval/
+      
+      - name: Lint with Ruff
+        run: |
+          ruff check src/ tests/ eval/
+      
+      - name: Type checking with mypy
+        run: |
+          mypy src/ --ignore-missing-imports --allow-untyped-calls
+        continue-on-error: true
+      
+      - name: Run unit tests
+        env:
+          OPENAI_API_KEY: sk-test-key
+          QDRANT_URL: http://localhost:6333
+          REDIS_URL: redis://localhost:6379/0
+          SQLITE_DB_PATH: /tmp/test_state.db
+          API_KEY: test-key-12345
+          ENVIRONMENT: test
+        run: |
+          pytest tests/unit/ -v --cov=src --cov-report=xml --cov-report=html
+      
+      - name: Run integration tests
+        env:
+          OPENAI_API_KEY: sk-test-key
+          QDRANT_URL: http://localhost:6333
+          REDIS_URL: redis://localhost:6379/0
+          SQLITE_DB_PATH: /tmp/test_state.db
+          API_KEY: test-key-12345
+          ENVIRONMENT: test
+        run: |
+          pytest tests/integration/ -v --tb=short
+        continue-on-error: true
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+      
+      - name: Build Docker image
+        run: |
+          docker build -t german-visa-rag:latest -t german-visa-rag:${GITHUB_SHA::8} .
+      
+      - name: Push to registry (if main branch)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          REGISTRY: ghcr.io
+          IMAGE_NAME: ${{ github.repository }}
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u $ --password-stdin
+          docker tag german-visa-rag:latest ghcr.io/${{ github.repository }}:latest
+          docker tag german-visa-rag:latest ghcr.io/${{ github.repository }}:${GITHUB_SHA::8}
+          docker push ghcr.io/${{ github.repository }}:latest
+          docker push ghcr.io/${{ github.repository }}:${GITHUB_SHA::8}

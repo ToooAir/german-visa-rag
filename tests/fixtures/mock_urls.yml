@@ -1,0 +1,17 @@
+# Mock configuration for testing ingestion pipeline
+update_interval: 24
+
+documents:
+  - url: "https://mock-visa-gov.de/chancenkarte"
+    title: "Mock Chancenkarte Official Guide"
+    authority_level: "official"
+    visa_types:
+      - "chancenkarte"
+    description: "Official test document for Chancenkarte"
+
+  - url: "https://mock-expat-blog.com/visa-tips"
+    title: "Mock Visa Tips"
+    authority_level: "third_party"
+    visa_types:
+      - "work_visa"
+    description: "Third party blog for testing"

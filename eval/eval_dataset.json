@@ -1,0 +1,26 @@
+{
+    "questions": [
+        "Chancenkarte 的申請基本條件是什麼?",
+        "德國工作簽證 (Arbeitsvisum) 需要僱主贊助嗎?",
+        "我是中文系畢業生，可以申請 Chancenkarte 嗎?",
+        "Chancenkarte 持有者可以在德國工作多久?",
+        "申請德國學生簽證需要多少資金證明?",
+        "What are the main differences between Chancenkarte and a regular work visa?",
+        "Can Chancenkarte holders bring family members to Germany?",
+        "What is the processing time for a German work visa?",
+        "哪些職業在德國特別容易獲得工作簽證?",
+        "Chancenkarte 過期後可以轉換為工作簽證嗎?"
+    ],
+    "ground_truths": [
+        "Chancenkarte 是德國的機會卡，主要為非歐盟公民提供。基本條件包括：(1) 年滿 18 歲；(2) 具有適當的職業資格（German-recognized diploma or comparable qualification）；(3) 符合積分系統（至少 6 分），包括年齡、德語能力、職業經驗等。持卡者獲得 12 個月的居留許可，用於在德國求職。",
+        "是的，大多數情況下德國工作簽證需要僱主贊助。僱主必須向當地就業局提出申請，並證明無法找到歐盟公民或具有優先權的申請人。某些特殊職位（如高度合格的專業人士）可能有簡化程序。",
+        "可以。只要符合 Chancenkarte 的積分要求即可，包括職業資格、語言能力、年齡和職業經驗。文科背景的申請人需要確保其資格被德國官方認可。",
+        "Chancenkarte 初始有效期為 12 個月。在此期間，持有者可以在德國求職。一旦找到合適的工作並獲得僱主支持，可轉換為正式的工作簽證（Arbeitsvisum），有效期通常為 2-4 年。",
+        "德國學生簽證申請者需要提供銀行帳戶證明，顯示每月至少約 934 歐元的資金（2024 年數據）。這用於證明申請人有足夠的經濟支持來完成學業而不依賴公共資源。",
+        "Chancenkarte (Opportunity Card) is a 12-month residence permit for job-seeking, available to non-EU citizens. It requires 6 points in a points system based on age, qualifications, language, and experience. A regular work visa requires a job offer and employer sponsorship. Chancenkarte is more flexible and doesn't require a pre-arranged job.",
+        "Chancenkarte holders can bring family members through family reunification rules, but this typically requires meeting additional requirements including sufficient income (usually around 3,600-4,000 EUR monthly) and suitable housing. Family reunification may take 3-6 months to process.",
+        "German work visa processing time varies but typically takes 6-12 weeks. Priority processing is available for certain skilled positions and may reduce this to 2-4 weeks. Processing times depend on the local immigration office workload.",
+        "在德國特別容易獲得工作簽證的職業包括：IT/軟體工程師、醫療專業人士（醫生、護士）、工程師、研究人員、手工業人士（木工、電工等），以及特定的技術工作。具有德語能力的申請人也有更高的成功率。",
+        "可以。Chancenkarte 持有者如果在 12 個月內找到合適的工作，可以向當地移民局申請轉換為工作簽證（Arbeitsvisum）。僱主必須支持此申請，並且申請人必須符合工作簽證的額外要求。"
+    ]
+}

@@ -1,0 +1,167 @@
+name: CD - Deploy to GCP Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'pyproject.toml'
+      - 'Dockerfile'
+      - '.github/workflows/cd-cloud-run.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+      
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Configure Docker for GCR
+        run: |
+          gcloud auth configure-docker gcr.io
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            gcr.io/${{ secrets.GCP_PROJECT_ID }}/german-visa-rag:latest
+            gcr.io/${{ secrets.GCP_PROJECT_ID }}/german-visa-rag:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      # ==========================================
+      # STAGING DEPLOYMENT
+      # ==========================================
+      - name: Deploy API to Cloud Run (Staging)
+        if: github.event.inputs.environment == 'staging' || github.event_name == 'push'
+        run: |
+          gcloud run deploy german-visa-rag-api-staging \
+            --image=gcr.io/${{ secrets.GCP_PROJECT_ID }}/german-visa-rag:latest \
+            --platform=managed \
+            --region=${{ secrets.GCP_REGION }} \
+            --allow-unauthenticated \
+            --memory=2Gi \
+            --cpu=2 \
+            --timeout=600 \
+            --set-env-vars=ENVIRONMENT=staging,USE_OLLAMA=false \
+            --set-secrets=OPENAI_API_KEY=openai-api-key:latest \
+            --set-secrets=QDRANT_URL=qdrant-url:latest \
+            --set-secrets=QDRANT_API_KEY=qdrant-api-key:latest \
+            --set-secrets=REDIS_URL=redis-url:latest \
+            --set-secrets=API_KEY=api-key:latest
+
+      - name: Deploy Crawler to Cloud Run Job (Staging)
+        if: github.event.inputs.environment == 'staging' || github.event_name == 'push'
+        run: |
+          gcloud run jobs deploy german-visa-rag-job-staging \
+            --image=gcr.io/${{ secrets.GCP_PROJECT_ID }}/german-visa-rag:latest \
+            --region=${{ secrets.GCP_REGION }} \
+            --command="python" \
+            --args="-m,src.ingestion.cli,ingest" \
+            --memory=2Gi \
+            --cpu=2 \
+            --task-timeout=3600 \
+            --set-env-vars=ENVIRONMENT=staging,USE_OLLAMA=false \
+            --set-secrets=OPENAI_API_KEY=openai-api-key:latest \
+            --set-secrets=QDRANT_URL=qdrant-url:latest \
+            --set-secrets=QDRANT_API_KEY=qdrant-api-key:latest
+
+      # ==========================================
+      # PRODUCTION DEPLOYMENT
+      # ==========================================
+      - name: Deploy API to Cloud Run (Production)
+        if: github.event.inputs.environment == 'production'
+        run: |
+          gcloud run deploy german-visa-rag-api-prod \
+            --image=gcr.io/${{ secrets.GCP_PROJECT_ID }}/german-visa-rag:latest \
+            --platform=managed \
+            --region=${{ secrets.GCP_REGION }} \
+            --allow-unauthenticated \
+            --memory=4Gi \
+            --cpu=4 \
+            --timeout=600 \
+            --set-env-vars=ENVIRONMENT=production,USE_OLLAMA=false \
+            --set-secrets=OPENAI_API_KEY=openai-api-key:latest \
+            --set-secrets=QDRANT_URL=qdrant-url:latest \
+            --set-secrets=QDRANT_API_KEY=qdrant-api-key:latest \
+            --set-secrets=REDIS_URL=redis-url:latest \
+            --set-secrets=API_KEY=api-key:latest
+
+      - name: Deploy Crawler to Cloud Run Job (Production)
+        if: github.event.inputs.environment == 'production'
+        run: |
+          gcloud run jobs deploy german-visa-rag-job-prod \
+            --image=gcr.io/${{ secrets.GCP_PROJECT_ID }}/german-visa-rag:latest \
+            --region=${{ secrets.GCP_REGION }} \
+            --command="python" \
+            --args="-m,src.ingestion.cli,ingest" \
+            --memory=2Gi \
+            --cpu=2 \
+            --task-timeout=3600 \
+            --set-env-vars=ENVIRONMENT=production,USE_OLLAMA=false \
+            --set-secrets=OPENAI_API_KEY=openai-api-key:latest \
+            --set-secrets=QDRANT_URL=qdrant-url:latest \
+            --set-secrets=QDRANT_API_KEY=qdrant-api-key:latest
+      
+      # ==========================================
+      # VERIFICATION & NOTIFICATION
+      # ==========================================
+      - name: Verify deployment
+        run: |
+          sleep 10
+          # Determine correct service name based on environment
+          SERVICE_NAME="german-visa-rag-api-staging"
+          if [ "${{ github.event.inputs.environment }}" == "production" ]; then
+            SERVICE_NAME="german-visa-rag-api-prod"
+          fi
+          
+          CLOUD_RUN_URL=$(gcloud run services describe $SERVICE_NAME \
+            --platform=managed \
+            --region=${{ secrets.GCP_REGION }} \
+            --format='value(status.url)')
+            
+          echo "Service URL: $CLOUD_RUN_URL"
+          curl -f $CLOUD_RUN_URL/health || exit 1
+      
+      - name: Notify deployment to Slack
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: |
+            🚀 German Visa RAG API & Job deployed successfully!
+            Environment: ${{ github.event.inputs.environment || 'staging' }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        continue-on-error: true

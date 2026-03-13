@@ -33,6 +33,14 @@ class Settings(BaseSettings):
     embedding_model: str = Field(default="text-embedding-3-small", env="EMBEDDING_MODEL")
     embedding_dimension: int = Field(default=1536, env="EMBEDDING_DIMENSION")
     
+    # Azure OpenAI Configuration
+    use_azure_openai: bool = Field(default=False, env="USE_AZURE_OPENAI")
+    azure_openai_api_key: Optional[str] = Field(default=None, env="AZURE_OPENAI_API_KEY")
+    azure_openai_endpoint: Optional[str] = Field(default=None, env="AZURE_OPENAI_ENDPOINT")
+    azure_openai_api_version: str = Field(default="2024-12-01-preview", env="AZURE_OPENAI_API_VERSION")
+    azure_embedding_deployment: Optional[str] = Field(default=None, env="AZURE_EMBEDDING_DEPLOYMENT")
+    azure_llm_deployment: Optional[str] = Field(default=None, env="AZURE_LLM_DEPLOYMENT")
+    
     # Token limits & cost control
     max_query_tokens: int = Field(default=256, env="MAX_QUERY_TOKENS")
     max_context_tokens: int = Field(default=4000, env="MAX_CONTEXT_TOKENS")
@@ -91,6 +99,11 @@ class Settings(BaseSettings):
         default="Mozilla/5.0 (German-Visa-RAG/1.0)",
         env="CRAWLER_USER_AGENT",
     )
+    crawler_max_depth: int = Field(default=3, env="CRAWLER_MAX_DEPTH")
+    crawler_max_pages_per_domain: int = Field(default=100, env="CRAWLER_MAX_PAGES_PER_DOMAIN")
+    crawler_respect_robots_txt: bool = Field(default=True, env="CRAWLER_RESPECT_ROBOTS_TXT")
+    crawler_discovery_enabled: bool = Field(default=True, env="CRAWLER_DISCOVERY_ENABLED")
+    discovery_cache_ttl_hours: int = Field(default=168, env="DISCOVERY_CACHE_TTL_HOURS")
 
     # ============================================
     # Chunking Configuration
@@ -138,6 +151,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"
 
     @validator("sqlite_db_path", "logs_dir", pre=True)
     def ensure_path_exists(cls, v):

@@ -1,12 +1,13 @@
 """
 Web crawler for fetching and parsing German visa regulation documents.
-Includes rate limiting, retry logic, and HTML-to-Markdown conversion.
+Includes rate limiting, retry logic, HTML-to-Markdown conversion,
+robots.txt compliance, and recursive discovery-based crawling.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Set
 from datetime import datetime
 import asyncio
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 import httpx
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
@@ -47,6 +48,61 @@ class RateLimiter:
                 self.tokens -= 1
 
 
+class RobotsTxtChecker:
+    """Check robots.txt rules for crawl permission."""
+
+    def __init__(self, client: httpx.AsyncClient):
+        self.client = client
+        self._cache: Dict[str, List[str]] = {}  # domain -> disallowed paths
+
+    async def is_allowed(self, url: str) -> bool:
+        """Check if URL is allowed by robots.txt."""
+        if not settings.crawler_respect_robots_txt:
+            return True
+
+        parsed = urlparse(url)
+        domain = parsed.netloc
+
+        if domain not in self._cache:
+            await self._fetch_robots(domain)
+
+        disallowed = self._cache.get(domain, [])
+        path = parsed.path
+        for rule in disallowed:
+            if path.startswith(rule):
+                logger.debug(f"Blocked by robots.txt: {url}")
+                return False
+        return True
+
+    async def _fetch_robots(self, domain: str):
+        """Fetch and parse robots.txt for a domain."""
+        disallowed = []
+        try:
+            response = await self.client.get(
+                f"https://{domain}/robots.txt",
+                headers={"User-Agent": settings.crawler_user_agent},
+                timeout=10,
+            )
+            if response.status_code == 200:
+                in_our_agent = False
+                in_wildcard = False
+                for line in response.text.splitlines():
+                    line = line.strip()
+                    if line.lower().startswith("user-agent:"):
+                        agent = line.split(":", 1)[1].strip().lower()
+                        in_wildcard = agent == "*"
+                        in_our_agent = "german-visa-rag" in agent
+                    elif line.lower().startswith("disallow:"):
+                        if in_our_agent or in_wildcard:
+                            path = line.split(":", 1)[1].strip()
+                            if path:
+                                disallowed.append(path)
+        except Exception as e:
+            logger.debug(f"Could not fetch robots.txt for {domain}: {e}")
+
+        self._cache[domain] = disallowed
+
+
 class WebCrawler:
     """
     Web crawler for fetching visa regulation documents.
@@ -57,6 +113,8 @@ class WebCrawler:
     - Exponential backoff on errors
     - HTML to Markdown conversion
     - Automatic link extraction
+    - robots.txt compliance
+    - Discovery-based recursive crawling
     """
 
     def __init__(self):
@@ -66,6 +124,7 @@ class WebCrawler:
         self.timeout = settings.crawler_timeout_seconds
         self.max_retries = settings.crawler_max_retries
         self.user_agent = settings.crawler_user_agent
+        self._visited_urls: Set[str] = set()
         
         # HTTP client with pooling
         self.client = httpx.AsyncClient(
@@ -76,6 +135,9 @@ class WebCrawler:
                 max_connections=10,
             ),
         )
+        
+        # robots.txt checker
+        self.robots_checker = RobotsTxtChecker(self.client)
 
     @retry(
         stop=stop_after_attempt(3),
@@ -241,6 +303,65 @@ class WebCrawler:
             return_exceptions=False,
         )
         return [r for r in results if r is not None]
+
+    async def crawl_with_discovery(
+        self,
+        force_refresh: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        Run URL discovery and then crawl all discovered pages.
+
+        Args:
+            force_refresh: If True, bypass discovery cache
+
+        Returns:
+            List of crawled document dicts
+        """
+        from src.ingestion.url_discoverer import get_url_discoverer
+
+        discoverer = get_url_discoverer()
+        results = await discoverer.discover_all(force_refresh=force_refresh)
+
+        all_urls = []
+        url_metadata = {}  # url -> {authority_level, visa_types}
+
+        for result in results:
+            strategy = discoverer.registry.get_strategy(result.domain)
+            for url in result.discovered_urls:
+                if url not in self._visited_urls:
+                    all_urls.append(url)
+                    url_metadata[url] = {
+                        "authority_level": strategy.authority_level,
+                        "visa_types": strategy.default_visa_types,
+                    }
+
+        logger.info(
+            f"Discovery complete. Crawling {len(all_urls)} URLs across "
+            f"{len(results)} domains"
+        )
+
+        # Crawl all discovered URLs with metadata enrichment
+        crawled_docs = []
+        for url in all_urls:
+            # Check robots.txt
+            if not await self.robots_checker.is_allowed(url):
+                continue
+
+            doc = await self.crawl_document(url)
+            if doc:
+                # Enrich with strategy metadata
+                meta = url_metadata.get(url, {})
+                doc["authority_level"] = meta.get("authority_level", "third_party")
+                doc["visa_types"] = meta.get("visa_types", ["general"])
+                crawled_docs.append(doc)
+                self._visited_urls.add(url)
+
+        logger.info(f"Crawled {len(crawled_docs)} documents successfully")
+        return crawled_docs
+
+    def reset_visited(self):
+        """Reset visited URL tracking."""
+        self._visited_urls.clear()
 
     async def close(self):
         """Close HTTP client."""

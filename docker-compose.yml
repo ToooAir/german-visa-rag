@@ -78,6 +78,14 @@ services:
       EMBEDDING_MODEL: text-embedding-3-small
       OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
 
+      # Azure OpenAI Configuration
+      USE_AZURE_OPENAI: ${USE_AZURE_OPENAI:-false}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}
+      AZURE_EMBEDDING_DEPLOYMENT: ${AZURE_EMBEDDING_DEPLOYMENT}
+      AZURE_LLM_DEPLOYMENT: ${AZURE_LLM_DEPLOYMENT}
+
       # Fallback: Ollama (如果本地運行)
       OLLAMA_BASE_URL: http://localhost:11434
       OLLAMA_MODEL: mistral

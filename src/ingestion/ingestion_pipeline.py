@@ -15,7 +15,7 @@ from src.ingestion.crawler import get_crawler
 from src.ingestion.chunker import get_chunker
 from src.storage.sqlite_state_store import get_state_store
 from src.vector_db.qdrant_client_wrapper import get_qdrant_client
-from src.vector_db.embedder import embedder
+from src.vector_db.embedder import embedder, QuotaExhaustedError
 from src.observability.mlflow_tracker import get_mlflow_tracker
 
 from qdrant_client.http.models import PointStruct
@@ -74,26 +74,79 @@ class IngestionPipeline:
         chunks_skipped = 0
         errors = []
         total_tokens = 0
+        quota_exhausted = False
+        documents_skipped_quota = 0
+        
+        # ── Pre-flight: check embedding API quota ──
+        try:
+            api_ok = await embedder.preflight_check()
+            if not api_ok:
+                return {
+                    "run_id": run_id,
+                    "success": False,
+                    "documents_processed": 0,
+                    "chunks_ingested": 0,
+                    "chunks_skipped": 0,
+                    "errors": ["Embedding API preflight check failed (non-quota). Check logs."],
+                    "total_tokens": 0,
+                    "quota_exhausted": False,
+                }
+        except QuotaExhaustedError as qe:
+            logger.error(f"⛔ Embedding quota exhausted before crawling: {qe}")
+            self.state_store.finalize_ingestion_run(
+                run_id, 0, 0, 0, error_count=1, total_tokens=0,
+            )
+            return {
+                "run_id": run_id,
+                "success": False,
+                "documents_processed": 0,
+                "chunks_ingested": 0,
+                "chunks_skipped": 0,
+                "errors": [str(qe)],
+                "total_tokens": 0,
+                "quota_exhausted": True,
+                "wait_seconds": qe.wait_seconds,
+            }
         
         # Ensure Qdrant collection exists
         await self.qdrant.ensure_collection_exists()
         
+        # ── Concurrent execution with Semaphore ──
+        sem = asyncio.Semaphore(settings.crawler_max_concurrent_requests or 5)
+        quota_flag = [False] # Use list for shared mutable state
+        
+        async def sem_process(source_doc):
+            async with sem:
+                if quota_flag[0]: # Skip if another task already hit quota
+                    return {"success": False, "skipped_quota": True}
+                try:
+                    return await self._process_single_document(source_doc)
+                except QuotaExhaustedError:
+                    quota_flag[0] = True
+                    raise
+
         # Process each source document
-        for source_doc in source_documents:
-            try:
-                result = await self._process_single_document(source_doc)
-                
-                if result["success"]:
+        tasks = [sem_process(doc) for doc in source_documents]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for result in results:
+            if isinstance(result, QuotaExhaustedError) or quota_flag[0]:
+                quota_exhausted = True
+                if isinstance(result, QuotaExhaustedError):
+                    errors.append(str(result))
+            elif isinstance(result, Exception):
+                logger.error(f"Unexpected error in pipeline task: {result}")
+                errors.append(str(result))
+            elif isinstance(result, dict):
+                if result.get("skipped_quota"):
+                    documents_skipped_quota += 1
+                elif result["success"]:
                     documents_processed += 1
                     chunks_ingested += result["chunks_ingested"]
                     chunks_skipped += result["chunks_skipped"]
                     total_tokens += result.get("tokens_used", 0)
                 else:
                     errors.append(result["error"])
-                    
-            except Exception as e:
-                logger.error(f"Error processing document: {e}")
-                errors.append(str(e))
         
         # Finalize run
         self.state_store.finalize_ingestion_run(
@@ -113,6 +166,8 @@ class IngestionPipeline:
             "chunks_skipped": chunks_skipped,
             "errors": errors,
             "total_tokens": total_tokens,
+            "quota_exhausted": quota_exhausted,
+            "documents_skipped_quota": documents_skipped_quota,
         }
         
         logger.info("Ingestion pipeline completed", extra=summary)
@@ -156,6 +211,22 @@ class IngestionPipeline:
             
             markdown_text = crawled["markdown"]
             fetched_at = datetime.fromisoformat(crawled["fetched_at"])
+            content_hash = self._compute_document_hash(markdown_text)
+            
+            # --- Optimization: Skip if content hasn't changed ---
+            existing = self.state_store.get_document_metadata(url)
+            if (
+                existing 
+                and existing["status"] == "ingested" 
+                and existing["content_hash"] == content_hash
+            ):
+                logger.info(f"⏭️  Document content hasn't changed, skipping: {url}")
+                return {
+                    "success": True,
+                    "chunks_ingested": 0,
+                    "chunks_skipped": 0,
+                    "tokens_used": 0,
+                }
             
             # Step 2: Chunk (Parent-Child)
             chunks = self.chunker.chunk_document(
@@ -177,16 +248,26 @@ class IngestionPipeline:
             
             # Step 3: Deduplicate
             chunks_to_ingest = []
+            seen_hashes = set()
             skipped_count = 0
             
             for chunk in chunks:
                 text_hash = chunk.metadata.text_hash
                 
+                # Check DB for duplicates
                 if self.state_store.check_chunk_duplicate(text_hash):
-                    logger.debug(f"Skipping duplicate chunk: {chunk.metadata.chunk_id}")
+                    logger.debug(f"Skipping duplicate chunk (DB): {chunk.metadata.chunk_id}")
                     skipped_count += 1
-                else:
-                    chunks_to_ingest.append(chunk)
+                    continue
+                
+                # Check current batch for duplicates (internal within document)
+                if text_hash in seen_hashes:
+                    logger.debug(f"Skipping duplicate chunk (Batch): {chunk.metadata.chunk_id}")
+                    skipped_count += 1
+                    continue
+                
+                chunks_to_ingest.append(chunk)
+                seen_hashes.add(text_hash)
             
             logger.debug(
                 f"Deduplication: {len(chunks_to_ingest)} to ingest, {skipped_count} skipped"

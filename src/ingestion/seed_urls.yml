@@ -1,89 +1,76 @@
 # German Visa & Chancenkarte Document Sources
-# Authority levels: official, semi_official, third_party
+# Restructured: seed domains + discovery rules + optional extra URLs
 
-documents:
-  # ============================================
-  # Official German Government Sources
-  # ============================================
-  
+# ============================================
+# Domain crawl configurations
+# ============================================
+# Each domain defines seed paths and discovery rules.
+# The crawler will automatically discover and crawl all relevant pages.
+
+domains:
+  - domain: "make-it-in-germany.com"
+    seed_paths:
+      - "/en/visa-residence/"
+      - "/en/visa-residence/opportunity-card"
+      - "/en/visa-residence/types/"
+      - "/en/visa-residence/procedure/"
+      - "/en/visa-residence/skilled-immigration-act"
+      - "/en/working-in-germany/"
+    authority_level: "official"
+    default_visa_types:
+      - "general"
+    max_depth: 3
+    max_pages: 200
+    use_sitemap: true
+
+  - domain: "chancenkarte.com"
+    seed_paths:
+      - "/en/"
+      - "/en/guides/"
+      - "/en/news/"
+      - "/en/calculator/"
+    authority_level: "semi_official"
+    default_visa_types:
+      - "chancenkarte"
+    max_depth: 2
+    max_pages: 100
+    use_sitemap: true
+
+  - domain: "www.germany-visa.org"
+    seed_paths:
+      - "/"
+      - "/work-employment-visa/"
+    authority_level: "third_party"
+    default_visa_types:
+      - "general"
+    max_depth: 2
+    max_pages: 50
+    use_sitemap: true
+
+# ============================================
+# Extra URLs (manual additions / special pages)
+# ============================================
+# These are crawled directly, regardless of domain discovery rules.
+# Useful for one-off pages from domains without a full strategy.
+
+extra_urls:
   - url: "https://www.make-it-in-germany.com/en/visa-residence/opportunity-card"
     title: "Opportunity Card (Chancenkarte) - Official Portal"
     authority_level: "official"
     visa_types:
       - "chancenkarte"
-    description: "Main official page for the German Opportunity Card program."
 
   - url: "https://www.make-it-in-germany.com/en/visa-residence/opportunity-card/questions-answers"
     title: "Chancenkarte FAQ - Official"
     authority_level: "official"
     visa_types:
       - "chancenkarte"
-    description: "Frequently asked questions about the Opportunity Card."
-
-  - url: "https://www.make-it-in-germany.com/en/visa-residence/opportunity-card/job-search"
-    title: "Job Search with Chancenkarte"
-    authority_level: "official"
-    visa_types:
-      - "chancenkarte"
-    description: "Information on seeking employment using the Opportunity Card."
-
-  - url: "https://www.make-it-in-germany.com/en/visa-residence/procedure/do-i-need-visa"
-    title: "Check if you need a visa"
-    authority_level: "official"
-    visa_types:
-      - "general"
-    description: "Official guide to determine visa requirements based on nationality."
-
-  - url: "https://www.make-it-in-germany.com/en/visa-residence/skilled-immigration-act"
-    title: "Skilled Immigration Act"
-    authority_level: "official"
-    visa_types:
-      - "work_visa"
-      - "chancenkarte"
-    description: "Overview of the legal framework for skilled workers in Germany."
-
-  # ============================================
-  # Semi-Official & Specialized Portals
-  # ============================================
-
-  - url: "https://chancenkarte.com/en/"
-    title: "Chancenkarte.com - Information & Guides"
-    authority_level: "semi_official"
-    visa_types:
-      - "chancenkarte"
-    description: "Comprehensive guide and assessment tool for the Opportunity Card."
-
-  - url: "https://chancenkarte.com/en/guides/"
-    title: "Step-by-Step Guides for Chancenkarte"
-    authority_level: "semi_official"
-    visa_types:
-      - "chancenkarte"
-    description: "Detailed walkthroughs for application and requirements."
-
-  - url: "https://chancenkarte.com/en/news/chancenkarte-2025-a-guide-to-the-latest-rule-set/"
-    title: "Chancenkarte 2025 Rules Guide"
-    authority_level: "semi_official"
-    visa_types:
-      - "chancenkarte"
-    description: "Detailed guide to the latest 2025 requirements."
-
-  - url: "https://chancenkarte.com/en/news/how-to-get-your-foreign-vocational-training-recognized-for-the-chancenkarte-application/"
-    title: "Vocational Training Recognition Guide"
-    authority_level: "semi_official"
-    visa_types:
-      - "chancenkarte"
-    description: "Step-by-step guide for recognition of vocational training."
-
-  # ============================================
-  # Other Important Visa Types
-  # ============================================
 
   - url: "https://www.make-it-in-germany.com/en/visa-residence/types/eu-blue-card"
     title: "EU Blue Card Germany"
     authority_level: "official"
     visa_types:
       - "blue_card"
-    description: "Requirements and benefits of the EU Blue Card for highly qualified workers."
 
   - url: "https://www.make-it-in-germany.com/en/visa-residence/types/it-professionals"
     title: "Visa for IT Professionals"
@@ -91,27 +78,18 @@ documents:
     visa_types:
       - "work_visa"
       - "it_visa"
-    description: "Special visa regulations for the IT sector in Germany."
 
-  - url: "https://www.make-it-in-germany.com/en/visa-residence/procedure/application-forms"
-    title: "Visa Application Forms"
-    authority_level: "official"
-    visa_types:
-      - "general"
-    description: "Links to official application forms and documents."
-
-  # ============================================
-  # Add more sources as discovered
-  # ============================================
-
-# Update frequency (hours)
+# ============================================
+# Crawler settings
+# ============================================
 update_interval: 24
 
-# Crawler settings
 crawler:
   rate_limit_requests_per_second: 2
   timeout_seconds: 30
   max_retries: 3
+  respect_robots_txt: true
+  discovery_enabled: true
 
 # Chunking settings
 chunking:

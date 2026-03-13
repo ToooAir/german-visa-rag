@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any, AsyncIterator
 import asyncio
 from datetime import datetime
 
-from openai import AsyncOpenAI, OpenAIError
+from openai import AsyncOpenAI, AsyncAzureOpenAI, OpenAIError
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -34,10 +34,20 @@ class OpenAIClient:
         self.model = model
         self.base_url = base_url or settings.openai_api_base
         
-        self.client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=self.base_url,
-        )
+        if settings.use_azure_openai:
+            self.client = AsyncAzureOpenAI(
+                api_key=settings.azure_openai_api_key,
+                azure_endpoint=settings.azure_openai_endpoint,
+                api_version=settings.azure_openai_api_version,
+                azure_deployment=settings.azure_llm_deployment,
+            )
+            logger.info(f"Azure OpenAI client initialized (deployment: {settings.azure_llm_deployment})")
+        else:
+            self.client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=self.base_url,
+            )
+            logger.info("Standard OpenAI client initialized")
         
         # Token counting
         try:

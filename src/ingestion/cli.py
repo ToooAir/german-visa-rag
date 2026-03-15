@@ -49,6 +49,7 @@ def ingest(
     config: Optional[str] = typer.Option(None, "--config", "-c", help="Path to custom seed_urls.yml"),
     auto_discover: bool = typer.Option(False, "--auto-discover", "-a", help="Enable automatic URL discovery mode"),
     force_discover: bool = typer.Option(False, "--force-discover", "-f", help="Force fresh URL discovery (bypass cache)"),
+    force: bool = typer.Option(False, "--force", help="Force re-processing of all documents even if content hasn't changed"),
 ):
     """Run the ingestion pipeline."""
     logger.info("Starting CLI Ingestion...")
@@ -67,7 +68,7 @@ def ingest(
     elif auto_discover:
         # 自動發現模式：先發現 URL 再爬取
         logger.info("🔍 Auto-discovery mode enabled. Discovering URLs...")
-        result = asyncio.run(_run_discovery_ingestion(pipeline, force_refresh=force_discover))
+        result = asyncio.run(_run_discovery_ingestion(pipeline, force_refresh=force_discover, force_ingest=force))
 
         if result.get("quota_exhausted"):
             processed = result['documents_processed']
@@ -92,7 +93,7 @@ def ingest(
         raise typer.Exit(code=1)
 
     # 執行非同步 Pipeline
-    result = asyncio.run(pipeline.run_full_ingestion(docs_to_process, triggered_by="cli"))
+    result = asyncio.run(pipeline.run_full_ingestion(docs_to_process, triggered_by="cli", force=force))
     _print_ingestion_summary(result)
 
     if not result["success"]:
@@ -133,7 +134,7 @@ def _print_ingestion_summary(result: dict):
     typer.echo("="*40 + "\n")
 
 
-async def _run_discovery_ingestion(pipeline, force_refresh: bool = False):
+async def _run_discovery_ingestion(pipeline, force_refresh: bool = False, force_ingest: bool = False):
     """Run URL discovery then ingest all discovered pages."""
     from src.ingestion.crawler import get_crawler
 
@@ -153,7 +154,7 @@ async def _run_discovery_ingestion(pipeline, force_refresh: bool = False):
             "visa_types": doc.get("visa_types", ["general"]),
         })
 
-    return await pipeline.run_full_ingestion(source_docs, triggered_by="cli_discovery")
+    return await pipeline.run_full_ingestion(source_docs, triggered_by="cli_discovery", force=force_ingest)
 
 
 @app.command()

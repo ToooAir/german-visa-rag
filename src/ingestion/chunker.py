@@ -12,6 +12,7 @@ from src.config import settings
 from src.logger import logger
 from src.models.chunk import Chunk, ChunkMetadata, VisaType, AuthorityLevel
 from src.utils.hash_utils import compute_canonical_hash
+from src.utils.text_utils import normalize_whitespace
 
 
 class ParentChildChunker:
@@ -29,10 +30,42 @@ class ParentChildChunker:
         child_chunk_size: int = None,
         child_chunk_overlap: int = None,
         parent_chunk_size: int = None,
+        min_child_length: int = 150,
     ):
         self.child_chunk_size = child_chunk_size or settings.chunk_size
         self.child_chunk_overlap = child_chunk_overlap or settings.chunk_overlap
         self.parent_chunk_size = parent_chunk_size or settings.parent_chunk_size
+        self.min_child_length = min_child_length
+
+    def clean_markdown(self, text: str) -> str:
+        """
+        Remove unwanted markdown artifacts like images and download/print buttons.
+        """
+        # Remove images: ![alt](url) - use re.DOTALL and ignore case
+        text = re.sub(r'!\[.*?\]\(.*?\)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        
+        # Remove common boilerplate links: [Download|Print...](url)
+        text = re.sub(r'\[(?:Download|Print|View|Overview|Back to).*?\]\(.*?\)', '', text, flags=re.IGNORECASE)
+        
+        # Remove UI specific text fragments, symbols and metadata
+        ui_noise_patterns = [
+            r'Previous slide', r'Next slide', r'Slide \d+ of \d+',
+            r'\[closed envelope E-Mail\]\(.*?\)', r'\[Hotline\]\(.*?\)', r'\[FAQ\]\(.*?\)',
+            r'<desc>.*?</desc>', # Remove SVG description labels
+            r'©\s*.*?(?:\.com|\d{4})', # Remove copyright credits
+            r'[✔©✅ℹ️⚠️✅❌📊📄🔗📂📜📌📏\-]', # Strip UI symbols
+            r'^.*?\]\(/en/working-in-germany/job-listings\?tx_solr.*$', # Remove job search result leaks
+            r'Translate it via your browser\.',
+            r'Google Translate is a third-party provider\.',
+            r'Find points of contact all over the world',
+            r'\* \[Living in Germany\]\(.*?\) \* \[Housing & mobility\]\(.*?\)', # Breadcrumb leftovers
+        ]
+        for pattern in ui_noise_patterns:
+            text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.MULTILINE)
+        
+        # Remove empty lines and normalize whitespace
+        text = normalize_whitespace(text)
+        return text
 
     def split_by_headers(self, markdown_text: str) -> List[Tuple[str, str]]:
         """
@@ -159,6 +192,9 @@ class ParentChildChunker:
         chunks = []
         fetched_at = datetime.utcnow()
         
+        # Step 0: Clean markdown noise
+        markdown_text = self.clean_markdown(markdown_text)
+        
         # Step 1: Split by headers to get parent sections
         sections = self.split_by_headers(markdown_text)
         
@@ -214,10 +250,18 @@ class ParentChildChunker:
             for child_text in child_texts:
                 child_index += 1
                 
-                if not child_text.strip() or len(child_text) < 50:
+                # Cleanup and Filter
+                child_text = child_text.strip()
+                if not child_text or len(child_text) < self.min_child_length:
                     continue
                 
-                child_hash = compute_canonical_hash(child_text)
+                # Context Enhancement: Prepend Page Title > Section Header
+                # Fallback title if none provided
+                display_title = title or source_url.split('/')[-1].replace('-', ' ').title()
+                context_prefix = f"Topic: {display_title} | Section: {section_header}\n"
+                enhanced_text = context_prefix + child_text
+                
+                child_hash = compute_canonical_hash(enhanced_text)
                 child_chunk_id = f"{doc_id}_section_{section_index}_child_{child_index}"
                 
                 child_chunk = Chunk(
@@ -237,7 +281,7 @@ class ParentChildChunker:
                         text_hash=child_hash,
                         referenced_urls=self._extract_urls(child_text),
                     ),
-                    text=child_text,
+                    text=enhanced_text,
                 )
                 chunks.append(child_chunk)
         

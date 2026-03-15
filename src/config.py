@@ -119,6 +119,7 @@ class Settings(BaseSettings):
     retrieval_top_k_reranked: int = Field(default=10, env="RETRIEVAL_TOP_K_RERANKED")
     retrieval_dense_weight: float = Field(default=0.7, env="RETRIEVAL_DENSE_WEIGHT")
     retrieval_sparse_weight: float = Field(default=0.3, env="RETRIEVAL_SPARSE_WEIGHT")
+    enable_query_expansion: bool = Field(default=True, env="ENABLE_QUERY_EXPANSION")
 
     # ============================================
     # Reranker Configuration

@@ -198,12 +198,33 @@ class WebCrawler:
         try:
             soup = BeautifulSoup(html_content, "lxml")
             
-            # Remove script and style elements
-            for element in soup(["script", "style", "nav", "footer"]):
-                element.decompose()
+            # Remove script and style elements and common noise
+            noise_selectors = [
+                "script", "style", "nav", "footer", "header", "aside", 
+                ".sidebar", ".navigation", ".menu", ".footer", ".header",
+                ".cookie-banner", ".ads", ".social-share", ".newsletter-signup",
+                ".breadcrumb", ".breadcrumbs", "nav[aria-label='Breadcrumb']",
+                ".meta-navigation", ".utility-nav",
+                ".slick-prev", ".slick-next", ".slider-nav", ".carousel-control",
+                ".translate-banner", ".google-translate-container", 
+                "button", ".btn", ".contact-bar", ".sharing-bar"
+            ]
+            for selector in noise_selectors:
+                elements = soup.select(selector) if selector.startswith(".") else soup.find_all(selector)
+                for element in elements:
+                    element.decompose()
             
             # Extract main content area (heuristic)
-            main_content = soup.find("main") or soup.find("article") or soup.find("body")
+            # Try specific selectors for known important sites
+            main_content = (
+                soup.find("article") or 
+                soup.find("main") or 
+                soup.find(id="main-content") or 
+                soup.find(class_="main-content") or
+                soup.find(id="content") or
+                soup.find(class_="content") or
+                soup.find("body")
+            )
             
             if not main_content:
                 logger.warning(f"Could not find main content in {url}")

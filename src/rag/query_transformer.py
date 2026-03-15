@@ -177,20 +177,43 @@ class QueryTransformer:
         """
         Get list of search queries (main + variants) for hybrid search.
         Returns the corrected query plus variants, suitable for batch retrieval.
+        
+        Optimizations:
+        1. Respect global ENABLE_QUERY_EXPANSION setting.
+        2. Fast Mode: If query is long enough, skip full LLM expansion.
+        3. Reduced variants: Cap variants to 1 for better performance.
         """
-        transformed = await self.transform_query(query)
-        
-        search_queries = [transformed["corrected_query"]]
-        
-        # Add English/German translations for better cross-lingual retrieval
-        if "english_query" in transformed:
-            search_queries.append(transformed["english_query"])
-        if "german_query" in transformed:
-            search_queries.append(transformed["german_query"])
+        # 1. Check global setting
+        if not settings.enable_query_expansion:
+            logger.debug("Query expansion disabled via settings")
+            return [query]
+
+        # 2. Fast Mode for simple/long queries
+        # If query is long, it's likely specific enough already
+        if len(query.strip()) > 50:
+            logger.debug("Fast Mode: Skipping expansion for long query")
+            return [query]
+
+        # 3. Perform expansion for short queries
+        try:
+            transformed = await self.transform_query(query)
             
-        search_queries.extend(transformed.get("query_variants", [])[:2])
-        
-        return list(set(filter(None, search_queries)))  # Deduplicate
+            search_queries = [transformed.get("corrected_query", query)]
+            
+            # Add English translation if available (crucial for cross-lingual)
+            if "english_query" in transformed:
+                search_queries.append(transformed["english_query"])
+                
+            # Cap variants to 1 (total max 3 queries: original, english, 1 variant)
+            variants = transformed.get("query_variants", [])
+            if variants:
+                search_queries.append(variants[0])
+                
+            return list(set(filter(None, search_queries)))
+            
+        except Exception as e:
+            logger.warning(f"Optimization failure, falling back to original: {e}")
+            return [query]
 
 
 # Singleton instance

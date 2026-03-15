@@ -35,6 +35,7 @@ class OpenAIClient:
         self.base_url = base_url or settings.openai_api_base
         
         if settings.use_azure_openai:
+            self.model = settings.azure_llm_deployment
             self.client = AsyncAzureOpenAI(
                 api_key=settings.azure_openai_api_key,
                 azure_endpoint=settings.azure_openai_endpoint,

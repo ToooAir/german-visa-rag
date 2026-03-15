@@ -11,6 +11,7 @@ import asyncio
 from src.config import settings
 from src.logger import logger
 from src.models.chunk import QdrantPayload, VisaType, AuthorityLevel
+from qdrant_client.http.models import PointStruct, Filter, FieldCondition, MatchValue
 from src.ingestion.crawler import get_crawler
 from src.ingestion.chunker import get_chunker
 from src.storage.sqlite_state_store import get_state_store
@@ -45,6 +46,7 @@ class IngestionPipeline:
         self,
         source_documents: List[Dict[str, Any]],
         triggered_by: str = "manual",
+        force: bool = False,
     ) -> Dict[str, Any]:
         """
         Execute complete ingestion pipeline.
@@ -112,7 +114,9 @@ class IngestionPipeline:
         await self.qdrant.ensure_collection_exists()
         
         # ── Concurrent execution with Semaphore ──
-        sem = asyncio.Semaphore(settings.crawler_max_concurrent_requests or 5)
+        # Use an explicit small integer default for concurrency if no setting exists
+        max_concurrent = int(getattr(settings, "crawler_max_concurrent_requests", 5))
+        sem = asyncio.Semaphore(max_concurrent)
         quota_flag = [False] # Use list for shared mutable state
         
         async def sem_process(source_doc):
@@ -120,7 +124,7 @@ class IngestionPipeline:
                 if quota_flag[0]: # Skip if another task already hit quota
                     return {"success": False, "skipped_quota": True}
                 try:
-                    return await self._process_single_document(source_doc)
+                    return await self._process_single_document(source_doc, force=force)
                 except QuotaExhaustedError:
                     quota_flag[0] = True
                     raise
@@ -181,6 +185,7 @@ class IngestionPipeline:
     async def _process_single_document(
         self,
         source_doc: Dict[str, Any],
+        force: bool = False,
     ) -> Dict[str, Any]:
         """
         Process a single source document through full pipeline.
@@ -216,7 +221,8 @@ class IngestionPipeline:
             # --- Optimization: Skip if content hasn't changed ---
             existing = self.state_store.get_document_metadata(url)
             if (
-                existing 
+                not force 
+                and existing 
                 and existing["status"] == "ingested" 
                 and existing["content_hash"] == content_hash
             ):
@@ -227,6 +233,23 @@ class IngestionPipeline:
                     "chunks_skipped": 0,
                     "tokens_used": 0,
                 }
+            
+            # --- Replacement Logic: Delete old chunks if re-processing ---
+            if existing:
+                logger.info(f"Replacing existing chunks for: {url}")
+                # 1. Delete from Qdrant
+                from_qdrant_filter = Filter(
+                    must=[
+                        FieldCondition(
+                            key="parent_doc_id",
+                            match=MatchValue(value=str(doc_id))
+                        )
+                    ]
+                )
+                await self.qdrant.delete_by_filter(from_qdrant_filter)
+                
+                # 2. Delete from SQLite
+                self.state_store.delete_document_chunks(doc_id)
             
             # Step 2: Chunk (Parent-Child)
             chunks = self.chunker.chunk_document(

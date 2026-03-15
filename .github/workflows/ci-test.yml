@@ -19,11 +19,6 @@ jobs:
         image: qdrant/qdrant:latest
         ports:
           - 6333:6333
-        options: >-
-          --health-cmd="curl -f http://localhost:6333/health"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
       
       redis:
         image: redis:7-alpine
@@ -36,10 +31,16 @@ jobs:
           --health-retries=5
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      
+      - name: Wait for services
+        run: |
+          echo "Waiting for Qdrant to be ready..."
+          timeout 60s bash -c 'until curl -s http://localhost:6333/health > /dev/null; do sleep 2; done'
+          echo "Qdrant is up!"
       
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
@@ -86,10 +87,11 @@ jobs:
         continue-on-error: true
       
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
           fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
       
       - name: Build Docker image
         run: |

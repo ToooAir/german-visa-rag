@@ -28,28 +28,29 @@ jobs:
       id-token: write
     
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
+      - uses: actions/checkout@v4
       
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
+        id: auth
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+      
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
       
       - name: Configure Docker for GCR
         run: |
           gcloud auth configure-docker gcr.io
       
       - name: Build and push Docker image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
@@ -163,5 +164,6 @@ jobs:
             Environment: ${{ github.event.inputs.environment || 'staging' }}
             Commit: ${{ github.sha }}
             Author: ${{ github.actor }}
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
         continue-on-error: true

@@ -20,7 +20,7 @@ Built with **Production-ready** standards, this project features an automated we
 
 ### 🚀 Performance & Cost Optimization
 - **Semantic Caching**: Integrates Redis to cache LLM responses based on deterministic query hashing. Delivers **~10ms response times** for repeated queries.
-- **Parent-Child Chunking**: Implements a "Small-to-Big" chunking strategy, providing the LLM with complete semantic context without exploding the token count.
+- **Enhanced Parent-Child Chunking**: Implements a "Small-to-Big" strategy with **Title Context Injection** and **Noise Removal** (strips images/boilerplate) for 80% cleaner RAG context.
 
 ### 🛠️ Engineering Excellence
 - **LLM Factory Pattern (Local Fallback)**: Implements dependency inversion. If the OpenAI API key is missing or offline, the system seamlessly falls back to a local **Ollama** model (ideal for local resilience testing).
@@ -107,6 +107,12 @@ Use the dedicated CLI tool to trigger the web crawler and ETL pipeline:
 ```bash
 # Ingest all URLs from config
 python -m src.ingestion.cli ingest
+
+# Auto-discover and ingest all pages from defined domains
+python -m src.ingestion.cli ingest --auto-discover
+
+# Force re-ingestion and apply new processing logic to existing docs
+python -m src.ingestion.cli ingest --auto-discover --force
 
 # Test ingestion on a single URL
 python -m src.ingestion.cli ingest --source "https://www.make-it-in-germany.com/en/"

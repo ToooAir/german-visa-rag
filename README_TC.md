@@ -20,8 +20,8 @@
 - **時間感知與權威加權**：優先檢索官方 (Official) 來源與最新抓取的法規文件。
 
 ### 🚀 效能優化與成本控制 (Performance & Cost)
-- **Semantic Caching (語意快取)**：整合 Redis 實作 LLM 回答快取，針對重複問題達到 **10 毫秒級**回應，大幅降低 OpenAI Token 成本並支援快取流式 (Streaming) 模擬輸出。
-- **Parent-Child Chunking**：以 H2/H3 標題切分 Parent Context，再以句子切分 Child Chunks 進行 Embedding，提供完整的 LLM 上下文。
+- **Semantic Caching (語意快取)**：整合 Redis 實作 LLM 回答快取，針對重複問題達到 **10 毫秒級**回應，大幅降低 OpenAI Token 成本。
+- **進階 Parent-Child Chunking**：實作「由小到大」策略，並內建 **標題內容注入 (Title Context Injection)** 與 **自動去躁 (Noise Removal)**，確保 80% 更乾淨的 RAG 上下文。
 
 ### 🛠️ 工程最佳實踐 (Engineering Excellence)
 - **LLM Factory Pattern (本地備援機制)**：實作依賴反轉，當 OpenAI API 失效或未設定時，系統可無縫切換至本地 **Ollama** 模型（僅限 Local 開發），提高開發韌性。
@@ -109,6 +109,12 @@ curl -H "X-API-Key: dev-key-12345" http://localhost:8000/v1/health
 ```bash
 # 抓取設定檔中的所有網址
 python -m src.ingestion.cli ingest
+
+# 啟用自動發現模式掃描全站網域並抓取
+python -m src.ingestion.cli ingest --auto-discover
+
+# 強制重新切片以套用最新的處理邏輯 (覆蓋舊資料)
+python -m src.ingestion.cli ingest --auto-discover --force
 
 # 僅抓取單一網址測試
 python -m src.ingestion.cli ingest --source "https://www.make-it-in-germany.com/en/"

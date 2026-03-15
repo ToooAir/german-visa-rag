@@ -175,6 +175,11 @@ gcloud run jobs deploy german-visa-rag-job-prod \
   --set-secrets=OPENAI_API_KEY=openai-api-key:latest \
   --set-secrets=QDRANT_URL=qdrant-url:latest \
   --set-secrets=QDRANT_API_KEY=qdrant-api-key:latest
+
+**3. Advanced Ingestion Options**
+- `--auto-discover`: Search for all URLs within predefined domains.
+- `--force-discover`: Bypass URL discovery cache to find new pages.
+- `--force`: Mandatory re-processing of documents. Useful when chunking logic or noise removal rules change. This will delete old chunks and replace them with new ones.
 ```
 
 **3. Set Schedule (Cloud Scheduler)**

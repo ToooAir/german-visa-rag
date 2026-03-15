@@ -175,6 +175,11 @@ gcloud run jobs deploy german-visa-rag-job-prod \
   --set-secrets=OPENAI_API_KEY=openai-api-key:latest \
   --set-secrets=QDRANT_URL=qdrant-url:latest \
   --set-secrets=QDRANT_API_KEY=qdrant-api-key:latest
+
+**3. 進階攝入選項 (Ingestion Options)**
+- `--auto-discover`: 自動尋找預定義網域下的所有網址。
+- `--force-discover`: 繞過網址掃描快取，尋找新頁面。
+- `--force`: **強制重新處理** 所有文件。當切片邏輯或去躁規則更新時必用，它會刪除舊有無效切片並替換成最新版本。
 ```
 
 **3. 設定排程 (Cloud Scheduler)**

@@ -44,7 +44,8 @@ COPY --from=builder /opt/venv /opt/venv
 # Set environment
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH="/app:$PYTHONPATH"
 
 # Copy application code
 COPY src /app/src

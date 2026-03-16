@@ -44,13 +44,14 @@ COPY --from=builder /opt/venv /opt/venv
 # Set environment
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH="/app:$PYTHONPATH"
+    PYTHONDONTWRITEBYTECODE=1
 
-# Copy application code
+# Copy application code and install root package
+COPY pyproject.toml /app/pyproject.toml
 COPY src /app/src
 COPY README.md /app/README.md
 COPY LICENSE /app/LICENSE
+RUN pip install --no-deps .
 
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser && \

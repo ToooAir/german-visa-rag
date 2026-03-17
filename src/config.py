@@ -105,6 +105,9 @@ class Settings(BaseSettings):
     crawler_respect_robots_txt: bool = Field(default=True, env="CRAWLER_RESPECT_ROBOTS_TXT")
     crawler_discovery_enabled: bool = Field(default=True, env="CRAWLER_DISCOVERY_ENABLED")
     discovery_cache_ttl_hours: int = Field(default=168, env="DISCOVERY_CACHE_TTL_HOURS")
+    
+    # Internal APScheduler (Disable in cloud environments, use external Cron instead)
+    enable_internal_scheduler: bool = Field(default=False, env="ENABLE_INTERNAL_SCHEDULER")
 
     # ============================================
     # Chunking Configuration

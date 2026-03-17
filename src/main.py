@@ -43,11 +43,13 @@ async def lifespan(app: FastAPI):
         await qdrant.ensure_collection_exists()
         logger.info("Qdrant collection initialized")
         
-        # Start scheduler (skip in dev if needed, or keep for testing)
-        if settings.environment != "development":
+        # Start scheduler (skip in cloud if using external cron)
+        if settings.enable_internal_scheduler:
             scheduler = get_scheduler()
             scheduler.start()
-            logger.info("Ingestion scheduler started")
+            logger.info("Internal ingestion scheduler started")
+        else:
+            logger.info("Internal scheduler disabled. Awaiting external cron triggers.")
         
         yield
         
@@ -56,7 +58,7 @@ async def lifespan(app: FastAPI):
         logger.info("Application shutting down")
         
         try:
-            if settings.environment != "development":
+            if settings.enable_internal_scheduler:
                 scheduler = get_scheduler()
                 await scheduler.shutdown()
         except Exception as e:

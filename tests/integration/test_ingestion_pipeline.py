@@ -29,7 +29,9 @@ async def test_full_ingestion_flow():
     # Mock Embedder to return dummy vectors
     with patch("src.ingestion.ingestion_pipeline.embedder.embed_texts", new_callable=AsyncMock) as mock_embed, \
          patch("src.ingestion.ingestion_pipeline.embedder.preflight_check", new_callable=AsyncMock) as mock_preflight:
-        mock_embed.return_value = [[0.1]*1536, [0.1]*1536] # Assume 2 chunks generated
+        async def mock_embed_func(texts, **kwargs):
+            return [[0.1]*1536 for _ in texts]
+        mock_embed.side_effect = mock_embed_func
         mock_preflight.return_value = True
         # Mock Qdrant Upsert
         pipeline.qdrant.ensure_collection_exists = AsyncMock()

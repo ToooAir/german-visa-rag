@@ -4,7 +4,7 @@ authority-based filtering, and recency weighting.
 """
 
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import numpy as np
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -90,7 +90,7 @@ class HybridRetriever:
             
             # Step 4: Enrich with computed metadata and recency weighting
             enriched_results = []
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             
             for result in results:
                 payload = result["payload"]

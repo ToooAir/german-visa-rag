@@ -6,7 +6,7 @@ Ensures no duplicate chunks are ingested.
 
 import json
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
 from contextlib import contextmanager

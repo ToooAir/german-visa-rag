@@ -6,7 +6,7 @@ Advanced chunking strategy: Parent-Child (Small-to-Big) chunking.
 
 from typing import List, Dict, Optional, Tuple
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from src.config import settings
 from src.logger import logger
@@ -190,7 +190,7 @@ class ParentChildChunker:
             List of Chunk objects (parent + children)
         """
         chunks = []
-        fetched_at = datetime.utcnow()
+        fetched_at = datetime.now(timezone.utc)
         
         # Step 0: Clean markdown noise
         markdown_text = self.clean_markdown(markdown_text)

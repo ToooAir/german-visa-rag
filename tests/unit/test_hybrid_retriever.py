@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 from src.rag.hybrid_retriever import HybridRetriever
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 @pytest.mark.asyncio
 async def test_retriever_recency_and_authority_weighting():
@@ -16,7 +16,7 @@ async def test_retriever_recency_and_authority_weighting():
             "score": 0.8,
             "payload": {
                 "authority_level": "official",
-                "fetched_at": datetime.utcnow().isoformat(), # Very recent
+                "fetched_at": datetime.now(timezone.utc).isoformat(), # Very recent
                 "text": "Doc 1"
             }
         },
@@ -25,7 +25,7 @@ async def test_retriever_recency_and_authority_weighting():
             "score": 0.8, # Same base score
             "payload": {
                 "authority_level": "third_party",
-                "fetched_at": (datetime.utcnow() - timedelta(days=200)).isoformat(), # Old
+                "fetched_at": (datetime.now(timezone.utc) - timedelta(days=200)).isoformat(), # Old
                 "text": "Doc 2"
             }
         }

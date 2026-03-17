@@ -4,7 +4,7 @@ import pytest
 import json
 import time
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from src.storage.sqlite_state_store import SQLiteStateStore
@@ -72,7 +72,7 @@ class TestDiscoveryCacheStore:
         # Manually backdate the discovered_at timestamp
         with store._get_connection() as conn:
             cursor = conn.cursor()
-            old_time = (datetime.utcnow() - timedelta(hours=25)).strftime(
+            old_time = (datetime.now(timezone.utc) - timedelta(hours=25)).strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
             cursor.execute(

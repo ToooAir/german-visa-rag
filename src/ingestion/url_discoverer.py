@@ -11,7 +11,7 @@ from typing import List, Set, Optional, Dict, Any
 from urllib.parse import urljoin, urlparse
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 from bs4 import BeautifulSoup
@@ -237,7 +237,7 @@ class DiscoveryResult:
     from_crawling: int = 0
     filtered_out: int = 0
     from_cache: bool = False
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class URLDiscoverer:

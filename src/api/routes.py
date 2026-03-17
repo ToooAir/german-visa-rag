@@ -5,7 +5,7 @@ Implements /v1/chat/completions for seamless integration with OpenAI SDKs.
 
 from typing import Optional, List, Dict, Any
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from fastapi import APIRouter, HTTPException, status, Depends, Header
@@ -252,7 +252,7 @@ async def health_check():
         
         return HealthResponse(
             status="healthy" if all_ok else "degraded",
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             version="0.1.0",
             dependencies=dependencies,
         )
@@ -261,7 +261,7 @@ async def health_check():
         logger.error(f"Health check failed: {e}")
         return HealthResponse(
             status="unhealthy",
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             version="0.1.0",
             dependencies={"error": str(e)},
         )
@@ -274,7 +274,7 @@ async def get_stats(x_api_key: str = Depends(auth.verify_api_key)):
     stats = state_store.get_stats()
     
     return {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "statistics": stats,
     }
 

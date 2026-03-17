@@ -5,7 +5,7 @@ robots.txt compliance, and recursive discovery-based crawling.
 """
 
 from typing import Optional, Dict, Any, List, Set
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 from urllib.parse import urlparse, urljoin
 import httpx
@@ -24,13 +24,13 @@ class RateLimiter:
     def __init__(self, requests_per_second: float):
         self.rate = requests_per_second
         self.tokens = requests_per_second
-        self.last_update = datetime.utcnow()
+        self.last_update = datetime.now(timezone.utc)
         self.lock = asyncio.Lock()
 
     async def acquire(self):
         """Acquire permission to make request."""
         async with self.lock:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             elapsed = (now - self.last_update).total_seconds()
             
             # Refill tokens
@@ -310,7 +310,7 @@ class WebCrawler:
                 "html": html_content,
                 "markdown": markdown,
                 "metadata": metadata,
-                "fetched_at": datetime.utcnow().isoformat(),
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
             }
             
         except Exception as e:

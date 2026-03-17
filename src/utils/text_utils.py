@@ -5,11 +5,11 @@ from typing import List
 
 
 def normalize_whitespace(text: str) -> str:
-    """Normalize whitespace: collapse multiple spaces/newlines."""
-    # Remove extra whitespace
-    text = re.sub(r'\s+', ' ', text)
-    # Preserve paragraph breaks
-    text = re.sub(r' \n ', '\n\n', text)
+    """Normalize whitespace: collapse multiple spaces but preserve newlines."""
+    # Collapse 3 or more newlines to 2 newlines
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    # Replace multiple spaces with a single space (excluding newlines)
+    text = re.sub(r'[ \t]+', ' ', text)
     return text.strip()
 
 

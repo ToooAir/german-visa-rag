@@ -19,7 +19,7 @@ def test_split_by_headers():
 
 def test_chunk_document_parent_child_relationship():
     """Test if parent and child chunks are correctly created."""
-    chunker = ParentChildChunker(child_chunk_size=50)
+    chunker = ParentChildChunker(child_chunk_size=50, min_child_length=10)
     markdown = "## Visa Rules\nThis is sentence one. This is sentence two. This is sentence three."
     
     chunks = chunker.chunk_document(

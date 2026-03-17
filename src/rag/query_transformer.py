@@ -164,7 +164,7 @@ class QueryTransformer:
         # German
         if any(char in query.lower() for char in ["ä", "ö", "ü", "ß"]):
             languages.append("de")
-        elif re.search(r"\b(der|die|das|und|in|zu|mit)\b", query.lower()):
+        elif re.search(r"\b(der|die|das|und|in|zu|mit|ein|eine|wie|ich)\b", query.lower()):
             languages.append("de")
         
         # English (default if no other detected)

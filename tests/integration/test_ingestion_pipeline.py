@@ -27,12 +27,24 @@ async def test_full_ingestion_flow():
     })
     
     # Mock Embedder to return dummy vectors
-    with patch("src.ingestion.ingestion_pipeline.embedder.embed_texts", new_callable=AsyncMock) as mock_embed:
+    with patch("src.ingestion.ingestion_pipeline.embedder.embed_texts", new_callable=AsyncMock) as mock_embed, \
+         patch("src.ingestion.ingestion_pipeline.embedder.preflight_check", new_callable=AsyncMock) as mock_preflight:
         mock_embed.return_value = [[0.1]*1536, [0.1]*1536] # Assume 2 chunks generated
-        
+        mock_preflight.return_value = True
         # Mock Qdrant Upsert
         pipeline.qdrant.ensure_collection_exists = AsyncMock()
         pipeline.qdrant.upsert_points = AsyncMock()
+        pipeline.qdrant.delete_by_filter = AsyncMock()
+        
+        # Mock State Store
+        pipeline.state_store.register_source_document = MagicMock(return_value="doc_123")
+        pipeline.state_store.mark_document_processing = MagicMock()
+        pipeline.state_store.get_document_metadata = MagicMock(return_value={
+            "status": "ingested",
+            "content_hash": "dummy_hash"
+        })
+        pipeline.state_store.mark_document_ingested = MagicMock()
+        pipeline.state_store.get_stats = MagicMock(return_value={"total_ingestion_runs": 1})
         
         # 3. Run Pipeline
         source_docs = [{
@@ -42,7 +54,7 @@ async def test_full_ingestion_flow():
             "visa_types": ["chancenkarte"]
         }]
         
-        result = await pipeline.run_full_ingestion(source_docs, triggered_by="pytest")
+        result = await pipeline.run_full_ingestion(source_docs, triggered_by="pytest", force=True)
         
         # 4. Assertions
         assert result["success"] == True

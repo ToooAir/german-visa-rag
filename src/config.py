@@ -3,9 +3,9 @@ Configuration management with environment variable support.
 Centralized settings for LLM, Vector DB, Cache, and Observability.
 """
 
-from typing import Literal, Optional
-from pydantic_settings import BaseSettings
-from pydantic import Field, validator
+from typing import Literal, Optional, List, Union
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
 import os
 from pathlib import Path
 
@@ -82,7 +82,8 @@ class Settings(BaseSettings):
     # API Security
     # ============================================
     api_key: str = Field(default="dev-key-12345", env="API_KEY")
-    api_key_header: str = Field(default="X-API-Key", env="API_KEY_HEADER")
+    api_key_header: str = Field(default="X-API-Key", validation_alias="API_KEY_HEADER")
+    allowed_hosts: Union[List[str], str] = Field(default=["*"], validation_alias="ALLOWED_HOSTS")
 
     # ============================================
     # Ingestion Pipeline
@@ -149,17 +150,28 @@ class Settings(BaseSettings):
     seed_urls_path: Path = Field(default=Path("src/ingestion/seed_urls.yml"), env="SEED_URLS_PATH")
     logs_dir: Path = Field(default=Path("./logs"), env="LOGS_DIR")
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
-    @validator("sqlite_db_path", "logs_dir", pre=True)
+    @field_validator("sqlite_db_path", "logs_dir", mode="before")
+    @classmethod
     def ensure_path_exists(cls, v):
         """Ensure directories exist."""
         p = Path(v)
         p.parent.mkdir(parents=True, exist_ok=True)
         return p
+
+    @field_validator("allowed_hosts", mode="before")
+    @classmethod
+    def parse_allowed_hosts(cls, v):
+        """Parse ALLOWED_HOSTS from comma-separated string if provided as string."""
+        if isinstance(v, str):
+            return [host.strip() for host in v.split(",") if host.strip()]
+        return v
 
     def __init__(self, **data):
         super().__init__(**data)

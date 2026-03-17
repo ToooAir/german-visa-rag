@@ -61,9 +61,10 @@ Thumbs.db
 data/*.db
 data/*.sqlite
 data/*.jsonl
-storage/
-qdrant_storage/
-vector_db/
+/storage/
+/qdrant_storage/
+/vector_db/
+*.snapshot
 *.log
 logs/
 

@@ -1,0 +1,287 @@
+"""
+Embedding service with OpenAI + Ollama fallback support.
+Handles dense vector generation for RAG retrieval.
+Includes quota guard (preflight check) and 429 circuit breaker.
+"""
+
+import asyncio
+import re
+from typing import List, Tuple, Optional
+from abc import ABC, abstractmethod
+import numpy as np
+from tenacity import retry, stop_after_attempt, wait_exponential
+import httpx
+
+from src.config import settings
+from src.logger import logger
+
+
+class QuotaExhaustedError(Exception):
+    """Raised when embedding API quota is exhausted (HTTP 429)."""
+
+    def __init__(self, wait_seconds: int = 0, message: str = ""):
+        self.wait_seconds = wait_seconds
+        detail = f" Retry after {wait_seconds}s." if wait_seconds else ""
+        super().__init__(f"Embedding API quota exhausted.{detail} {message}".strip())
+
+
+class EmbedderBase(ABC):
+    """Base class for embedding providers."""
+
+    @abstractmethod
+    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for list of texts."""
+        pass
+
+    @abstractmethod
+    async def embed_single(self, text: str) -> List[float]:
+        """Generate embedding for single text."""
+        pass
+
+
+class OpenAIEmbedder(EmbedderBase):
+    """OpenAI Embedding Service using text-embedding-3-small."""
+
+    def __init__(
+        self, 
+        api_key: str, 
+        model: str = "text-embedding-3-small", 
+        base_url: Optional[str] = None,
+        is_azure: bool = False,
+        azure_endpoint: Optional[str] = None,
+        azure_api_version: Optional[str] = None,
+        azure_deployment: Optional[str] = None,
+    ):
+        self.api_key = api_key
+        self.model = model
+        self.base_url = base_url or settings.openai_api_base
+        self.is_azure = is_azure
+        self.azure_endpoint = azure_endpoint
+        self.azure_api_version = azure_api_version
+        self.azure_deployment = azure_deployment
+        self.client = None
+
+    async def _get_client(self):
+        """Lazy-initialize async OpenAI or AzureOpenAI client."""
+        if self.client is None:
+            if self.is_azure:
+                from openai import AsyncAzureOpenAI
+                self.client = AsyncAzureOpenAI(
+                    api_key=self.api_key,
+                    azure_endpoint=self.azure_endpoint,
+                    api_version=self.azure_api_version,
+                    azure_deployment=self.azure_deployment,
+                )
+            else:
+                from openai import AsyncOpenAI
+                self.client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+        return self.client
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """
+        Embed multiple texts with OpenAI API with retry logic.
+        Raises QuotaExhaustedError on 429 instead of retrying.
+        
+        Args:
+            texts: List of strings to embed
+            
+        Returns:
+            List of embedding vectors (1536-dimensional)
+            
+        Raises:
+            QuotaExhaustedError: When API returns 429 rate limit error
+        """
+        if not texts:
+            return []
+
+        client = await self._get_client()
+        
+        try:
+            response = await client.embeddings.create(
+                input=texts,
+                model=self.model,
+            )
+            
+            # Sort by index to maintain order
+            embeddings = sorted(response.data, key=lambda x: x.index)
+            return [emb.embedding for emb in embeddings]
+            
+        except Exception as e:
+            # Detect 429 rate limit errors and raise QuotaExhaustedError
+            error_str = str(e)
+            if "429" in error_str or "RateLimit" in error_str:
+                wait_seconds = self._parse_wait_seconds(error_str)
+                raise QuotaExhaustedError(
+                    wait_seconds=wait_seconds,
+                    message=f"Provider: {'Azure' if self.is_azure else 'OpenAI'}",
+                ) from e
+            
+            logger.error(f"OpenAI embedding failed: {e}", extra={"texts_count": len(texts)})
+            raise
+
+    @staticmethod
+    def _parse_wait_seconds(error_message: str) -> int:
+        """Extract wait time from 429 error messages."""
+        match = re.search(r"wait\s+(\d+)\s*seconds?", error_message, re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+        return 0
+
+    async def embed_single(self, text: str) -> List[float]:
+        """Embed single text."""
+        result = await self.embed_texts([text])
+        return result[0] if result else []
+
+
+class OllamaEmbedder(EmbedderBase):
+    """Local Ollama Embedding Service (fallback)."""
+
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "mistral"):
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.client = httpx.AsyncClient(timeout=60.0)
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """Embed texts using local Ollama API."""
+        if not texts:
+            return []
+
+        embeddings = []
+        for text in texts:
+            try:
+                response = await self.client.post(
+                    f"{self.base_url}/api/embeddings",
+                    json={"model": self.model, "prompt": text},
+                )
+                response.raise_for_status()
+                data = response.json()
+                embeddings.append(data.get("embedding", []))
+                
+            except Exception as e:
+                logger.error(f"Ollama embedding failed for text: {e}")
+                raise
+
+        return embeddings
+
+    async def embed_single(self, text: str) -> List[float]:
+        """Embed single text."""
+        result = await self.embed_texts([text])
+        return result[0] if result else []
+
+    async def close(self):
+        """Close async client."""
+        await self.client.aclose()
+
+
+class EmbedderFactory:
+    """Factory for creating embedder instances."""
+
+    _instance: Optional["Embedder"] = None
+
+    @classmethod
+    def get_embedder(cls) -> "Embedder":
+        """Get or create singleton embedder instance."""
+        if cls._instance is None:
+            cls._instance = Embedder()
+        return cls._instance
+
+    @classmethod
+    def reset(cls):
+        """Reset singleton instance (for testing)."""
+        cls._instance = None
+
+
+class Embedder:
+    """Unified embedder interface with automatic fallback."""
+
+    def __init__(self):
+        if settings.use_azure_openai:
+            self.primary = OpenAIEmbedder(
+                api_key=settings.azure_openai_api_key,
+                model=settings.embedding_model,
+                is_azure=True,
+                azure_endpoint=settings.azure_openai_endpoint,
+                azure_api_version=settings.azure_openai_api_version,
+                azure_deployment=settings.azure_embedding_deployment,
+            )
+            logger.info(f"Azure OpenAI embedder initialized (deployment: {settings.azure_embedding_deployment})")
+        else:
+            self.primary = OpenAIEmbedder(
+                api_key=settings.openai_api_key,
+                model=settings.embedding_model,
+                base_url=settings.openai_api_base,
+            )
+            logger.info("Standard OpenAI embedder initialized")
+        
+        self.fallback = None
+        if settings.use_ollama:
+            self.fallback = OllamaEmbedder(
+                base_url=settings.ollama_base_url,
+                model=settings.ollama_model,
+            )
+            logger.info("Ollama embedder initialized as fallback")
+
+    async def preflight_check(self) -> bool:
+        """
+        Pre-flight check: verify embedding API is reachable and has quota.
+        Sends a single-word embedding request before committing to full ingestion.
+        
+        Returns:
+            True if API is available, False otherwise
+            
+        Raises:
+            QuotaExhaustedError: If the API returns 429
+        """
+        try:
+            logger.info("Running embedding API preflight check...")
+            await self.primary.embed_texts(["preflight"])
+            logger.info("✅ Embedding API preflight check passed")
+            return True
+        except QuotaExhaustedError:
+            # Re-raise quota errors — caller should handle these
+            raise
+        except Exception as e:
+            logger.error(f"❌ Embedding API preflight check failed: {e}")
+            return False
+
+    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """
+        Embed texts with fallback support.
+        
+        Tries primary (OpenAI/Azure) first, falls back to Ollama if configured.
+        Propagates QuotaExhaustedError without fallback (quota issue, not transient).
+        """
+        if not texts:
+            return []
+
+        try:
+            logger.debug(f"Embedding {len(texts)} texts with primary embedder")
+            return await self.primary.embed_texts(texts)
+            
+        except QuotaExhaustedError:
+            # Quota errors should NOT fall back — they affect billing/account level
+            raise
+            
+        except Exception as e:
+            logger.warning(f"Primary embedder failed: {e}")
+            
+            if self.fallback:
+                try:
+                    logger.info("Falling back to Ollama embedder")
+                    return await self.fallback.embed_texts(texts)
+                except Exception as fallback_error:
+                    logger.error(f"Fallback embedder also failed: {fallback_error}")
+                    raise
+            else:
+                raise
+
+    async def embed_single(self, text: str) -> List[float]:
+        """Embed single text."""
+        result = await self.embed_texts([text])
+        return result[0] if result else []
+
+
+# Singleton instance
+embedder = EmbedderFactory.get_embedder()

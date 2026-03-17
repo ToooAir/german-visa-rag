@@ -138,7 +138,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 if not settings.debug:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "example.com"],
+        allowed_hosts=settings.allowed_hosts,
     )
 
 

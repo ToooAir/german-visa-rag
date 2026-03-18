@@ -18,6 +18,10 @@ from src.storage.redis_cache import query_cache
 from src.api.routes import router, query_router, admin_router
 from src.ingestion.scheduler import get_scheduler
 from src.vector_db.qdrant_client_wrapper import get_qdrant_client
+import httpx
+from src.ingestion.url_discoverer import URLDiscoverer
+from src.rag.hybrid_retriever import HybridRetriever
+from src.storage.sqlite_state_store import get_state_store
 
 
 # ============================================
@@ -37,9 +41,28 @@ async def lifespan(app: FastAPI):
         }
     )
     
+    # Initialize global HTTP client
+    http_client = httpx.AsyncClient(
+        timeout=settings.crawler_timeout_seconds,
+        follow_redirects=True,
+        limits=httpx.Limits(
+            max_keepalive_connections=5,
+            max_connections=10,
+        ),
+    )
+    app.state.http_client = http_client
+    
     try:
-        # Initialize Qdrant collection
+        # Initialize dependencies
+        state_store = get_state_store()
+        app.state.url_discoverer = URLDiscoverer(client=http_client, state_store=state_store)
         qdrant = get_qdrant_client()
+        app.state.hybrid_retriever = HybridRetriever(qdrant_client=qdrant)
+        
+        from src.rag.answer_generator import AnswerGenerator
+        app.state.answer_generator = AnswerGenerator(retriever=app.state.hybrid_retriever)
+
+        # Initialize Qdrant collection
         await qdrant.ensure_collection_exists()
         logger.info("Qdrant collection initialized")
         
@@ -57,6 +80,11 @@ async def lifespan(app: FastAPI):
         # Shutdown
         logger.info("Application shutting down")
         
+        try:
+            await app.state.http_client.aclose()
+        except Exception as e:
+            logger.warning(f"Error closing HTTP client: {e}")
+
         try:
             if settings.enable_internal_scheduler:
                 scheduler = get_scheduler()

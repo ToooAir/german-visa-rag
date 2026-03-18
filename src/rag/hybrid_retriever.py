@@ -98,15 +98,18 @@ class HybridRetriever:
                 # Recency weighting: prefer more recent documents
                 fetched_at = datetime.fromisoformat(payload.get("fetched_at", now.isoformat()))
                 days_old = (now - fetched_at).days
-                recency_penalty = 1.0 - (min(days_old, 365) / 365.0) * 0.1  # Max 10% penalty
+                
+                max_days = settings.rag_recency_penalty_days
+                penalty_max = settings.rag_recency_penalty_max
+                recency_penalty = 1.0 - (min(days_old, max_days) / float(max_days)) * penalty_max
                 
                 # Authority boost: prefer official sources
                 authority_level = payload.get("authority_level", "third_party")
                 authority_boost = {
-                    "official": 1.2,
-                    "semi_official": 1.0,
-                    "third_party": 0.8,
-                }.get(authority_level, 0.8)
+                    "official": settings.rag_authority_boost_official,
+                    "semi_official": settings.rag_authority_boost_semi,
+                    "third_party": settings.rag_authority_boost_third_party,
+                }.get(authority_level, settings.rag_authority_boost_third_party)
                 
                 adjusted_score = result["score"] * recency_penalty * authority_boost
                 
@@ -170,16 +173,7 @@ class HybridRetriever:
         ]
 
 
-# Singleton instance
-retriever = None
-
-
-def get_retriever(qdrant_client: Optional[QdrantWrapper] = None) -> HybridRetriever:
-    """Get or create retriever singleton."""
-    global retriever
-    if retriever is None:
-        retriever = HybridRetriever(qdrant_client)
-    return retriever
+# Singleton instance removed in favor of Dependency Injection
 
 
 # Import asyncio at module level for batch operations

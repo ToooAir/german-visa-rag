@@ -166,7 +166,7 @@ class TestURLDiscovererCache:
             from_cache=True,
         )
 
-        discoverer = URLDiscoverer()
+        discoverer = URLDiscoverer(client=AsyncMock(), state_store=MagicMock())
         discoverer._get_cached_result = MagicMock(return_value=cached_result)
         discoverer.sitemap_parser.discover_from_sitemap = AsyncMock()
 
@@ -181,7 +181,7 @@ class TestURLDiscovererCache:
     @pytest.mark.asyncio
     async def test_bypasses_cache_on_force_refresh(self, mock_strategy):
         """force_refresh=True should skip cache and run full discovery."""
-        discoverer = URLDiscoverer()
+        discoverer = URLDiscoverer(client=AsyncMock(), state_store=MagicMock())
         discoverer._get_cached_result = MagicMock(return_value=None)
         discoverer._save_to_cache = MagicMock()
         discoverer.sitemap_parser.discover_from_sitemap = AsyncMock(
@@ -204,7 +204,7 @@ class TestURLDiscovererCache:
     @pytest.mark.asyncio
     async def test_runs_discovery_on_cache_miss(self, mock_strategy):
         """When cache returns None, full discovery should run."""
-        discoverer = URLDiscoverer()
+        discoverer = URLDiscoverer(client=AsyncMock(), state_store=MagicMock())
         discoverer._get_cached_result = MagicMock(return_value=None)
         discoverer._save_to_cache = MagicMock()
         discoverer.sitemap_parser.discover_from_sitemap = AsyncMock(

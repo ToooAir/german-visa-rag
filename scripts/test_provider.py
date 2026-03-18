@@ -2,7 +2,9 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from src.llm.openai_client import OpenAIClient
-from src.vector_db.embedder import OpenAIEmbedder
+from src.vector_db.embedder import OpenAIEmbedder, QuotaExhaustedError
+import openai
+import json
 
 async def test_provider(provider_name, use_azure):
     """
@@ -69,8 +71,35 @@ async def test_provider(provider_name, use_azure):
         res = await llm.call_non_streaming([{"role": "user", "content": "Say 'Provider OK'"}])
         print(f"✅ Chat Success: {res.strip()}")
 
+    except QuotaExhaustedError as e:
+        print(f"❌ {provider_name} Quota Exhausted!")
+        print(f"   Reason: Your API key has run out of credits or hit a hard limit.")
+        if e.wait_seconds > 0:
+            print(f"   Recovery: Try again in {e.wait_seconds} seconds.")
+        else:
+            print(f"   Recovery: Check your billing dashboard at https://platform.openai.com/account/billing")
+        print(f"   Detail: {str(e)}")
+
+    except openai.RateLimitError as e:
+        print(f"❌ {provider_name} Rate Limit Reached!")
+        # Attempt to extract reset time from headers if available
+        headers = getattr(e, 'response', {}).headers if hasattr(e, 'response') else {}
+        reset_requests = headers.get('x-ratelimit-reset-requests')
+        reset_tokens = headers.get('x-ratelimit-reset-tokens')
+        
+        print(f"   Reason: Too many requests (RPM/TPM limit).")
+        if reset_requests:
+            print(f"   Recovery (Requests): Resets in {reset_requests}")
+        if reset_tokens:
+            print(f"   Recovery (Tokens): Resets in {reset_tokens}")
+        if not reset_requests and not reset_tokens:
+            print(f"   Detail: {str(e)}")
+
+    except openai.AuthenticationError:
+        print(f"❌ {provider_name} Authentication Failed: Invalid API Key.")
+        
     except Exception as e:
-        print(f"❌ {provider_name} Failed: {str(e)}")
+        print(f"❌ {provider_name} Failed: {type(e).__name__}: {str(e)}")
 
 async def main():
     print("Starting Connectivity Tests for German Visa RAG Providers...")

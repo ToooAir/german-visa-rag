@@ -249,17 +249,12 @@ class URLDiscoverer:
     Uses SQLite-backed cache to avoid expensive re-discovery.
     """
 
-    def __init__(self):
+    def __init__(self, client: httpx.AsyncClient, state_store=None):
+        from src.storage.sqlite_state_store import get_state_store
         self.registry = get_strategy_registry()
-        self.client = httpx.AsyncClient(
-            timeout=settings.crawler_timeout_seconds,
-            follow_redirects=True,
-            limits=httpx.Limits(
-                max_keepalive_connections=5,
-                max_connections=10,
-            ),
-        )
+        self.client = client
         self.sitemap_parser = SitemapParser(self.client)
+        self.state_store = state_store or get_state_store()
 
     async def discover_all(
         self,
@@ -375,9 +370,7 @@ class URLDiscoverer:
         strategy: DomainCrawlStrategy,
     ) -> Optional[DiscoveryResult]:
         """Check SQLite cache for fresh discovery results."""
-        from src.storage.sqlite_state_store import get_state_store
-
-        state_store = get_state_store()
+        state_store = self.state_store
         ttl = settings.discovery_cache_ttl_hours
         cached = state_store.get_cached_discovery(strategy.domain, max_age_hours=ttl)
 
@@ -408,9 +401,7 @@ class URLDiscoverer:
         scored_urls: List[tuple],
     ):
         """Persist discovery results to SQLite cache."""
-        from src.storage.sqlite_state_store import get_state_store
-
-        state_store = get_state_store()
+        state_store = self.state_store
         urls_with_metadata = []
 
         # Build a set for quick lookup of sitemap-discovered URLs
@@ -512,13 +503,5 @@ class URLDiscoverer:
         await self.client.aclose()
 
 
-# Singleton
-_discoverer = None
+# Singleton instance removed in favor of Dependency Injection
 
-
-def get_url_discoverer() -> URLDiscoverer:
-    """Get or create URL discoverer singleton."""
-    global _discoverer
-    if _discoverer is None:
-        _discoverer = URLDiscoverer()
-    return _discoverer

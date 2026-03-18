@@ -12,7 +12,7 @@ from src.config import settings
 from src.logger import logger
 from src.exceptions import LLMGenerationError
 from src.storage.redis_cache import query_cache
-from src.rag.hybrid_retriever import get_retriever
+from src.rag.hybrid_retriever import HybridRetriever
 from src.rag.query_transformer import get_query_transformer
 from src.rag.reranker import get_reranker
 from src.rag.prompt_builder import get_prompt_builder
@@ -33,8 +33,8 @@ class AnswerGenerator:
     6. Observability & Cache Update
     """
 
-    def __init__(self):
-        self.retriever = get_retriever()
+    def __init__(self, retriever: HybridRetriever):
+        self.retriever = retriever
         self.query_transformer = get_query_transformer()
         self.reranker = get_reranker()
         self.prompt_builder = get_prompt_builder()
@@ -367,12 +367,5 @@ class AnswerGenerator:
         return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
 
 
-# Singleton
-_generator: Optional[AnswerGenerator] = None
+# Singleton instance removed in favor of Dependency Injection
 
-def get_answer_generator() -> AnswerGenerator:
-    """Get answer generator instance."""
-    global _generator
-    if _generator is None:
-        _generator = AnswerGenerator()
-    return _generator

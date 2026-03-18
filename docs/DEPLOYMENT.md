@@ -1,301 +1,106 @@
 # 🇩🇪 German Visa RAG - Deployment Guide
 
-This project is designed for **Stateless** and **Serverless** environments. To ensure system stability, the production architecture is split into:
-1. **Web API**: Deployed as a `Cloud Run Service`, handling real-time Q&A from front-end users.
-2. **ETL Crawler Task**: Deployed as a `Cloud Run Job`, partnered with Cloud Scheduler to run periodic web scraping tasks, avoiding Serverless CPU Throttling.
+> [!NOTE]
+> **Deployment Status**: 
+> - **Local Docker Environment**: ✅ **Fully Verified**. Guaranteed to work out of the box.
+> - **Zeabur Deployment**: 🚀 **Recommended** for production/demo (Currently being integrated).
+> - **GCP Cloud Run**: 🏛️ **Architectural Reference**. Detailed blueprint for enterprise-grade serverless infra.
 
 ---
 
 ## Table of Contents
 
-- [Local Development](#local-development)
-- [Docker Build](#docker-build)
-- [GCP Cloud Run Deployment](#gcp-cloud-run-deployment)
-- [Production Checklist](#production-checklist)
-- [Troubleshooting](#troubleshooting)
-- [Monitoring and Logging](#monitoring-and-logging)
-- [Rollback](#rollback)
-- [Cost Optimization](#cost-optimization)
-- [Support](#support)
+- [1. Local Development (Verified)](#1-local-development-verified)
+- [2. Zeabur Deployment (Production Demo)](#2-zeabur-deployment-production-demo)
+- [3. GCP Cloud Run (Cloud-Native Reference)](#3-gcp-cloud-run-cloud-native-reference)
+- [4. Production Checklist](#4-production-checklist)
+- [5. Troubleshooting & Support](#5-troubleshooting--support)
 
 ---
 
-## Local Development
+## 1. Local Development (Verified)
+
+This is the fastest way to run the entire RAG stack (API + Vector DB + Cache) on your own machine.
 
 ### Quick Start
-
 ```bash
-# 1. Clone and Setup
-git clone https://github.com/yourusername/german-visa-rag.git
-cd german-visa-rag
-
-# 2. Copy environment variables
+# 1. Setup
 cp .env.example .env
+# Edit .env and insert your OPENAI_API_KEY
 
-# 3. Edit .env and fill in OPENAI_API_KEY
-nano .env
-
-# 4. Start all services (API, Qdrant, Redis, MLflow)
+# 2. Spin up Services
 docker-compose up -d
 
-# 5. Verify API Status
+# 3. Verify API
 curl -H "X-API-Key: dev-key-12345" http://localhost:8000/v1/health
 
-# 6. Manually trigger CLI crawler (scraping URLs from config)
-python -m src.ingestion.cli ingest
-```
-
-### Development Workflow
-
-```bash
-# Enter the container for development
-docker-compose exec api bash
-
-# Run tests and coverage
-pytest tests/ -v --cov=src
-
-# Run Lint
-black src/ tests/
-ruff check src/
-
-# Run Evaluation
-python -m eval.ragas_evaluator eval/eval_dataset.json
+# 4. Ingest Data (CLI)
+python -m src.ingestion.cli ingest --auto-discover
 ```
 
 ---
 
-## Docker Build
+## 2. Zeabur Deployment (Production Demo)
 
-### Multi-Stage Build
+[Zeabur](https://zeabur.com/) is recommended for hosting the "Firepower" demonstration due to its seamless GitHub integration and Docker support.
 
-This project uses a Multi-Stage Dockerfile to optimize the final image. **Note: The Web API and CLI crawler share the same Image**, and the run mode is determined via the Command at runtime, which follows best practices.
+### Step 1: Create New Service
+1. Connect your GitHub repository to Zeabur.
+2. Select the `german-visa-rag` repository.
+3. Zeabur will automatically detect the `Dockerfile` and start the deployment.
 
-```dockerfile
-# Stage 1: builder (contains all build dependencies)
-FROM python:3.11-slim as builder
+### Step 2: Configure Environment Variables
+Set the following variables in the Zeabur dashboard:
+- `OPENAI_API_KEY`: Your OpenAI API key.
+- `QDRANT_URL`: URL to your Qdrant Cloud instance (or a Zeabur-hosted Qdrant).
+- `QDRANT_API_KEY`: Your Qdrant API key.
+- `REDIS_URL`: URL to your Redis instance (for Semantic Caching).
+- `API_KEY`: A secure key for your API (X-API-Key header).
+- `ENVIRONMENT`: `production`
 
-# Stage 2: runner (contains only runtime dependencies)
-FROM python:3.11-slim as runner
-COPY --from=builder /opt/venv /opt/venv
-```
-
----
-
-## GCP Cloud Run Deployment
-
-### Prerequisites
-
-1. **GCP Account** and Project ID
-2. **gcloud CLI** installed and configured
-3. **Qdrant Cloud** instance (Vector Database)
-4. **Redis Instance** (for LLM semantic caching)
-5. **Secret Manager permissions**
-
-### Step 1: Set up GCP Environment
-
-```bash
-export PROJECT_ID="your-gcp-project"
-export REGION="europe-west1"
-
-gcloud auth login
-gcloud config set project $PROJECT_ID
-
-# Enable required APIs
-gcloud services enable run.googleapis.com
-gcloud services enable cloudscheduler.googleapis.com
-gcloud services enable secretmanager.googleapis.com
-```
-
-### Step 2: Create Secret Manager Secrets
-
-For security reasons, do not hardcode secrets in environment variables:
-
-```bash
-# OpenAI API Key
-echo -n "sk-your-api-key" | gcloud secrets create openai-api-key --data-file=-
-
-# Qdrant Configuration
-echo -n "https://your-qdrant-instance.qdrant.io" | gcloud secrets create qdrant-url --data-file=-
-echo -n "your-qdrant-api-key" | gcloud secrets create qdrant-api-key --data-file=-
-
-# Redis URL (Semantic Cache)
-echo -n "redis://your-redis-instance:6379" | gcloud secrets create redis-url --data-file=-
-
-# API System Key
-echo -n "your-secure-api-key" | gcloud secrets create api-key --data-file=-
-```
-
-### Step 3: Deploy to Cloud Run
-
-#### Option A: Using Deployment Script (Auto deploy Service + Job, Recommended)
-
-```bash
-chmod +x scripts/deploy.sh
-
-# Deploy to Staging
-./scripts/deploy.sh -e staging -p $PROJECT_ID -r $REGION
-
-# Deploy to Production
-./scripts/deploy.sh -e production -p $PROJECT_ID -r $REGION
-```
-
-#### Option B: Manual Deployment
-
-If you want to understand the underlying commands, please execute them sequentially:
-
-**1. Deploy Web API (Service)**
-```bash
-gcloud run deploy german-visa-rag-api-prod \
-  --image=gcr.io/$PROJECT_ID/german-visa-rag:latest \
-  --platform=managed \
-  --region=$REGION \
-  --allow-unauthenticated \
-  --memory=4Gi \
-  --cpu=4 \
-  --timeout=600 \
-  --set-env-vars=ENVIRONMENT=production,USE_OLLAMA=false \
-  --set-secrets=OPENAI_API_KEY=openai-api-key:latest \
-  --set-secrets=QDRANT_URL=qdrant-url:latest \
-  --set-secrets=QDRANT_API_KEY=qdrant-api-key:latest \
-  --set-secrets=REDIS_URL=redis-url:latest \
-  --set-secrets=API_KEY=api-key:latest
-```
-
-**2. Deploy ETL Crawler (Job)**
-```bash
-gcloud run jobs deploy german-visa-rag-job-prod \
-  --image=gcr.io/$PROJECT_ID/german-visa-rag:latest \
-  --region=$REGION \
-  --command="python" \
-  --args="-m,src.ingestion.cli,ingest" \
-  --memory=2Gi \
-  --cpu=2 \
-  --task-timeout=3600 \
-  --set-env-vars=ENVIRONMENT=production,USE_OLLAMA=false \
-  --set-secrets=OPENAI_API_KEY=openai-api-key:latest \
-  --set-secrets=QDRANT_URL=qdrant-url:latest \
-  --set-secrets=QDRANT_API_KEY=qdrant-api-key:latest
-
-**3. Advanced Ingestion Options**
-- `--auto-discover`: Search for all URLs within predefined domains.
-- `--force-discover`: Bypass URL discovery cache to find new pages.
-- `--force`: Mandatory re-processing of documents. Useful when chunking logic or noise removal rules change. This will delete old chunks and replace them with new ones.
-```
-
-**3. Set Schedule (Cloud Scheduler)**
-```bash
-# Set crawler to trigger automatically every Monday at 2 AM
-gcloud scheduler jobs create http german-visa-ingestion-scheduler \
-  --schedule="0 2 * * 1" \
-  --location=$REGION \
-  --uri="https://${REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${PROJECT_ID}/jobs/german-visa-rag-job-prod:run" \
-  --http-method=POST \
-  --oauth-service-account-email="YOUR_COMPUTE_SERVICE_ACCOUNT@developer.gserviceaccount.com"
-```
+### Step 3: Deployment of Ingestion Job
+- **Scheduled Tasks**: You can trigger the ingestion CLI via Zeabur's **Cron Job** feature or by creating a separate deployment for the crawler using the same image but overriding the CMD to: `python -m src.ingestion.cli ingest --auto-discover`.
 
 ---
 
-## Production Checklist
+## 3. GCP Cloud Run (Cloud-Native Reference)
 
-### Pre-deployment
-- [ ] All keys configured in Secret Manager.
-- [ ] Qdrant Cloud and Redis instances created and connection tested.
-- [ ] Test suite passed (`pytest tests/ -v`).
+This section serves as a technical showcase for deploying a high-availability, serverless RAG architecture on Google Cloud Platform.
 
-### Post-deployment
-- [ ] Health check endpoint returns 200 (`/health`).
-- [ ] **Cache Test**: Send the same query twice, verify that the second response latency drops significantly (Redis Cache Hit).
-- [ ] **Job Test**: Verify in Cloud Logging that manual Job execution is successful and has no Errors.
-- [ ] SSE Streaming outputs correctly.
+### Architectural Blueprint
+- **Web API**: Deployed as a `Cloud Run Service` (Auto-scaling, Stateless).
+- **ETL Crawler Task**: Deployed as a `Cloud Run Job` (Prevents CPU Throttling during long scraping tasks).
+- **Secrets Management**: Integrated with `GCP Secret Manager`.
+
+### Key Commands (Reference Only)
+```bash
+# Deploy API Service
+./scripts/deploy.sh -e production -p your-project-id -r europe-west1
+
+# Manual Job Trigger
+gcloud run jobs execute german-visa-rag-job-prod
+```
+*For a deep dive into the GCP deployment scripts, please refer to the `infra/` or `scripts/` directories.*
 
 ---
 
-## Troubleshooting
+## 4. Production Checklist
 
-### 1. Failed to Connect to Qdrant
-```bash
-# Check Qdrant Cloud connection
-curl -H "api-key: your-api-key" https://your-qdrant-instance.qdrant.io/health
-```
-
-### 2. Secret Manager Secrets Inaccessible
-```bash
-# Grant Secret Accessor role to the Service Account
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member=serviceAccount:SERVICE_ACCOUNT@PROJECT_ID.iam.gserviceaccount.com \
-  --role=roles/secretmanager.secretAccessor
-```
-
-### 3. Redis Connection Timeout
-If using GCP Memorystore, Cloud Run must be configured with a **Serverless VPC Access Connector** to access the internal IP.
-```bash
-gcloud run deploy ... --vpc-egress=all-traffic --network=default
-```
-
-### 4. Crawler Job Interrupted / Out of Memory
-If scraping too many webpages:
-- Increase Job timeout limit: `--task-timeout=3600` (1 hour).
-- Increase memory allocation: `--memory=4Gi`.
-
-### 5. Ollama Fails to Start on Cloud
-For production environments, **it is strongly recommended to disable Ollama** (`USE_OLLAMA=false`). Running LLMs in a CPU-only environment will cause severe latency and OOM issues. The fallback mechanism is only for Local development.
+- [ ] **Secret Safety**: No API keys are hardcoded; all are injected via ENV or Secret Manager.
+- [ ] **Vector DB Connection**: Connection to Qdrant Cloud verified.
+- [ ] **Semantic Cache**: Redis instance is reachable (Verify with `DEBUG` logs).
+- [ ] **Citations**: Ensure the frontend displays source links from the `metadata` returned by the API.
+- [ ] **Rate Limiting**: Crawler configured to be polite to official gov websites.
 
 ---
 
-## Monitoring and Logging
+## 5. Troubleshooting & Support
 
-### View Logs
+### Common Issues
+1. **OOM (Out of Memory)**: Ensure the container has at least 2GB of RAM if running the Reranker or Query Transformer.
+2. **Qdrant Connection Timeout**: Check if Qdrant Cloud Whitelist allows your deployment's IP (or set up VPC peering).
+3. **Invalid API Key**: Verify `X-API-Key` header matches the `API_KEY` environment variable.
 
-```bash
-# View real-time logs for the API service
-gcloud run logs read german-visa-rag-api-prod --limit=100 --follow
-
-# View Crawler Job logs
-gcloud run logs read german-visa-rag-job-prod --limit=50 | grep ERROR
-```
-
-### Monitoring Metrics
-Visit GCP Console > Monitoring > Dashboards, and pay attention to the following metrics:
-- Request latency (p50, p95, p99)
-- Error rate
-- CPU / Memory utilization
-
----
-
-## Rollback
-
-If there are issues with the deployment, you can rollback the API service to the previous version:
-
-```bash
-# List revisions
-gcloud run revisions list --service=german-visa-rag-api-prod --region=$REGION
-
-# Route traffic to previous version
-gcloud run services update-traffic german-visa-rag-api-prod \
-  --to-revisions=PREVIOUS_REVISION_ID=100 \
-  --region=$REGION
-```
-
----
-
-## Cost Optimization
-
-### Cloud Run
-- **Auto-scaling**: Set `maxScale=10` to scale automatically based on demand.
-- **Request Timeout**: Set a reasonable timeout to avoid wasting resources.
-
-### Qdrant Cloud
-- **Instance Size**: The Free Tier (1GB) is more than enough to handle tens of thousands of Chunks for this project.
-
-### OpenAI API and Redis
-- **Model Selection**: Uses `gpt-4o-mini` by default to significantly reduce costs.
-- **Semantic Caching**: **This is the core of cost reduction!** Caching repeated queries via Redis bypassing OpenAI API calls completely, saving massive amounts in Token costs.
-
----
-
-## Support
-
-Running into issues?
-1. Check the [Troubleshooting](#troubleshooting) section
-2. Check Cloud Run and Job logs
-3. Submit a GitHub Issue
+### Support
+For technical issues, please check the [GitHub Issues](https://github.com/yourusername/german-visa-rag/issues) or consult the system logs.
+Issue

@@ -26,10 +26,18 @@ SYSTEM_PROMPT = """
 【用戶問題】
 {question}
 
+【里程碑偵測】
+如果在對話中偵測到以下進度，請在回答的最末尾（免責聲明之後）附加隱藏標籤，格式為 `[MILESTONE:ID:STATUS]`。
+- 資格初審達成：`[MILESTONE:1:completed]`
+- 積分計算討論中：`[MILESTONE:2:current]`
+- 提及準備文件：`[MILESTONE:3:completed]`
+- 提到預約使館：`[MILESTONE:4:completed]`
+
 【指導方針】
 - 語言：用用戶提問的語言回答。
 - 風格：專業但易理解，避免冗長法律術語。
 - 長度：根據問題複雜度調整，通常 200-500 字。
+- 標籤：標籤必須放在最後，不可隨機出現在正文中。
 """
 
 DISCLAIMER = """

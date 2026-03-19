@@ -72,20 +72,26 @@ async def test_provider(provider_name, use_azure):
         print(f"✅ Chat Success: {res.strip()}")
 
     except QuotaExhaustedError as e:
-        print(f"❌ {provider_name} Quota Exhausted!")
-        print(f"   Reason: Your API key has run out of credits or hit a hard limit.")
+        print(f"❌ {provider_name} Quota/Rate Limit Exhausted!")
+        print(f"   Reason: API key credits exhausted or hard rate limit hit.")
+        
+        # Display new detailed recovery info
+        if e.reset_requests:
+            print(f"   Recovery (Requests): Resets in {e.reset_requests}")
+        if e.reset_tokens:
+            print(f"   Recovery (Tokens): Resets in {e.reset_tokens}")
         if e.wait_seconds > 0:
-            print(f"   Recovery: Try again in {e.wait_seconds} seconds.")
-        else:
+            print(f"   Recovery (Wait): Try again in {e.wait_seconds} seconds.")
+            
+        if not (e.reset_requests or e.reset_tokens or e.wait_seconds > 0):
             print(f"   Recovery: Check your billing dashboard at https://platform.openai.com/account/billing")
         print(f"   Detail: {str(e)}")
 
     except openai.RateLimitError as e:
         print(f"❌ {provider_name} Rate Limit Reached!")
-        # Attempt to extract reset time from headers if available
-        headers = getattr(e, 'response', {}).headers if hasattr(e, 'response') else {}
-        reset_requests = headers.get('x-ratelimit-reset-requests')
-        reset_tokens = headers.get('x-ratelimit-reset-tokens')
+        headers = getattr(e, "response", None).headers if hasattr(e, "response") else {}
+        reset_requests = headers.get("x-ratelimit-reset-requests")
+        reset_tokens = headers.get("x-ratelimit-reset-tokens")
         
         print(f"   Reason: Too many requests (RPM/TPM limit).")
         if reset_requests:
@@ -93,7 +99,12 @@ async def test_provider(provider_name, use_azure):
         if reset_tokens:
             print(f"   Recovery (Tokens): Resets in {reset_tokens}")
         if not reset_requests and not reset_tokens:
-            print(f"   Detail: {str(e)}")
+            # Fallback to parsing message
+            wait_seconds = OpenAIEmbedder._parse_wait_seconds(str(e))
+            if wait_seconds > 0:
+                print(f"   Recovery: Try again in {wait_seconds} seconds.")
+            else:
+                print(f"   Detail: {str(e)}")
 
     except openai.AuthenticationError:
         print(f"❌ {provider_name} Authentication Failed: Invalid API Key.")

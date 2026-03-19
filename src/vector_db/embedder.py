@@ -19,10 +19,27 @@ from src.logger import logger
 class QuotaExhaustedError(Exception):
     """Raised when embedding API quota is exhausted (HTTP 429)."""
 
-    def __init__(self, wait_seconds: int = 0, message: str = ""):
+    def __init__(
+        self,
+        wait_seconds: int = 0,
+        message: str = "",
+        reset_requests: Optional[str] = None,
+        reset_tokens: Optional[str] = None,
+    ):
         self.wait_seconds = wait_seconds
-        detail = f" Retry after {wait_seconds}s." if wait_seconds else ""
-        super().__init__(f"Embedding API quota exhausted.{detail} {message}".strip())
+        self.reset_requests = reset_requests
+        self.reset_tokens = reset_tokens
+
+        details = []
+        if wait_seconds:
+            details.append(f"retry in {wait_seconds}s")
+        if reset_requests:
+            details.append(f"reset requests: {reset_requests}")
+        if reset_tokens:
+            details.append(f"reset tokens: {reset_tokens}")
+
+        detail_str = f" [{', '.join(details)}]" if details else ""
+        super().__init__(f"Embedding API quota exhausted.{detail_str} {message}".strip())
 
 
 class EmbedderBase(ABC):
@@ -74,10 +91,14 @@ class OpenAIEmbedder(EmbedderBase):
                 )
             else:
                 from openai import AsyncOpenAI
-                self.client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+                self.client = AsyncOpenAI(
+                    api_key=self.api_key, 
+                    base_url=self.base_url,
+                    timeout=settings.api_timeout_seconds
+                )
         return self.client
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     async def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """
         Embed multiple texts with OpenAI API with retry logic.
@@ -109,6 +130,21 @@ class OpenAIEmbedder(EmbedderBase):
             
         except Exception as e:
             # Detect 429 rate limit errors and raise QuotaExhaustedError
+            import openai
+
+            if isinstance(e, openai.RateLimitError):
+                headers = getattr(e, "response", None).headers if hasattr(e, "response") else {}
+                reset_requests = headers.get("x-ratelimit-reset-requests")
+                reset_tokens = headers.get("x-ratelimit-reset-tokens")
+                wait_seconds = self._parse_wait_seconds(str(e))
+
+                raise QuotaExhaustedError(
+                    wait_seconds=wait_seconds,
+                    reset_requests=reset_requests,
+                    reset_tokens=reset_tokens,
+                    message=f"Provider: {'Azure' if self.is_azure else 'OpenAI'}",
+                ) from e
+
             error_str = str(e)
             if "429" in error_str or "RateLimit" in error_str:
                 wait_seconds = self._parse_wait_seconds(error_str)
@@ -142,7 +178,7 @@ class OllamaEmbedder(EmbedderBase):
         self.model = model
         self.client = httpx.AsyncClient(timeout=60.0)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     async def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """Embed texts using local Ollama API."""
         if not texts:

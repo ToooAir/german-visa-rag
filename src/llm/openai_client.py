@@ -47,6 +47,7 @@ class OpenAIClient:
             self.client = AsyncOpenAI(
                 api_key=api_key,
                 base_url=self.base_url,
+                timeout=settings.api_timeout_seconds,
             )
             logger.info("Standard OpenAI client initialized")
         
@@ -89,6 +90,7 @@ class OpenAIClient:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type(OpenAIError),
+        reraise=True,
     )
     async def call(
         self,

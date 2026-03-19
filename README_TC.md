@@ -98,13 +98,21 @@ cp .env.example .env
 # (若不填寫且開啟 USE_OLLAMA=true，系統將自動退避至本地模型)
 ```
 
-### 2. 啟動服務
+### 2. 診斷工具 (建議執行)
+在啟動系統前，您可以先驗證 API 連線性與額度狀態 (OpenAI/Azure)：
+```bash
+# 驗證連線性並檢查速率限制/額度
+export PYTHONPATH=$PYTHONPATH:$(pwd) && python scripts/test_provider.py
+```
+此腳本會告知您的 API 金鑰是否有效；若遇到限流 (Rate-limited)，它會顯示具體的重置秒數。
+
+### 3. 啟動服務
 ```bash
 docker-compose up -d
 curl -H "X-API-Key: dev-key-12345" http://localhost:8000/v1/health
 ```
 
-### 3. 觸發資料攝入 (CLI 獨立腳本)
+### 4. 觸發資料攝入 (CLI 獨立腳本)
 本專案提供專業的 CLI 工具來執行資料爬取，適合打包為 Cronjob 或 Serverless Job：
 ```bash
 # 抓取設定檔中的所有網址

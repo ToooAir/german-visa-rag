@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     max_query_tokens: int = Field(default=256, validation_alias="MAX_QUERY_TOKENS")
     max_context_tokens: int = Field(default=4000, validation_alias="MAX_CONTEXT_TOKENS")
     max_response_tokens: int = Field(default=1024, validation_alias="MAX_RESPONSE_TOKENS")
+    api_timeout_seconds: int = Field(default=30, validation_alias="API_TIMEOUT_SECONDS")
 
     # ============================================
     # Ollama (Local LLM Fallback)

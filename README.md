@@ -96,7 +96,15 @@ cp .env.example .env
 # Edit .env and insert your OPENAI_API_KEY
 ```
 
-### 2. Spin Up Services
+### 2. Diagnostic Tools (Optional but Recommended)
+Before starting the system, you can verify your API connectivity and quota status (OpenAI/Azure):
+```bash
+# Verify connectivity and check rate limits/quota
+export PYTHONPATH=$PYTHONPATH:$(pwd) && python scripts/test_provider.py
+```
+This script will tell you if your API key is valid and, if you are rate-limited, exactly how many seconds until reset.
+
+### 3. Spin Up Services
 ```bash
 docker-compose up -d
 curl -H "X-API-Key: dev-key-12345" http://localhost:8000/v1/health

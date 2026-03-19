@@ -192,6 +192,7 @@ class AnswerGenerator:
         logger.info(f"Starting answer generation", extra={"request_id": request_id})
 
         # 0. Check Redis Cache
+        yield self._format_status_chunk("analyzing")
         cached_result = await query_cache.get(query)
         if cached_result:
             logger.info("Streaming from cache", extra={"request_id": request_id})
@@ -201,7 +202,7 @@ class AnswerGenerator:
             for i in range(0, len(answer), chunk_size):
                 yield self._format_sse_chunk(answer[i:i+chunk_size])
                 await asyncio.sleep(0.02)
-            yield "[DONE]"
+            yield "data: [DONE]\n\n"
             return
         
         try:
@@ -210,6 +211,7 @@ class AnswerGenerator:
             main_query = transformed["corrected_query"]
             
             # 2. Hybrid Retrieval
+            yield self._format_status_chunk("retrieving")
             search_queries = await self.query_transformer.get_search_queries(query)
             logger.info(f"Streaming Retrieval for queries: {search_queries}", extra={"request_id": request_id})
             
@@ -238,7 +240,7 @@ class AnswerGenerator:
                 yield self._format_sse_chunk(
                     "我查閱的資料庫中暫時沒有相關信息。請查詢官方資源：https://www.make-it-in-germany.com"
                 )
-                yield "[DONE]"
+                yield "data: [DONE]\n\n"
                 return
             
             # 3. Reranking
@@ -247,6 +249,7 @@ class AnswerGenerator:
                 documents=retrieval_results,
                 top_k=settings.retrieval_top_k_reranked,
             )
+            yield self._format_status_chunk("extracting")
             
             # 4. Build Context & Validation
             context = self.prompt_builder.build_context_from_retrieval(
@@ -257,7 +260,7 @@ class AnswerGenerator:
             if not self.prompt_builder.validate_context_for_injection(context):
                 logger.warning("Suspicious context detected", extra={"request_id": request_id})
                 yield self._format_sse_chunk("安全驗證失敗，無法處理此請求。")
-                yield "[DONE]"
+                yield "data: [DONE]\n\n"
                 return
             
             # Build Prompt
@@ -272,15 +275,31 @@ class AnswerGenerator:
             input_tokens = self.token_counter.count_messages(messages)
             
             # 5. Stream LLM Response
+            yield self._format_status_chunk("synthesizing")
             full_response = ""
+            milestone_pattern = re.compile(r"\[MILESTONE:(\d+):(\w+)\]")
+            
             try:
                 async for chunk in await self.llm.call_streaming(
                     messages=messages,
                     temperature=0.3, 
                     max_tokens=settings.max_response_tokens,
                 ):
+                    # Check for milestones in chunks (simplified buffer check)
+                    # Note: In a real prod app, we'd use a text window buffer to handle split tags
+                    if "[MILESTONE:" in chunk:
+                        matches = milestone_pattern.findall(chunk)
+                        for m_id, m_status in matches:
+                            yield self._format_milestone_chunk(m_id, m_status)
+                        
+                        # Strip the tag from the chunk before sending to user
+                        clean_chunk = milestone_pattern.sub("", chunk)
+                        if clean_chunk:
+                            yield self._format_sse_chunk(clean_chunk)
+                    else:
+                        yield self._format_sse_chunk(chunk)
+                    
                     full_response += chunk
-                    yield self._format_sse_chunk(chunk)
                 
             except Exception as e:
                 logger.error(f"LLM streaming failed: {e}", extra={"request_id": request_id})
@@ -341,7 +360,17 @@ class AnswerGenerator:
                 }
             })
             
-            yield "[DONE]"
+            # Yield metadata chunk containing sources for the frontend
+            import json
+            metadata_chunk = {
+                "choices": [],
+                "metadata": {
+                    "sources": sources
+                }
+            }
+            yield f"data: {json.dumps(metadata_chunk, ensure_ascii=False)}\n\n"
+            
+            yield "data: [DONE]\n\n"
             
         except Exception as e:
             logger.error(
@@ -350,7 +379,7 @@ class AnswerGenerator:
                 exc_info=True,
             )
             yield self._format_sse_chunk(f"[錯誤：{str(e)}]")
-            yield "[DONE]"
+            yield "data: [DONE]\n\n"
 
     @staticmethod
     def _format_sse_chunk(content: str) -> str:
@@ -363,6 +392,33 @@ class AnswerGenerator:
                     "finish_reason": None,
                 }
             ]
+        }
+        return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+
+    @staticmethod
+    def _format_milestone_chunk(milestone_id: str, status: str) -> str:
+        """Format milestone update as SSE JSON chunk."""
+        import json
+        chunk = {
+            "choices": [],
+            "metadata": {
+                "achieved_milestone": {
+                    "id": milestone_id,
+                    "status": status
+                }
+            }
+        }
+        return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+
+    @staticmethod
+    def _format_status_chunk(status: str) -> str:
+        """Format status update as SSE JSON chunk."""
+        import json
+        chunk = {
+            "choices": [],
+            "metadata": {
+                "status": status
+            }
         }
         return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
 

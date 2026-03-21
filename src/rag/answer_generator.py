@@ -7,6 +7,7 @@ from typing import Dict, Any, List, AsyncIterator, Optional
 import time
 import uuid
 import asyncio
+import re
 
 from src.config import settings
 from src.logger import logger
@@ -15,7 +16,7 @@ from src.storage.redis_cache import query_cache
 from src.rag.hybrid_retriever import HybridRetriever
 from src.rag.query_transformer import get_query_transformer
 from src.rag.reranker import get_reranker
-from src.rag.prompt_builder import get_prompt_builder
+from src.rag.prompt_builder import get_prompt_builder, DISCLAIMER
 from src.llm import get_llm_client  
 from src.llm.token_counter import get_token_counter
 from src.observability.mlflow_tracker import get_mlflow_tracker
@@ -42,7 +43,7 @@ class AnswerGenerator:
         self.token_counter = get_token_counter()
         self.mlflow = get_mlflow_tracker()
 
-    async def generate_answer(self, query: str) -> Dict[str, Any]:
+    async def generate_answer(self, query: str, language: Optional[str] = None) -> Dict[str, Any]:
         """Generate answer without streaming."""
         start_time = time.time()
         
@@ -113,7 +114,9 @@ class AnswerGenerator:
             
             # 4. Build context & prompt
             context = self.prompt_builder.build_context_from_retrieval(reranked)
-            system_prompt = self.prompt_builder.build_system_prompt(context=context, question=query)
+            system_prompt = self.prompt_builder.build_system_prompt(
+                context=context, question=query, language=language
+            )
             
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -133,7 +136,7 @@ class AnswerGenerator:
                 raise
             
             # Add disclaimer
-            response_text = self.prompt_builder.add_disclaimer(response_text)
+            response_text = self.prompt_builder.add_disclaimer(response_text, language=language)
             
             # Extract sources
             sources = [
@@ -183,6 +186,7 @@ class AnswerGenerator:
     async def generate_answer_streaming(
         self,
         query: str,
+        language: Optional[str] = None,
         top_k: Optional[int] = None,
     ) -> AsyncIterator[str]:
         """Generate answer with streaming response (SSE)."""
@@ -264,7 +268,9 @@ class AnswerGenerator:
                 return
             
             # Build Prompt
-            system_prompt = self.prompt_builder.build_system_prompt(context=context, question=query)
+            system_prompt = self.prompt_builder.build_system_prompt(
+                context=context, question=query, language=language
+            )
             
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -278,35 +284,86 @@ class AnswerGenerator:
             yield self._format_status_chunk("synthesizing")
             full_response = ""
             milestone_pattern = re.compile(r"\[MILESTONE:(\d+):(\w+)\]")
+            req_pattern = re.compile(r"\[REQ:(\d+):([^:]+):(\w+)\]")
+            
+            # This buffer is used to catch potential tags split across chunks
+            tag_buffer = ""
             
             try:
-                async for chunk in await self.llm.call_streaming(
+                async for chunk in self.llm.call_streaming(
                     messages=messages,
                     temperature=0.3, 
                     max_tokens=settings.max_response_tokens,
                 ):
-                    # Check for milestones in chunks (simplified buffer check)
-                    # Note: In a real prod app, we'd use a text window buffer to handle split tags
-                    if "[MILESTONE:" in chunk:
-                        matches = milestone_pattern.findall(chunk)
-                        for m_id, m_status in matches:
+                    tag_buffer += chunk
+                    
+                    # 5.1 Check for complete tags in the current buffer
+                    if "[" in tag_buffer:
+                        # Find all complete milestone tags
+                        found_milestones = milestone_pattern.findall(tag_buffer)
+                        for m_id, m_status in found_milestones:
+                            logger.info(f"Triggering milestone: {m_id}={m_status}")
                             yield self._format_milestone_chunk(m_id, m_status)
                         
-                        # Strip the tag from the chunk before sending to user
-                        clean_chunk = milestone_pattern.sub("", chunk)
-                        if clean_chunk:
-                            yield self._format_sse_chunk(clean_chunk)
+                        # Find all complete requirement tags
+                        found_reqs = req_pattern.findall(tag_buffer)
+                        for r_id, r_val, r_status in found_reqs:
+                            logger.info(f"Updating requirement: {r_id}={r_val} ({r_status})")
+                            yield self._format_req_chunk(r_id, r_val, r_status)
+                            
+                        # Strip complete tags from the buffer
+                        tag_buffer = milestone_pattern.sub("", tag_buffer)
+                        tag_buffer = req_pattern.sub("", tag_buffer)
+                        
+                        # 5.2 Only send text that is definitely not part of an incomplete tag
+                        # We wait if the buffer ends with a partial tag (e.g. "[MILE")
+                        if "[" in tag_buffer:
+                            parts = tag_buffer.split("[")
+                            to_send = "[".join(parts[:-1]) # send everything before the last "["
+                            tag_buffer = "[" + parts[-1]   # keep the potential tag start in buffer
+                            
+                            if to_send:
+                                yield self._format_sse_chunk(to_send)
+                                full_response += to_send
+                        else:
+                            # No open bracket, send everything
+                            if tag_buffer:
+                                yield self._format_sse_chunk(tag_buffer)
+                                full_response += tag_buffer
+                            tag_buffer = ""
                     else:
-                        yield self._format_sse_chunk(chunk)
+                        # No bracket at all, just send
+                        if tag_buffer:
+                            yield self._format_sse_chunk(tag_buffer)
+                            full_response += tag_buffer
+                        tag_buffer = ""
+                
+                # Send anything left in the buffer at the end
+                if tag_buffer:
+                    # Final check for tags in the remaining buffer
+                    found_milestones = milestone_pattern.findall(tag_buffer)
+                    for m_id, m_status in found_milestones:
+                        logger.info(f"Triggering final milestone: {m_id}={m_status}")
+                        yield self._format_milestone_chunk(m_id, m_status)
+                        
+                    found_reqs = req_pattern.findall(tag_buffer)
+                    for r_id, r_val, r_status in found_reqs:
+                        logger.info(f"Updating final requirement: {r_id}={r_val} ({r_status})")
+                        yield self._format_req_chunk(r_id, r_val, r_status)
                     
-                    full_response += chunk
+                    clean_last = milestone_pattern.sub("", tag_buffer)
+                    clean_last = req_pattern.sub("", clean_last)
+                    if clean_last:
+                        yield self._format_sse_chunk(clean_last)
+                        full_response += clean_last
                 
             except Exception as e:
                 logger.error(f"LLM streaming failed: {e}", extra={"request_id": request_id})
                 yield self._format_sse_chunk(f"\n\n[生成中斷：{str(e)}]")
             
             # Add disclaimer
-            disclaimer = "\n\n" + self.prompt_builder.DISCLAIMER
+            disclaimer = self.prompt_builder.add_disclaimer("", language=language).strip()
+            disclaimer = "\n\n" + disclaimer
             yield self._format_sse_chunk(disclaimer)
             full_response += disclaimer
             
@@ -395,8 +452,7 @@ class AnswerGenerator:
         }
         return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
 
-    @staticmethod
-    def _format_milestone_chunk(milestone_id: str, status: str) -> str:
+    def _format_milestone_chunk(self, milestone_id: str, status: str) -> str:
         """Format milestone update as SSE JSON chunk."""
         import json
         chunk = {
@@ -409,6 +465,24 @@ class AnswerGenerator:
             }
         }
         return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+
+    def _format_req_chunk(
+        self, req_id: str, value: str, status: str
+    ) -> str:
+        """Format requirement payload for SSE stream."""
+        import json
+        data = json.dumps(
+            {
+                "metadata": {
+                    "updated_requirement": {
+                        "id": req_id,
+                        "value": value,
+                        "status": status,
+                    }
+                }
+            }, ensure_ascii=False
+        )
+        return f"data: {data}\n\n"
 
     @staticmethod
     def _format_status_chunk(status: str) -> str:

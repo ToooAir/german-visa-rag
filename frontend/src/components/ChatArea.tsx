@@ -71,7 +71,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 handleSend();
               }
@@ -152,8 +152,15 @@ function ChatMessage({ message }: { message: Message }) {
         {isLoading && !message.content ? (
           <TraceLoader currentStatus={message.status} />
         ) : (
-          <div className="prose prose-slate dark:prose-invert prose-p:leading-relaxed prose-pre:bg-slate-100 dark:prose-pre:bg-slate-800/50 prose-pre:border prose-pre:border-slate-200 dark:prose-pre:border-slate-700 max-w-none prose-a:text-accent hover:prose-a:text-accent/80 prose-strong:text-slate-800 dark:prose-strong:text-slate-200">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <div className="prose prose-slate dark:prose-invert prose-p:leading-relaxed prose-pre:bg-slate-100 dark:prose-pre:bg-slate-800/50 prose-pre:border prose-pre:border-slate-200 dark:prose-pre:border-slate-700 max-w-none prose-a:text-accent hover:prose-a:text-accent/80 prose-a:font-medium prose-a:no-underline hover:prose-a:underline prose-strong:text-slate-800 dark:prose-strong:text-slate-200">
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({ ...props }) => (
+                  <a {...props} target="_blank" rel="noopener noreferrer" className="text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent transition-all" />
+                )
+              }}
+            >
               {message.id === 'welcome' ? t.welcome : (message.content || '...')}
             </ReactMarkdown>
           </div>
@@ -162,7 +169,7 @@ function ChatMessage({ message }: { message: Message }) {
         {/* Source Chips */}
         {message.sources && message.sources.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2 pt-3 border-t border-slate-200/50 dark:border-slate-700/50">
-            {message.sources.map((src, i) => (
+            {Array.from(new Map(message.sources.map(src => [src.url, src])).values()).map((src, i) => (
               <SourceChip key={i} source={src} />
             ))}
           </div>
@@ -178,25 +185,22 @@ function SourceChip({ source }: { source: Source }) {
   
   return (
     <motion.a 
-      whileHover={{ y: -2 }}
+      whileHover={{ y: -1 }}
       href={source.url} 
       target="_blank" 
       rel="noopener noreferrer"
-      className="group flex flex-col px-3 py-2 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/50 border border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-accent/10 cursor-pointer max-w-[280px]"
+      className="group inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/50 border border-slate-200/80 dark:border-slate-700/80 rounded-lg transition-all duration-200 hover:shadow-sm cursor-pointer max-w-[240px]"
     >
-      <div className="flex items-center gap-1.5 text-xs font-medium mb-1 truncate">
-        {isOfficial && <ShieldCheck size={14} className="text-blue-500 dark:text-blue-400 shrink-0" />}
-        {isSemi && <ShieldCheck size={14} className="text-slate-400 shrink-0" />}
-        <span className={`${isOfficial ? 'text-blue-600 dark:text-blue-300' : 'text-slate-700 dark:text-slate-300'} truncate`}>
-          {source.title || 'German Visa Documentation'}
-        </span>
-      </div>
-      <div className="flex items-center gap-1 text-[10px] text-slate-500 truncate mt-auto">
-        <ExternalLink size={10} className="shrink-0 group-hover:text-accent" />
-        <span className="truncate group-hover:text-accent/80 transition-colors">
-          {new URL(source.url).hostname.replace('www.', '')}
-        </span>
-      </div>
+      {isOfficial ? (
+        <ShieldCheck size={13} className="text-blue-500 dark:text-blue-400 shrink-0" />
+      ) : isSemi ? (
+        <ShieldCheck size={13} className="text-slate-400 shrink-0" />
+      ) : (
+        <ExternalLink size={13} className="text-slate-400 shrink-0" />
+      )}
+      <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate leading-none pt-[1px]">
+        {source.title || new URL(source.url).hostname.replace('www.', '')}
+      </span>
     </motion.a>
   );
 }

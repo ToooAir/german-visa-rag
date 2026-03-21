@@ -4,7 +4,7 @@ hybrid search (dense + sparse), filtering, and upsert operations.
 """
 
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -196,6 +196,62 @@ class QdrantWrapper:
             logger.error(f"Hybrid search failed: {type(e).__name__}: {e}", exc_info=True)
             raise
 
+    async def get_unique_sources(self) -> List[Dict[str, Any]]:
+        """
+        Retrieve unique sources (URLs and titles) from the collection.
+        Since Qdrant doesn't have a direct 'distinct' query on payloads,
+        we scroll through points and deduplicate in memory (fine for small/medium datasets).
+        """
+        try:
+            unique_sources = {}  # key: source_url, value: metadata
+            offset = None
+            limit = 100  # Batch size for scrolling
+            max_points = 2000  # Safety limit for UI exhibition
+            points_scanned = 0
+
+            while points_scanned < max_points:
+                # Use scroll to iterate through all points
+                points, next_offset = await self.client.scroll(
+                    collection_name=self.collection_name,
+                    limit=limit,
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+
+                if not points:
+                    break
+
+                for point in points:
+                    payload = point.payload
+                    url = payload.get("source_url")
+                    if url and url not in unique_sources:
+                        unique_sources[url] = {
+                            "title": payload.get("source_title", url),
+                            "url": url,
+                            "authority_level": payload.get("authority_level", "third_party"),
+                            "last_fetched": payload.get("fetched_at"),
+                            "visa_types": payload.get("visa_types", []),
+                        }
+                    
+                points_scanned += len(points)
+                offset = next_offset
+                if not offset:
+                    break
+
+            # Convert to list and sort by authority then title
+            result = list(unique_sources.values())
+            # Simple sorting: official first
+            authority_rank = {"official": 0, "semi_official": 1, "third_party": 2}
+            result.sort(key=lambda x: (authority_rank.get(x["authority_level"], 3), x["title"]))
+            
+            logger.info(f"Retrieved {len(result)} unique sources from Qdrant")
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to get unique sources: {e}")
+            return []
+
     def build_filter_authority_and_visa(
         self,
         min_authority_level: AuthorityLevel = AuthorityLevel.SEMI_OFFICIAL,
@@ -245,7 +301,7 @@ class QdrantWrapper:
         
         # Recency filter (documents fetched within max_days_old)
         if max_days_old:
-            cutoff_date = (datetime.utcnow().timestamp() - max_days_old * 86400)
+            cutoff_date = (datetime.now(timezone.utc).timestamp() - max_days_old * 86400)
             # Note: Qdrant doesn't have native datetime filtering in v0.x
             # This would need custom filtering logic
         

@@ -31,10 +31,26 @@ export function Sidebar({ className = '' }: { className?: string }) {
       <div className="mb-8">
         <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-2 mb-3">{t.recentSources}</h2>
         <div className="flex flex-col gap-2">
-          <SourceItem title="Bundesministerium des Innern" favicon="🏛️" official />
-          <SourceItem title="Make it in Germany" favicon="🇩🇪" official />
-          <SourceItem title="BAMF" favicon="🏢" official />
-          <SourceItem title="AA" favicon="🌍" official />
+          {/* Pinned Official Sources */}
+          {useChatStore.getState().pinnedSources.map((s, i) => (
+            <SourceItem key={`pinned-${i}`} title={s.title} url={s.url} official />
+          ))}
+          
+          {/* Separator if we have recent ones */}
+          {useChatStore.getState().recentSources.length > 0 && (
+            <div className="h-px bg-slate-200 dark:bg-slate-800 my-1 mx-2" />
+          )}
+
+          {/* Dynamic Recent Sources */}
+          {useChatStore(state => state.recentSources).map((s, i) => (
+            <SourceItem 
+              key={`recent-${i}`} 
+              title={s.title || (s.url.includes('bamf') ? 'BAMF' : s.url.split('/')[2])} 
+              url={s.url} 
+              favicon={s.authority === 'official' ? '🏛️' : '📄'}
+              official={s.authority === 'official'}
+            />
+          ))}
         </div>
       </div>
 
@@ -88,15 +104,22 @@ function NavItem({ icon, label, to, end = false }: { icon: React.ReactNode, labe
   );
 }
 
-function SourceItem({ title, favicon, official = false }: { title: string, favicon: React.ReactNode, official?: boolean }) {
+function SourceItem({ title, url, favicon, official = false }: { title: string, url: string, favicon?: React.ReactNode, official?: boolean }) {
+  const defaultFavicon = official ? '🏛️' : '📄';
+  
   return (
-    <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors">
-      <div className="w-6 h-6 rounded bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs border border-slate-300 dark:border-slate-700">
-        {favicon}
+    <a 
+      href={url} 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800/30 cursor-pointer transition-all hover:translate-x-1 group"
+    >
+      <div className="w-6 h-6 rounded bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs border border-slate-300 dark:border-slate-700 group-hover:border-accent/40 transition-colors">
+        {favicon || defaultFavicon}
       </div>
-      <span className="text-sm text-slate-700 dark:text-slate-300 truncate flex-1">{title}</span>
-      {official && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400" />}
-    </div>
+      <span className="text-sm text-slate-700 dark:text-slate-300 truncate flex-1 group-hover:text-accent transition-colors">{title}</span>
+      {official && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
+    </a>
   );
 }
 

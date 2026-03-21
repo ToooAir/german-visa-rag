@@ -5,6 +5,7 @@ import { HomePage } from './pages/HomePage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { useSettingsStore, Theme } from './stores/settingsStore';
+import { ToastProvider } from './components/ToastProvider';
 
 function App() {
   const { theme } = useSettingsStore();
@@ -64,13 +65,16 @@ function App() {
   }, []);
 
   return (
-    <Routes>
-      <Route path="/" element={<DashboardLayout />}>
-        <Route index element={<HomePage />} />
-        <Route path="documents" element={<DocumentsPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-      </Route>
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<DashboardLayout />}>
+          <Route index element={<HomePage />} />
+          <Route path="documents" element={<DocumentsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
+      </Routes>
+      <ToastProvider />
+    </>
   );
 }
 

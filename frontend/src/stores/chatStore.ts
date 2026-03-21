@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useSettingsStore } from './settingsStore';
+import { useToastStore } from './toastStore';
+import { translations } from '../translations';
 
 export interface Source {
   url: string;
@@ -36,11 +39,14 @@ interface ChatState {
   activeVisaCategory: string | null;
   checklist: ChecklistItem[];
   requirements: Requirement[];
+  recentSources: Source[];
+  pinnedSources: Source[];
   setActiveVisaCategory: (cat: string | null) => void;
   setChecklist: (items: ChecklistItem[]) => void;
   setRequirements: (reqs: Requirement[]) => void;
   resetProgress: () => void;
   updateMilestone: (milestoneId: string, status: 'completed' | 'current' | 'pending', autoDetected?: boolean) => void;
+  updateRequirement: (id: string, value: string, status: 'required' | 'info' | 'warning') => void;
   sendMessage: (content: string) => Promise<void>;
 }
 
@@ -70,6 +76,12 @@ export const useChatStore = create<ChatState>()(
     { id: '3', label: 'Age', value: '< 35/40', status: 'info' },
     { id: '4', label: 'Qualifications', value: '(degree)', status: 'warning' }
   ],
+  
+  pinnedSources: [
+    { title: "Federal Ministry of the Interior (BMI)", url: "https://www.bmi.bund.de", authority: "official" },
+    { title: "Make it in Germany", url: "https://www.make-it-in-germany.com", authority: "official" }
+  ],
+  recentSources: [],
 
   setActiveVisaCategory: (cat) => set({ activeVisaCategory: cat }),
   setChecklist: (items) => set({ checklist: items }),
@@ -94,9 +106,35 @@ export const useChatStore = create<ChatState>()(
   },
 
   updateMilestone: (id, status, autoDetected = true) => {
+    set((state) => {
+      const item = state.checklist.find(i => i.id === id);
+      const isStatusChanged = item && item.status !== status;
+      
+      // Fire notification if status changed and feature is enabled
+      if (isStatusChanged && (status === 'current' || status === 'completed')) {
+        const settings = useSettingsStore.getState();
+        if (settings.notificationsEnabled) {
+          const t = translations[settings.language as keyof typeof translations] || translations.en;
+          useToastStore.getState().addToast({
+            title: t.milestoneReached || 'Milestone Reached',
+            message: `${item.title}: ${t.autoDetectedDesc || 'AI has updated your checklist'}`,
+            type: 'success'
+          });
+        }
+      }
+
+      return {
+        checklist: state.checklist.map(i => 
+          i.id === id ? { ...i, status, autoDetected } : i
+        )
+      };
+    });
+  },
+
+  updateRequirement: (id, value, status) => {
     set((state) => ({
-      checklist: state.checklist.map(item => 
-        item.id === id ? { ...item, status, autoDetected } : item
+      requirements: state.requirements.map(req => 
+        req.id === id ? { ...req, value, status } : req
       )
     }));
   },
@@ -121,6 +159,7 @@ export const useChatStore = create<ChatState>()(
         },
         body: JSON.stringify({ 
           query: content,
+          language: useSettingsStore.getState().language,
           visa_types: useChatStore.getState().activeVisaCategory ? [useChatStore.getState().activeVisaCategory] : undefined
         }),
       });
@@ -135,18 +174,22 @@ export const useChatStore = create<ChatState>()(
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
+      let lineBuffer = '';
 
       while (!done) {
         const { value, done: readerDone } = await reader.read();
         done = readerDone;
         if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
+          lineBuffer += decoder.decode(value, { stream: true });
+          const lines = lineBuffer.split('\n');
+          lineBuffer = lines.pop() || '';
           
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') continue;
+            const trimmedLine = line.trim();
+            if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
+            
+            const data = trimmedLine.slice(6);
+            if (data === '[DONE]') continue;
               
               try {
                 const parsed = JSON.parse(data);
@@ -162,11 +205,24 @@ export const useChatStore = create<ChatState>()(
                 
                 // Custom Metadata Chunk (Sources / Status)
                 if (parsed.metadata?.sources) {
-                  set((state) => ({
-                    messages: state.messages.map(m => 
-                      m.id === botMsgId ? { ...m, sources: parsed.metadata.sources } : m
-                    )
-                  }));
+                  const newSources = parsed.metadata.sources as Source[];
+                  
+                  set((state) => {
+                    // Harvest unique sources for the sidebar
+                    const currentRecent = [...state.recentSources];
+                    newSources.forEach(s => {
+                      if (!currentRecent.find(existing => existing.url === s.url)) {
+                        currentRecent.unshift(s);
+                      }
+                    });
+                    
+                    return {
+                      messages: state.messages.map(m => 
+                        m.id === botMsgId ? { ...m, sources: newSources } : m
+                      ),
+                      recentSources: currentRecent.slice(0, 5) // Keep last 5 unique ones
+                    };
+                  });
                 }
                 
                 if (parsed.metadata?.status) {
@@ -181,10 +237,14 @@ export const useChatStore = create<ChatState>()(
                   const { id, status } = parsed.metadata.achieved_milestone;
                   get().updateMilestone(id, status, true);
                 }
+
+                if (parsed.metadata?.updated_requirement) {
+                  const { id, value, status } = parsed.metadata.updated_requirement;
+                  get().updateRequirement(id, value, status);
+                }
               } catch (e) {
                 // Ignore incomplete JSON chunks from split bounds if any
               }
-            }
           }
         }
       }
@@ -213,6 +273,7 @@ export const useChatStore = create<ChatState>()(
   partialize: (state) => ({ 
     checklist: state.checklist, 
     requirements: state.requirements,
+    recentSources: state.recentSources,
     activeVisaCategory: state.activeVisaCategory 
   }),
 }));

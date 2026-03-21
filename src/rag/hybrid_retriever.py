@@ -96,7 +96,19 @@ class HybridRetriever:
                 payload = result["payload"]
                 
                 # Recency weighting: prefer more recent documents
-                fetched_at = datetime.fromisoformat(payload.get("fetched_at", now.isoformat()))
+                # Robust handling for naive vs aware datetimes
+                fetched_at_raw = payload.get("fetched_at")
+                if fetched_at_raw:
+                    try:
+                        fetched_at = datetime.fromisoformat(fetched_at_raw)
+                        # Ensure awareness if the ISO string was naive
+                        if fetched_at.tzinfo is None:
+                            fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+                    except (ValueError, TypeError):
+                        fetched_at = now
+                else:
+                    fetched_at = now
+                
                 days_old = (now - fetched_at).days
                 
                 max_days = settings.rag_recency_penalty_days

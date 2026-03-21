@@ -50,14 +50,22 @@ export function SettingsPage() {
         </section>
         
         <section className="glass-panel p-6 bg-white/40 dark:bg-slate-800/40">
-          <div className="flex items-center gap-3 mb-4 text-accent">
-            <Bell size={20} />
-            <h3 className="font-semibold text-slate-800 dark:text-slate-200">{t.notifications}</h3>
+          <div className="flex flex-col gap-1 mb-4">
+            <div className="flex items-center gap-3 text-accent">
+              <Bell size={20} />
+              <h3 className="font-semibold text-slate-800 dark:text-slate-200">{t.smartAlerts || 'Smart Progress Alerts'}</h3>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 pl-8">{t.smartAlertsDesc || 'Receive dynamic alerts when AI detects milestone updates.'}</p>
           </div>
           <div className="flex items-center justify-between py-3">
-            <span className="text-slate-700 dark:text-slate-300">{t.emailAlerts}</span>
+            <span className="text-slate-700 dark:text-slate-300">{t.notifications || 'Enable Notifications'}</span>
             <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" defaultChecked className="sr-only peer" />
+              <input 
+                type="checkbox" 
+                checked={useSettingsStore((state) => state.notificationsEnabled)}
+                onChange={(e) => useSettingsStore.getState().setNotificationsEnabled(e.target.checked)}
+                className="sr-only peer" 
+              />
               <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent border border-slate-300 dark:border-transparent"></div>
             </label>
           </div>

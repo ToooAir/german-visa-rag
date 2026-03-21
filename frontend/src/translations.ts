@@ -4,7 +4,7 @@ export const translations = {
   en: {
     // Sidebar
     home: 'Home',
-    library: 'Reference Library',
+    library: 'Knowledge Base',
     settings: 'Settings',
     recentSources: 'Recent Sources',
     visaCategories: 'Visa Categories',
@@ -16,6 +16,10 @@ export const translations = {
     chatLang: 'Chat Language',
     notifications: 'Notifications',
     emailAlerts: 'Email Alerts for Visa Updates',
+    smartAlerts: 'Smart Progress Alerts',
+    smartAlertsDesc: 'Get notified when AI updates your milestone.',
+    milestoneReached: 'Milestone Reached!',
+    milestoneAutoUpdated: 'AI has detected progress and automatically updated your checklist.',
     dark: 'Dark Mode',
     light: 'Light Mode',
     system: 'System Default',
@@ -72,7 +76,7 @@ export const translations = {
   de: {
     // Sidebar
     home: 'Startseite',
-    library: 'Referenzbibliothek',
+    library: 'Wissensdatenbank',
     settings: 'Einstellungen',
     recentSources: 'Aktuelle Quellen',
     visaCategories: 'Visum-Kategorien',
@@ -84,6 +88,10 @@ export const translations = {
     chatLang: 'Chat-Sprache',
     notifications: 'Benachrichtigungen',
     emailAlerts: 'E-Mail-Benachrichtigungen für Visum-Updates',
+    smartAlerts: 'Intelligente Fortschrittsalarme',
+    smartAlertsDesc: 'Werden Sie benachrichtigt, wenn die KI Ihren Meilenstein aktualisiert.',
+    milestoneReached: 'Meilenstein Erreicht!',
+    milestoneAutoUpdated: 'KI hat Ihre Fortschritts-Checkliste automatisch aktualisiert.',
     dark: 'Dunkler Modus',
     light: 'Heller Modus',
     system: 'Systemstandard',
@@ -140,7 +148,7 @@ export const translations = {
   'zh-TW': {
     // Sidebar
     home: '首頁',
-    library: '參考文獻庫',
+    library: '法規知識庫',
     settings: '設定',
     recentSources: '最近來源',
     visaCategories: '簽證類別',
@@ -152,6 +160,10 @@ export const translations = {
     chatLang: '聊天語言',
     notifications: '通知',
     emailAlerts: '簽證更新電子郵件通知',
+    smartAlerts: '智能進度提報',
+    smartAlertsDesc: '當 AI 自動更新您的里程碑時接收通知',
+    milestoneReached: '🎊 里程碑達成！',
+    milestoneAutoUpdated: 'AI 已偵測進度並自動更新了您的查檢表。',
     dark: '深色模式',
     light: '淺色模式',
     system: '系統預設',

@@ -4,7 +4,7 @@ Defines the payload schema for Qdrant storage.
 """
 
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pydantic import BaseModel, Field
 
@@ -53,7 +53,7 @@ class ChunkMetadata(BaseModel):
     
     # Temporal Information
     published_at: Optional[datetime] = Field(default=None, description="Original publication date")
-    fetched_at: datetime = Field(default_factory=datetime.utcnow, description="Crawl timestamp")
+    fetched_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Crawl timestamp")
     
     # Content Markers
     section_header: Optional[str] = Field(default=None, description="Heading context (H2/H3)")

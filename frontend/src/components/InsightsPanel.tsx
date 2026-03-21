@@ -44,12 +44,12 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
   return (
     <div className={`flex flex-col gap-4 h-full overflow-y-auto pr-1 custom-scrollbar ${className}`}>
       {/* Progress Checklist */}
-      <div className="glass-panel p-5 bg-white/50 dark:bg-panel relative overflow-hidden">
+      <div className="glass-panel p-5 bg-white/50 dark:bg-panel relative">
         <div className="flex items-center justify-between mb-4 px-1">
           <h3 className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">
             {titlePrefix} {t.progress}
           </h3>
-          <button 
+          <button
             onClick={resetProgress}
             className="p-1.5 text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer group"
             title={t.resetProgress}
@@ -60,7 +60,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
         <div className="space-y-3">
           <AnimatePresence mode="popLayout">
             {checklist.map((item, index) => (
-              <motion.div 
+              <motion.div
                 key={item.id}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -81,7 +81,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                   </span>
                   <div className="flex items-center gap-2">
                     {item.status === 'current' && item.subtitle && (
-                      <motion.span 
+                      <motion.span
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         className="text-[10px] text-accent font-medium uppercase tracking-wider"
@@ -104,11 +104,11 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       </div>
 
       {/* Requirement Summary */}
-      <div className="glass-panel p-5 bg-white/50 dark:bg-panel flex-1">
+      <div className="glass-panel p-5 bg-white/50 dark:bg-panel">
         <h3 className="text-[15px] font-semibold text-slate-800 dark:text-slate-200 mb-4 px-1">{t.reqSummary}</h3>
-        
+
         <div className="space-y-4">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className="p-3 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/50 dark:border-slate-700/50"
@@ -125,7 +125,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
             <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
               <AnimatePresence mode="popLayout">
                 {requirements.map((req, index) => (
-                  <motion.li 
+                  <motion.li
                     key={req.id || index}
                     initial={{ opacity: 0, x: 5 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -136,14 +136,13 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                       {translateRequirementLabel(req.label)}
                     </span>
                     <div className="flex items-center gap-2">
-                       {req.status === 'warning' && <AlertCircle size={14} className="text-amber-500" />}
-                       <span className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${
-                         req.status === 'required' ? 'bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400' :
-                         req.status === 'warning' ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' :
-                         'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                       }`}>
-                         {req.value}
-                       </span>
+                      {req.status === 'warning' && <AlertCircle size={14} className="text-amber-500" />}
+                      <span className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${req.status === 'required' ? 'bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400' :
+                          req.status === 'warning' ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+                            'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                        }`}>
+                        {req.value}
+                      </span>
                     </div>
                   </motion.li>
                 ))}
@@ -152,7 +151,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
           </div>
         </div>
 
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}

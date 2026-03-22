@@ -78,31 +78,92 @@ export const useChatStore = create<ChatState>()(
   ],
   
   pinnedSources: [
-    { title: "Federal Ministry of the Interior (BMI)", url: "https://www.bmi.bund.de", authority: "official" },
-    { title: "Make it in Germany", url: "https://www.make-it-in-germany.com", authority: "official" }
+    { title: "Federal Ministry (BMI)", url: "https://www.bmi.bund.de", authority: "official" },
+    { title: "Make it in Germany", url: "https://www.make-it-in-germany.com", authority: "official" },
+    { title: "Foreign Office", url: "https://www.auswaertiges-amt.de/en/visa-service", authority: "official" },
+    { title: "Consular Portal", url: "https://digital.diplo.de/visa", authority: "official" }
   ],
   recentSources: [],
 
-  setActiveVisaCategory: (cat) => set({ activeVisaCategory: cat }),
+  setActiveVisaCategory: (cat) => {
+    set({ activeVisaCategory: cat });
+    get().resetProgress();
+  },
   setChecklist: (items) => set({ checklist: items }),
   setRequirements: (reqs) => set({ requirements: reqs }),
   
   resetProgress: () => {
-    set({
-      checklist: [
+    const cat = get().activeVisaCategory;
+    
+    let checklist: ChecklistItem[] = [];
+    let requirements: Requirement[] = [];
+
+    if (cat === 'work_visa') {
+      checklist = [
         { id: '1', title: 'Eligibility Check', status: 'pending' },
-        { id: '2', title: 'Point Calculation (0/6)', status: 'pending' },
+        { id: '2', title: 'German Full-time Contract', status: 'pending' },
         { id: '3', title: 'Document Checklist', status: 'pending' },
         { id: '4', title: 'Embassy Appointment', status: 'pending' },
         { id: '5', title: 'Approval', status: 'pending' }
-      ],
-      requirements: [
-        { id: '1', label: 'Language', value: '-', status: 'info' },
-        { id: '2', label: 'Work Experience', value: '-', status: 'info' },
-        { id: '3', label: 'Age', value: '-', status: 'info' },
-        { id: '4', label: 'Qualifications', value: '-', status: 'info' }
-      ]
-    });
+      ];
+      requirements = [
+        { id: '1', label: 'Qualifications', value: '-', status: 'info' },
+        { id: '2', label: 'Labor Conditions', value: '-', status: 'info' },
+        { id: '3', label: '45+ Age Clause', value: '-', status: 'info' },
+        { id: '4', label: 'Language (Flexible)', value: '-', status: 'info' }
+      ];
+    } else if (cat === 'blue_card') {
+      checklist = [
+        { id: '1', title: 'Eligibility Check', status: 'pending' },
+        { id: '2', title: 'Annual Salary Threshold', status: 'pending' },
+        { id: '3', title: 'Document Checklist', status: 'pending' },
+        { id: '4', title: 'Embassy Appointment', status: 'pending' },
+        { id: '5', title: 'Approval', status: 'pending' }
+      ];
+      requirements = [
+        { id: '1', label: 'Academic & Professional Qualifications', value: '-', status: 'info' },
+        { id: '2', label: 'German Full-time Contract', value: '-', status: 'info' },
+        { id: '3', label: 'PR Bonus (Language)', value: '-', status: 'info' }
+      ];
+    } else if (cat === 'student_visa') {
+      checklist = [
+        { id: '1', title: 'Eligibility Check', status: 'pending' },
+        { id: '2', title: 'University Admission', status: 'pending' },
+        { id: '3', title: 'Document Checklist', status: 'pending' },
+        { id: '4', title: 'Embassy Appointment', status: 'pending' },
+        { id: '5', title: 'Approval', status: 'pending' }
+      ];
+      requirements = [
+        { id: '1', label: 'Financial Proof', value: '-', status: 'info' },
+        { id: '2', label: 'Language Ability', value: '-', status: 'info' },
+        { id: '3', label: 'Health Insurance', value: '-', status: 'info' },
+        { id: '4', label: 'Pre-study Qualifications', value: '-', status: 'info' }
+      ];
+    } else {
+      checklist = [
+        { id: '1', title: 'Eligibility Path', status: 'pending' },
+        { id: '2', title: 'Basic Thresholds', status: 'pending' },
+        { id: '3', title: 'Points Calculation', status: 'pending' },
+        { id: '4', title: 'Document Checklist', status: 'pending' },
+        { id: '5', title: 'Embassy Appointment', status: 'pending' },
+        { id: '6', title: 'Approval', status: 'pending' }
+      ];
+      requirements = [
+        { id: 'header1', label: 'Mandatory Thresholds', value: '', status: 'info' },
+        { id: '1-1', label: 'Financial Proof', value: '-', status: 'info' },
+        { id: '1-2', label: 'Language', value: '-', status: 'info' },
+        { id: '1-3', label: 'Qualifications', value: '-', status: 'info' },
+        { id: 'header2', label: 'Points Items (Target 6+)', value: '', status: 'info' },
+        { id: '2-1', label: 'Language', value: '-', status: 'info' },
+        { id: '2-2', label: 'Work Experience', value: '-', status: 'info' },
+        { id: '2-3', label: 'Age', value: '-', status: 'info' },
+        { id: '2-4', label: 'Qualifications', value: '-', status: 'info' },
+        { id: '2-5', label: 'German Residency (6mo+)', value: '-', status: 'info' },
+        { id: '2-6', label: 'Partner Bonus', value: '-', status: 'info' }
+      ];
+    }
+
+    set({ checklist, requirements });
   },
 
   updateMilestone: (id, status, autoDetected = true) => {
@@ -160,7 +221,7 @@ export const useChatStore = create<ChatState>()(
         body: JSON.stringify({ 
           query: content,
           language: useSettingsStore.getState().language,
-          visa_types: useChatStore.getState().activeVisaCategory ? [useChatStore.getState().activeVisaCategory] : undefined
+          visa_type: useChatStore.getState().activeVisaCategory || undefined
         }),
       });
 

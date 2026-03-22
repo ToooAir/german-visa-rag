@@ -14,8 +14,10 @@ domains:
       - "/en/visa-residence/opportunity-card"
       - "/en/visa-residence/types/"
       - "/en/visa-residence/procedure/"
-      - "/en/visa-residence/skilled-immigration-act"
       - "/en/working-in-germany/"
+      - "/de/visum-aufenthalt/"
+      - "/de/visum-aufenthalt/chancenkarte/chancenkarte-zur-jobsuche"
+      - "/de/visum-aufenthalt/fachkraefteeinwanderungsgesetz/"
     authority_level: "official"
     default_visa_types:
       - "general"
@@ -45,6 +47,27 @@ domains:
       - "general"
     max_depth: 2
     max_pages: 50
+    use_sitemap: true
+
+  - domain: "digital.diplo.de"
+    seed_paths:
+      - "/"
+      - "/chancenkarte"
+    authority_level: "official"
+    default_visa_types:
+      - "general"
+    max_depth: 2
+    max_pages: 50
+    use_sitemap: false
+
+  - domain: "www.auswaertiges-amt.de"
+    seed_paths:
+      - "/en/visa-service/"
+    authority_level: "official"
+    default_visa_types:
+      - "general"
+    max_depth: 3
+    max_pages: 100
     use_sitemap: true
 
 # ============================================
@@ -78,6 +101,48 @@ extra_urls:
     visa_types:
       - "work_visa"
       - "it_visa"
+
+  - url: "https://www.auswaertiges-amt.de/en/visa-service/215870-215870"
+    title: "Visa and Consular Services - Federal Foreign Office"
+    authority_level: "official"
+    visa_types:
+      - "general"
+
+  - url: "https://digital.diplo.de/chancenkarte"
+    title: "Apply online for the Opportunity Card"
+    authority_level: "official"
+    visa_types:
+      - "chancenkarte"
+
+  - url: "https://digital.diplo.de/visa"
+    title: "Consular Services Portal - Visa Application"
+    authority_level: "official"
+    visa_types:
+      - "general"
+
+  - url: "https://www.germany.info/us-en/skilled-worker-immigration-2304796"
+    title: "Skilled Worker Immigration Act 2026 Guidelines"
+    authority_level: "official"
+    visa_types:
+      - "work_visa"
+
+  - url: "https://www.make-it-in-germany.com/en/visa-residence/types/studying"
+    title: "Visa for Studying"
+    authority_level: "official"
+    visa_types:
+      - "student_visa"
+
+  - url: "https://www.germany-visa.org/student-visa/student-visa-visum-zu-studienzwecken/"
+    title: "Student Visa for Germany"
+    authority_level: "third_party"
+    visa_types:
+      - "student_visa"
+
+  - url: "https://www.germany-visa.org/immigration/residence-permit/eu-blue-card-germany/"
+    title: "EU Blue Card Germany Guidelines"
+    authority_level: "third_party"
+    visa_types:
+      - "blue_card"
 
 # ============================================
 # Crawler settings

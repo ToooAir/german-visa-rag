@@ -97,6 +97,13 @@ export function ChatArea({ className = '' }: { className?: string }) {
             </button>
           </div>
         </div>
+        
+        {/* Subtle Disclaimer */}
+        <div className="flex justify-center px-4 mt-3">
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center leading-tight max-w-2xl opacity-60">
+            {t.disclaimer}
+          </p>
+        </div>
       </div>
     </div>
   );

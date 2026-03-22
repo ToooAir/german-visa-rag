@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import numpy as np
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from qdrant_client import models
 from src.config import settings
 from src.logger import logger
 from src.vector_db.qdrant_client_wrapper import get_qdrant_client, QdrantWrapper
@@ -74,8 +75,31 @@ class HybridRetriever:
                 return []
             
             # Step 2: Build filter
-            # Note: Simplified filter for now
-            filters = None  # TODO: Implement authority + visa type filtering in Phase 3
+            # Filter by visa type (if provided) and minimum authority
+            must_filters = []
+            
+            if visa_types:
+                # Use "match" for exact visa type in the list
+                must_filters.append(
+                    models.FieldCondition(
+                        key="visa_types",
+                        match=models.MatchAny(any=[v.value if hasattr(v, 'value') else v for v in visa_types])
+                    )
+                )
+            
+            # Always respect minimum authority
+            must_filters.append(
+                models.FieldCondition(
+                    key="authority_level",
+                    match=models.MatchAny(any=[
+                        AuthorityLevel.OFFICIAL.value,
+                        AuthorityLevel.SEMI_OFFICIAL.value
+                    ]) if min_authority == AuthorityLevel.SEMI_OFFICIAL else 
+                    models.MatchValue(value=AuthorityLevel.OFFICIAL.value)
+                )
+            )
+            
+            filters = models.Filter(must=must_filters)
             
             # Step 3: Perform hybrid search
             logger.debug(f"Performing hybrid search with top_k={top_k}")

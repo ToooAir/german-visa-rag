@@ -120,9 +120,9 @@ class QueryTransformer:
             
             # Extract JSON if wrapped in markdown code blocks
             if "```json" in response_text:
-                response_text = response_text.split("```json").split("```").strip()[1]
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
             elif "```" in response_text:
-                response_text = response_text.split("```").split("```")[0].strip()
+                response_text = response_text.split("```")[1].split("```")[0].strip()
             
             result = json.loads(response_text)
             logger.debug(f"Query expansion result: {result}")
@@ -137,11 +137,12 @@ class QueryTransformer:
         query_lower = query.lower()
         
         visa_patterns = {
-            "chancenkarte": [r"chancenkarte", r"opportunity card"],
-            "work_visa": [r"work permit", r"arbeitserlaubnis", r"work visa"],
-            "student_visa": [r"student visa", r"studentenvisum"],
-            "freelance_visa": [r"freelance", r"freiberufler"],
-            "entrepreneur_visa": [r"entrepreneur", r"unternehmer"],
+            "chancenkarte": [r"chancenkarte", r"opportunity card", r"機會卡"],
+            "work_visa": [r"work permit", r"arbeitserlaubnis", r"work visa", r"技術人才", r"工作簽證"],
+            "student_visa": [r"student visa", r"studentenvisum", r"學生簽證", r"就學簽證", r"留學"],
+            "blue_card": [r"blue card", r"blaue karte", r"藍卡"],
+            "freelance_visa": [r"freelance", r"freiberufler", r"自由業"],
+            "entrepreneur_visa": [r"entrepreneur", r"unternehmer", r"創業"],
         }
         
         detected = []

@@ -43,7 +43,7 @@ class AnswerGenerator:
         self.token_counter = get_token_counter()
         self.mlflow = get_mlflow_tracker()
 
-    async def generate_answer(self, query: str, language: Optional[str] = None) -> Dict[str, Any]:
+    async def generate_answer(self, query: str, language: Optional[str] = None, visa_type: Optional[str] = None) -> Dict[str, Any]:
         """Generate answer without streaming."""
         start_time = time.time()
         
@@ -71,7 +71,10 @@ class AnswerGenerator:
                 
                 # For now, we'll retrieve for all and then deduplicate/rank
                 # In a more advanced version, we could use reciprocal rank fusion
-                all_results = await self.retriever.retrieve_batch(queries=search_queries)
+                all_results = await self.retriever.retrieve_batch(
+                    queries=search_queries,
+                    visa_types=[visa_type] if visa_type else None
+                )
                 
                 # Flatten and deduplicate by chunk_id
                 retrieval_results = []
@@ -94,16 +97,44 @@ class AnswerGenerator:
                 raise
             
             if not retrieval_results:
-                logger.warning("No context found during retrieval")
-                return {
-                    "answer": "我查閱的資料庫中暫時沒有相關信息。請查詢官方資源：https://www.make-it-in-germany.com",
-                    "sources": [],
-                    "metadata": {
-                        "query": query,
-                        "retrieval_count": 0,
-                        "cache_hit": False,
-                    },
-                }
+                if visa_type:
+                    logger.info("No results with visa_type filter, falling back to broad search")
+                    all_results = await self.retriever.retrieve_batch(
+                        queries=search_queries,
+                        visa_types=None
+                    )
+                    # Flatten and deduplicate again
+                    retrieval_results = []
+                    seen_chunk_ids = set()
+                    for batch in all_results:
+                        for result in batch:
+                            chunk_id = result.get("metadata", {}).get("chunk_id")
+                            if chunk_id not in seen_chunk_ids:
+                                retrieval_results.append(result)
+                                seen_chunk_ids.add(chunk_id)
+                    
+                    retrieval_results = sorted(
+                        retrieval_results,
+                        key=lambda x: x.get("adjusted_score", 0),
+                        reverse=True,
+                    )
+                
+                if not retrieval_results:
+                    logger.warning("No context found during retrieval even after fallback")
+                    no_info_msg = {
+                        "en": "I couldn't find relevant information in my database. Please check official resources: https://www.make-it-in-germany.com",
+                        "de": "Ich konnte keine relevanten Informationen in meiner Datenbank finden. Bitte prüfen Sie die offiziellen Ressourcen: https://www.make-it-in-germany.com",
+                        "zh-TW": "我查閱的資料庫中暫時沒有相關信息。請查詢官方資源：https://www.make-it-in-germany.com"
+                    }
+                    return {
+                        "answer": no_info_msg.get(language, no_info_msg["en"]),
+                        "sources": [],
+                        "metadata": {
+                            "query": query,
+                            "retrieval_count": 0,
+                            "cache_hit": False,
+                        },
+                    }
             
             # 3. Reranking
             reranked = await self.reranker.rerank(
@@ -113,9 +144,9 @@ class AnswerGenerator:
             )
             
             # 4. Build context & prompt
-            context = self.prompt_builder.build_context_from_retrieval(reranked)
+            context = self.prompt_builder.build_context_from_retrieval(reranked, language=language or "en")
             system_prompt = self.prompt_builder.build_system_prompt(
-                context=context, question=query, language=language
+                context=context, question=query, language=language, visa_type=visa_type
             )
             
             messages = [
@@ -134,9 +165,6 @@ class AnswerGenerator:
             except Exception as e:
                 logger.error(f"LLM call failed: {e}")
                 raise
-            
-            # Add disclaimer
-            response_text = self.prompt_builder.add_disclaimer(response_text, language=language)
             
             # Extract sources
             sources = [
@@ -187,6 +215,7 @@ class AnswerGenerator:
         self,
         query: str,
         language: Optional[str] = None,
+        visa_type: Optional[str] = None,
         top_k: Optional[int] = None,
     ) -> AsyncIterator[str]:
         """Generate answer with streaming response (SSE)."""
@@ -222,6 +251,7 @@ class AnswerGenerator:
             all_results = await self.retriever.retrieve_batch(
                 queries=search_queries,
                 top_k=top_k or settings.retrieval_top_k_hybrid,
+                visa_types=[visa_type] if visa_type else None
             )
             
             # Flatten and deduplicate
@@ -241,11 +271,31 @@ class AnswerGenerator:
             )
             
             if not retrieval_results:
-                yield self._format_sse_chunk(
-                    "我查閱的資料庫中暫時沒有相關信息。請查詢官方資源：https://www.make-it-in-germany.com"
-                )
-                yield "data: [DONE]\n\n"
-                return
+                if visa_type:
+                    logger.info("Streaming: No results with filter, falling back to broad search")
+                    all_results = await self.retriever.retrieve_batch(
+                        queries=search_queries,
+                        visa_types=None
+                    )
+                    retrieval_results = []
+                    seen_chunk_ids = set()
+                    for batch in all_results:
+                        for result in batch:
+                            chunk_id = result.get("metadata", {}).get("chunk_id")
+                            if chunk_id not in seen_chunk_ids:
+                                retrieval_results.append(result)
+                                seen_chunk_ids.add(chunk_id)
+                    retrieval_results = sorted(retrieval_results, key=lambda x: x.get("adjusted_score", 0), reverse=True)
+
+                if not retrieval_results:
+                    no_info_msg = {
+                        "en": "I couldn't find relevant information in my database. Please check official resources: https://www.make-it-in-germany.com",
+                        "de": "Ich konnte keine relevanten Informationen in meiner Datenbank finden. Bitte prüfen Sie die offiziellen Ressourcen: https://www.make-it-in-germany.com",
+                        "zh-TW": "我查閱的資料庫中暫時沒有相關信息。請查詢官方資源：https://www.make-it-in-germany.com"
+                    }
+                    yield self._format_sse_chunk(no_info_msg.get(language, no_info_msg["en"]))
+                    yield "data: [DONE]\n\n"
+                    return
             
             # 3. Reranking
             reranked = await self.reranker.rerank(
@@ -259,6 +309,7 @@ class AnswerGenerator:
             context = self.prompt_builder.build_context_from_retrieval(
                 reranked,
                 top_k=settings.retrieval_top_k_reranked,
+                language=language or "en"
             )
             
             if not self.prompt_builder.validate_context_for_injection(context):
@@ -269,7 +320,7 @@ class AnswerGenerator:
             
             # Build Prompt
             system_prompt = self.prompt_builder.build_system_prompt(
-                context=context, question=query, language=language
+                context=context, question=query, language=language, visa_type=visa_type
             )
             
             messages = [
@@ -360,12 +411,6 @@ class AnswerGenerator:
             except Exception as e:
                 logger.error(f"LLM streaming failed: {e}", extra={"request_id": request_id})
                 yield self._format_sse_chunk(f"\n\n[生成中斷：{str(e)}]")
-            
-            # Add disclaimer
-            disclaimer = self.prompt_builder.add_disclaimer("", language=language).strip()
-            disclaimer = "\n\n" + disclaimer
-            yield self._format_sse_chunk(disclaimer)
-            full_response += disclaimer
             
             # 6. Observability & Write to Cache
             output_tokens = self.token_counter.count_text(full_response)

@@ -15,6 +15,7 @@ class QueryRequest(BaseModel):
     """RAG query request."""
     query: str = Field(..., description="User question about German visa/Chancenkarte")
     language: Optional[str] = Field(default="auto", description="Query language")
+    visa_type: Optional[str] = Field(default=None, description="Active visa category context")
 
 class QueryResponse(BaseModel):
     """RAG query response."""
@@ -45,8 +46,12 @@ async def ask_question(
     x_api_key: str = Depends(auth.verify_api_key),
 ):
     """Ask a question about German visa regulations."""
-    logger.info(f"Query: {request.query[:100]}, Language: {request.language}")
-    result = await generator.generate_answer(request.query, language=request.language)
+    logger.info(f"Query: {request.query[:100]}, Visa: {request.visa_type}, Lang: {request.language}")
+    result = await generator.generate_answer(
+        request.query, 
+        language=request.language,
+        visa_type=request.visa_type
+    )
     return QueryResponse(**result)
 
 @router.post("/ask/stream")
@@ -56,6 +61,10 @@ async def ask_question_stream(
     x_api_key: str = Depends(auth.verify_api_key),
 ):
     """Ask a question with streaming response."""
-    logger.info(f"Stream query: {request.query[:100]}, Language: {request.language}")
-    stream = generator.generate_answer_streaming(request.query, language=request.language)
+    logger.info(f"Stream query: {request.query[:100]}, Visa: {request.visa_type}, Lang: {request.language}")
+    stream = generator.generate_answer_streaming(
+        request.query, 
+        language=request.language,
+        visa_type=request.visa_type
+    )
     return create_sse_response(stream)

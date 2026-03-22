@@ -8,7 +8,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
   const { t } = useTranslation();
 
   const handleCategoryClick = (category: string) => {
-    setActiveVisaCategory(activeVisaCategory === category ? null : category);
+    setActiveVisaCategory(category);
   };
 
   return (
@@ -42,7 +42,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
           )}
 
           {/* Dynamic Recent Sources */}
-          {useChatStore(state => state.recentSources).map((s, i) => (
+          {useChatStore(state => state.recentSources).slice(0, 3).map((s, i) => (
             <SourceItem 
               key={`recent-${i}`} 
               title={s.title || (s.url.includes('bamf') ? 'BAMF' : s.url.split('/')[2])} 

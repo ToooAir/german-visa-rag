@@ -16,7 +16,7 @@ from src.storage.redis_cache import query_cache
 from src.rag.hybrid_retriever import HybridRetriever
 from src.rag.query_transformer import get_query_transformer
 from src.rag.reranker import get_reranker
-from src.rag.prompt_builder import get_prompt_builder, DISCLAIMER
+from src.rag.prompt_builder import get_prompt_builder
 from src.llm import get_llm_client  
 from src.llm.token_counter import get_token_counter
 from src.observability.mlflow_tracker import get_mlflow_tracker
@@ -229,12 +229,49 @@ class AnswerGenerator:
         cached_result = await query_cache.get(query)
         if cached_result:
             logger.info("Streaming from cache", extra={"request_id": request_id})
-            chunk_size = 20
-            answer = cached_result["answer"]
-            # Simulate streaming effect for cached response
-            for i in range(0, len(answer), chunk_size):
-                yield self._format_sse_chunk(answer[i:i+chunk_size])
-                await asyncio.sleep(0.02)
+            
+            answer = cached_result.get("answer", "")
+            sources = cached_result.get("sources", [])
+            
+            # 0.1 Handle Metadata (Sources)
+            import json
+            metadata_chunk = {
+                "choices": [],
+                "metadata": {
+                    "sources": sources
+                }
+            }
+            yield f"data: {json.dumps(metadata_chunk, ensure_ascii=False)}\n\n"
+            
+            # 0.2 Parse and Stream Tags
+            milestone_pattern = re.compile(r"\[MILESTONE:([\d-]+):(\w+)\]")
+            req_pattern = re.compile(r"\[REQ:([\d-]+):([^:]+):(\w+)\]")
+            
+            # Extract and yield all milestones (backward compatibility for old caches)
+            found_milestones = milestone_pattern.findall(answer)
+            for m_id, m_status in found_milestones:
+                yield self._format_milestone_chunk(m_id, m_status)
+                
+            # Extract and yield all requirements (backward compatibility for old caches)
+            found_reqs = req_pattern.findall(answer)
+            for r_id, r_val, r_status in found_reqs:
+                yield self._format_req_chunk(r_id, r_val, r_status)
+                
+            # Extract from new cache format
+            for m in cached_result.get("milestones", []):
+                yield self._format_milestone_chunk(m["id"], m["status"])
+            for r in cached_result.get("requirements", []):
+                yield self._format_req_chunk(r["id"], r["value"], r["status"])
+                
+            # 0.3 Strip tags from answer and stream text
+            clean_answer = milestone_pattern.sub("", answer)
+            clean_answer = req_pattern.sub("", clean_answer)
+            
+            chunk_size = 30
+            for i in range(0, len(clean_answer), chunk_size):
+                yield self._format_sse_chunk(clean_answer[i:i+chunk_size])
+                await asyncio.sleep(0.01)
+                
             yield "data: [DONE]\n\n"
             return
         
@@ -334,8 +371,10 @@ class AnswerGenerator:
             # 5. Stream LLM Response
             yield self._format_status_chunk("synthesizing")
             full_response = ""
-            milestone_pattern = re.compile(r"\[MILESTONE:(\d+):(\w+)\]")
-            req_pattern = re.compile(r"\[REQ:(\d+):([^:]+):(\w+)\]")
+            achieved_milestones = []
+            updated_requirements = []
+            milestone_pattern = re.compile(r"\[MILESTONE:([\d-]+):(\w+)\]")
+            req_pattern = re.compile(r"\[REQ:([\d-]+):([^:]+):(\w+)\]")
             
             # This buffer is used to catch potential tags split across chunks
             tag_buffer = ""
@@ -354,12 +393,14 @@ class AnswerGenerator:
                         found_milestones = milestone_pattern.findall(tag_buffer)
                         for m_id, m_status in found_milestones:
                             logger.info(f"Triggering milestone: {m_id}={m_status}")
+                            achieved_milestones.append({"id": m_id, "status": m_status})
                             yield self._format_milestone_chunk(m_id, m_status)
                         
                         # Find all complete requirement tags
                         found_reqs = req_pattern.findall(tag_buffer)
                         for r_id, r_val, r_status in found_reqs:
                             logger.info(f"Updating requirement: {r_id}={r_val} ({r_status})")
+                            updated_requirements.append({"id": r_id, "value": r_val, "status": r_status})
                             yield self._format_req_chunk(r_id, r_val, r_status)
                             
                         # Strip complete tags from the buffer
@@ -395,11 +436,13 @@ class AnswerGenerator:
                     found_milestones = milestone_pattern.findall(tag_buffer)
                     for m_id, m_status in found_milestones:
                         logger.info(f"Triggering final milestone: {m_id}={m_status}")
+                        achieved_milestones.append({"id": m_id, "status": m_status})
                         yield self._format_milestone_chunk(m_id, m_status)
                         
                     found_reqs = req_pattern.findall(tag_buffer)
                     for r_id, r_val, r_status in found_reqs:
                         logger.info(f"Updating final requirement: {r_id}={r_val} ({r_status})")
+                        updated_requirements.append({"id": r_id, "value": r_val, "status": r_status})
                         yield self._format_req_chunk(r_id, r_val, r_status)
                     
                     clean_last = milestone_pattern.sub("", tag_buffer)
@@ -455,6 +498,8 @@ class AnswerGenerator:
             await query_cache.set(query, {
                 "answer": full_response,
                 "sources": sources,
+                "milestones": achieved_milestones,
+                "requirements": updated_requirements,
                 "metadata": {
                     "query": query,
                     "retrieval_count": len(reranked),

@@ -5,7 +5,7 @@ import { useTranslation } from '../translations';
 
 export function InsightsPanel({ className = '' }: { className?: string }) {
   const { checklist, requirements, activeVisaCategory, resetProgress } = useChatStore();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   // Map category to translation
   const getCategoryTitle = (cat: string | null) => {
@@ -37,55 +37,95 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
     return title;
   };
 
-  // Map requirement labels
-  const translateRequirementLabel = (label: string) => {
+  const translateRequirementLabel = (label: string, id?: string) => {
     const key = label.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
-    if (key === 'salarythreshold') return t.criteria.salaryThreshold;
-    if (key === 'age') return t.criteria.age;
-    if (key === 'language' || key === 'languageproficiency') return t.criteria.language;
-    if (key === 'experience' || key === 'workexperience') return t.criteria.experience;
-    if (key === 'qualifications' || key === 'academicqualifications' || key === 'professionalqualifications') return t.criteria.qualifications;
-    if (key === 'blockedaccount' || key === 'financialproof' || key === 'proofoffinance') return t.criteria.financialProof;
-    if (key === 'joboffer' || key === 'joboffercontract' || key === 'fulltimecontract' || key === 'germanfulltimecontract') return t.criteria.fullTimeContract;
-    if (key === 'laborconditions' || key === 'workingconditions') return t.criteria.laborConditions;
-    if (key === 'age45clause' || key === '45ageclause') return t.criteria.age45Clause;
-    if (key === 'flexiblelanguage' || key === 'languageflexible' || key === 'languageability') return t.criteria.flexibleLanguage;
-    if (key === 'academicprofessionalqualifications') return t.criteria.qualifications;
-    if (key === 'prbonuslanguage' || key === 'prlanguagebonus') return t.criteria.prLanguageBonus;
-    if (key === 'healthinsurance' || key === 'germanhealthinsurance') return t.criteria.healthInsurance;
-    if (key === 'prestudyqualifications') return t.criteria.preStudyQuals;
-    if (key === 'itexemption' || key === 'itexperienceexemption' || key === 'itexperienceexemption3yr') return t.criteria.itExemption;
-    if (key === 'recognitionpartnership' || key === 'recognitionpartnershipfeg20') return t.criteria.recognitionPartnership;
-    if (key === 'contractduration' || key === 'contractdurationmin6mo') return t.criteria.contractDuration;
-    if (key === 'germanresidency6mo' || key === 'germanresidency') return t.criteria.residencyBonus;
-    if (key === 'partnerbonus') return t.criteria.partnerBonus;
-    if (key === 'mandatorythresholds' || key === 'header1') return t.criteria.basicThresholds;
-    if (key === 'pointsitems' || key === 'pointsitemstarget6' || key === 'header2') return t.criteria.pointsItems;
-    if (key === 'corerequirement') return t.criteria.coreRequirement;
-    return label;
+    let result = label;
+    if (key === 'salarythreshold') result = t.criteria.salaryThreshold;
+    else if (key === 'age') result = t.criteria.age;
+    else if (key === 'language' || key === 'languageproficiency') result = t.criteria.language;
+    else if (key === 'experience' || key === 'workexperience') result = t.criteria.experience;
+    else if (key === 'qualifications' || key === 'academicqualifications' || key === 'professionalqualifications') result = t.criteria.qualifications;
+    else if (key === 'blockedaccount' || key === 'financialproof' || key === 'proofoffinance') result = t.criteria.financialProof;
+    else if (key === 'joboffer' || key === 'joboffercontract' || key === 'fulltimecontract' || key === 'germanfulltimecontract') result = t.criteria.fullTimeContract;
+    else if (key === 'laborconditions' || key === 'workingconditions') result = t.criteria.laborConditions;
+    else if (key === 'age45clause' || key === '45ageclause') result = t.criteria.age45Clause;
+    else if (key === 'flexiblelanguage' || key === 'languageflexible' || key === 'languageability') result = t.criteria.flexibleLanguage;
+    else if (key === 'academicprofessionalqualifications') result = t.criteria.qualifications;
+    else if (key === 'prbonuslanguage' || key === 'prlanguagebonus') result = t.criteria.prLanguageBonus;
+    else if (key === 'healthinsurance' || key === 'germanhealthinsurance') result = t.criteria.healthInsurance;
+    else if (key === 'prestudyqualifications') result = t.criteria.preStudyQuals;
+    else if (key === 'itexemption' || key === 'itexperienceexemption' || key === 'itexperienceexemption3yr') result = t.criteria.itExemption;
+    else if (key === 'recognitionpartnership' || key === 'recognitionpartnershipfeg20') result = t.criteria.recognitionPartnership;
+    else if (key === 'contractduration' || key === 'contractdurationmin6mo') result = t.criteria.contractDuration;
+    else if (key === 'germanresidency6mo' || key === 'germanresidency') result = t.criteria.residencyBonus;
+    else if (key === 'partnerbonus') result = t.criteria.partnerBonus;
+    else if (key === 'mandatorythresholds' || key === 'header1') {
+      if (activeVisaCategory === 'chancenkarte') {
+        return language === 'zh-TW' ? '前置要求 (依申請路徑)' : language === 'de' ? 'Voraussetzungen (je nach Pfad)' : 'Prerequisites (Path-dependent)';
+      }
+      result = t.criteria.basicThresholds;
+    }
+    else if (key === 'pointsitems' || key === 'pointsitemstarget6' || key === 'header2') result = t.criteria.pointsItems;
+    else if (key === 'corerequirement') result = t.criteria.coreRequirement;
+
+    if (id === '1-2' && activeVisaCategory === 'chancenkarte') {
+      const suffix = language === 'zh-TW' ? '(僅積分制)' : language === 'de' ? '(nur Punkte-Pfad)' : '(Points Path only)';
+      return `${result} ${suffix}`;
+    }
+
+    return result;
+  };
+
+  const calculatePoints = () => {
+    let total = 0;
+    requirements.forEach(req => {
+      if (req.id?.startsWith('2-') && req.status === 'required') {
+        const match = req.value.match(/\+(\d+)/);
+        if (match) total += parseInt(match[1], 10);
+        else {
+           // fallback: try to find just a number before '分' or 'pts'
+           const fallbackMatch = req.value.match(/(\d+)\s*(?:分|pts)/i);
+           if (fallbackMatch) total += parseInt(fallbackMatch[1], 10);
+        }
+      }
+    });
+    return total;
+  };
+
+  const checkStatus = (idStart: string) => {
+    const list = requirements.filter(r => r.id?.startsWith(idStart));
+    if (!list.length) return 0;
+    const met = list.filter(r => r.status === 'required').length;
+    return Math.round((met / list.length) * 100);
   };
 
   const getPrimaryThresholds = (cat: string | null) => {
     const cards: Array<{ label: string, value: string, sub: string }> = [];
     
     if (cat === 'work_visa' || cat === 'skilledworker') {
+      const prog = checkStatus('1') || checkStatus('2') ? Math.round(((requirements.filter(r => r.id === '1' || r.id === '2').filter(r => r.status === 'required').length) / 2) * 100) : 0;
       cards.push({ 
         label: t.criteria.coreRequirement || 'Core Requirement', 
         value: `${t.criteria.fullTimeContract || 'Full-time Contract'}\n${t.criteria.salaryStandards}`, 
-        sub: `(0% ${t.met})` 
+        sub: `(${prog}% ${t.met})` 
       });
     } else if (cat === 'blue_card') {
+      const prog = checkStatus('2');
       cards.push({ 
         label: t.criteria.salaryThreshold || 'Salary Threshold', 
         value: `€50,700 (${t.criteria.blueCardGen})\n€45,934.20 (${t.criteria.blueCardIT})`, 
-        sub: `(0% ${t.met})` 
+        sub: `(${prog}% ${t.met})` 
       });
     } else if (cat === 'student_visa') {
-      cards.push({ label: t.criteria.coreRequirement || 'Core Requirement', value: t.criteria.uniAdmission, sub: `(0% ${t.met})` });
-      cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €11,904`, sub: `(0% ${t.met})` });
+      cards.push({ label: t.criteria.coreRequirement || 'Core Requirement', value: t.criteria.uniAdmission, sub: `(${checkStatus('4')}% ${t.met})` });
+      cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €11,904`, sub: `(${checkStatus('1')}% ${t.met})` });
     } else if (cat === 'chancenkarte') {
-      cards.push({ label: t.criteria.eligibilityPath || 'Eligibility Path', value: `${t.criteria.pathDirect}\n${t.criteria.pathPoints}`, sub: `(0% ${t.met} / 0 ${t.criteria.pts})` });
-      cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €13,092`, sub: `(0% ${t.met})` });
+      // Base progress: considers 1-2 (Language) and 1-3 (Qualifications)
+      const baseProgList = requirements.filter(r => r.id === '1-2' || r.id === '1-3');
+      const baseProg = baseProgList.length ? Math.round((baseProgList.filter(r => r.status === 'required').length / baseProgList.length) * 100) : 0;
+      const pts = calculatePoints();
+      cards.push({ label: t.criteria.eligibilityPath || 'Eligibility Path', value: `${t.criteria.pathDirect}\n${t.criteria.pathPoints}`, sub: `(${baseProg}% ${t.met} / ${pts} ${t.criteria.pts})` });
+      cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €13,092`, sub: `(${requirements.find(r => r.id === '1-1')?.status === 'required' ? 100 : 0}% ${t.met})` });
     } else {
       cards.push({ 
         label: t.criteria.eligibilityPath || 'Eligibility Path', 
@@ -108,10 +148,11 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
           </h3>
           <button
             onClick={resetProgress}
-            className="p-1.5 text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer group"
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded-full border border-amber-200/50 dark:border-amber-800/50 transition-all cursor-pointer group shadow-sm active:scale-95"
             title={t.resetProgress}
           >
-            <RefreshCw size={14} className="group-hover:rotate-180 transition-transform duration-500" />
+            <RefreshCw size={12} className="group-hover:rotate-180 transition-transform duration-500" />
+            <span>{t.reset}</span>
           </button>
         </div>
         <div className="space-y-3">
@@ -209,7 +250,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                   >
                     <span className={`flex-1 leading-normal ${req.id?.startsWith('header') ? 'text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'
                       }`}>
-                      {translateRequirementLabel(req.label)}
+                      {translateRequirementLabel(req.label, req.id)}
                     </span>
                     {!req.id?.startsWith('header') && (
                       <div className="flex items-center gap-2 pt-[2px] shrink-0">

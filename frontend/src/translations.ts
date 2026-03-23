@@ -48,6 +48,7 @@ export const translations = {
     salaryCheck: 'Salary Check',
     eligibilityDesc: 'Based on your current profile, you meet the primary criteria but need a few more points for the Chancenkarte.',
     resetProgress: 'Reset Progress',
+    reset: 'Reset',
     autoDetected: 'Auto-detected by AI',
     autoDetectedDesc: 'This milestone was automatically identified from your conversation history.',
     
@@ -155,6 +156,7 @@ export const translations = {
     salaryCheck: 'Gehaltsprüfung',
     eligibilityDesc: 'Basierend auf Ihrem aktuellen Profil erfüllen Sie die Hauptkriterien, benötigen aber noch einige Punkte für die Chancenkarte.',
     resetProgress: 'Fortschritt zurücksetzen',
+    reset: 'Zurücksetzen',
     autoDetected: 'KI-automatisch erkannt',
     autoDetectedDesc: 'Dieser Meilenstein wurde automatisch aus Ihrem Gesprächsverlauf identifiziert.',
 
@@ -262,6 +264,7 @@ export const translations = {
     salaryCheck: '薪資門檻查驗',
     eligibilityDesc: '根據您目前的個人資料，您已符合主要標準，但還需要更多積分才能獲得機會卡。',
     resetProgress: '重置進度',
+    reset: '重置',
     autoDetected: 'AI 自動偵測',
     autoDetectedDesc: '此進度是根據您的對話紀錄自動分析得出的。',
 

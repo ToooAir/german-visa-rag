@@ -133,14 +133,16 @@ class IngestionPipeline:
         tasks = [sem_process(doc) for doc in source_documents]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        for result in results:
+        for i, result in enumerate(results):
+            source_url = source_documents[i].get("url", f"unknown_{i}")
+            
             if isinstance(result, QuotaExhaustedError) or quota_flag[0]:
                 quota_exhausted = True
                 if isinstance(result, QuotaExhaustedError):
-                    errors.append(str(result))
+                    errors.append({"url": source_url, "error": str(result)})
             elif isinstance(result, Exception):
-                logger.error(f"Unexpected error in pipeline task: {result}")
-                errors.append(str(result))
+                logger.error(f"Unexpected error in pipeline task for {source_url}: {result}")
+                errors.append({"url": source_url, "error": str(result)})
             elif isinstance(result, dict):
                 if result.get("skipped_quota"):
                     documents_skipped_quota += 1
@@ -150,7 +152,13 @@ class IngestionPipeline:
                     chunks_skipped += result["chunks_skipped"]
                     total_tokens += result.get("tokens_used", 0)
                 else:
-                    errors.append(result["error"])
+                    errors.append({"url": source_url, "error": result["error"]})
+        
+        # Serialize errors for DB
+        error_details_json = None
+        if errors:
+            import json
+            error_details_json = json.dumps(errors)
         
         # Finalize run
         self.state_store.finalize_ingestion_run(
@@ -160,6 +168,7 @@ class IngestionPipeline:
             chunks_skipped=chunks_skipped,
             error_count=len(errors),
             total_tokens=total_tokens,
+            error_details=error_details_json,
         )
         
         summary = {

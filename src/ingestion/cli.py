@@ -124,11 +124,36 @@ def _print_ingestion_summary(result: dict):
 
     if errors:
         typer.echo("❌ ERROR SUMMARY (Top 5):")
-        error_counts = Counter(errors)
+        # Extract messages for counting (errors are now dicts: {"url": "...", "error": "..."})
+        error_msgs = [e["error"] if isinstance(e, dict) else str(e) for e in errors]
+        error_counts = Counter(error_msgs)
+        
         for msg, count in error_counts.most_common(5):
             # Shorten very long error messages
             display_msg = (msg[:75] + '...') if len(msg) > 75 else msg
             typer.echo(f" - {count:3d}x: {display_msg}")
+        
+        # Save detailed failures to file
+        import json
+        from datetime import datetime
+        failure_log_path = Path("data/ingestion_failures.json")
+        failure_log_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        failure_data = {
+            "run_id": result.get("run_id"),
+            "timestamp": datetime.now().isoformat(),
+            "summary": {
+                "total_failed": len(errors),
+                "unique_errors": len(error_counts)
+            },
+            "failures": errors
+        }
+        
+        with open(failure_log_path, "w", encoding="utf-8") as f:
+            json.dump(failure_data, f, indent=2, ensure_ascii=False)
+            
+        typer.echo("-" * 40)
+        typer.echo(f"📝 Detailed failure log: {failure_log_path}")
         typer.echo("-" * 40)
     
     typer.echo("="*40 + "\n")

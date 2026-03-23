@@ -503,5 +503,35 @@ class URLDiscoverer:
         await self.client.aclose()
 
 
-# Singleton instance removed in favor of Dependency Injection
+# Singleton instance
+_discoverer = None
+
+
+def get_url_discoverer(client: Optional[httpx.AsyncClient] = None) -> URLDiscoverer:
+    """
+    Get or create URLDiscoverer singleton.
+    
+    Args:
+        client: Optional httpx.AsyncClient to use. If not provided,
+               a new one will be created with default settings.
+               
+    Returns:
+        URLDiscoverer instance
+    """
+    global _discoverer
+    if _discoverer is None:
+        if client is None:
+            # Create a default client if none provided
+            # We follow the same pattern as WebCrawler
+            client = httpx.AsyncClient(
+                timeout=settings.crawler_timeout_seconds,
+                follow_redirects=True,
+                limits=httpx.Limits(
+                    max_keepalive_connections=5,
+                    max_connections=10,
+                ),
+            )
+        from src.storage.sqlite_state_store import get_state_store
+        _discoverer = URLDiscoverer(client=client, state_store=get_state_store())
+    return _discoverer
 

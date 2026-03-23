@@ -207,7 +207,9 @@ class WebCrawler:
                 ".meta-navigation", ".utility-nav",
                 ".slick-prev", ".slick-next", ".slider-nav", ".carousel-control",
                 ".translate-banner", ".google-translate-container", 
-                "button", ".btn", ".contact-bar", ".sharing-bar"
+                ".share-page", ".social-share", ".news-item__share", ".sharing-bar",
+                ".social-media-links", ".social-links", ".social-menu",
+                "button", ".btn", ".contact-bar"
             ]
             for selector in noise_selectors:
                 elements = soup.select(selector) if selector.startswith(".") else soup.find_all(selector)

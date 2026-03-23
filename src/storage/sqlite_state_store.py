@@ -311,6 +311,7 @@ class SQLiteStateStore:
         chunks_skipped: int,
         error_count: int = 0,
         total_tokens: int = 0,
+        error_details: Optional[str] = None,
     ):
         """Finalize ingestion run with summary."""
         with self._get_connection() as conn:
@@ -323,7 +324,8 @@ class SQLiteStateStore:
                     chunks_ingested = ?,
                     chunks_skipped = ?,
                     error_count = ?,
-                    total_tokens = ?
+                    total_tokens = ?,
+                    error_details = ?
                 WHERE run_id = ?
             """, (
                 documents_processed,
@@ -331,6 +333,7 @@ class SQLiteStateStore:
                 chunks_skipped,
                 error_count,
                 total_tokens,
+                error_details,
                 run_id,
             ))
             conn.commit()

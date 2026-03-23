@@ -59,6 +59,11 @@ class ParentChildChunker:
             r'Google Translate is a third-party provider\.',
             r'Find points of contact all over the world',
             r'\* \[Living in Germany\]\(.*?\) \* \[Housing & mobility\]\(.*?\)', # Breadcrumb leftovers
+            r'\[WhatsApp\]\(WhatsApp:.*?\) \[Facebook\]\(http:.*?\) \[X\]\(https:.*?\)', # Social media lists
+            r'\[Show more\]\(.*?\)', r'\[Share page\]\(.*?\)', r'\* ### Share page', # UI Boilerplate
+            r'(?:^|\s)\]\(https?://[^\s\)]+\)', # Trailing broken link fragments like ](url)
+            r'^\*?\d{2}\.\d{2}\.\d{4}\*?$', # Standalone date-only chunks
+            r'^\*?Pressemitteilung\*?$', # Standalone Press Release tags
         ]
         for pattern in ui_noise_patterns:
             text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.MULTILINE)
@@ -127,9 +132,16 @@ class ParentChildChunker:
             
             # If paragraph itself is too large, split by sentences
             if len(para) > max_size:
-                para_sentences = re.split(r'(?<=[.!?])\s+', para)
+                # Use a simpler capture-group split instead of look-behind for robustness
+                para_sentences = re.split(r'([.!?](?:\s+|$))', para)
+                # Re-join sentences with their terminators
+                segments = []
+                for i in range(0, len(para_sentences) - 1, 2):
+                    segments.append(para_sentences[i] + para_sentences[i+1])
+                if len(para_sentences) % 2 == 1:
+                    segments.append(para_sentences[-1])
                 
-                for sentence in para_sentences:
+                for sentence in segments:
                     sentence = sentence.strip()
                     if not sentence:
                         continue

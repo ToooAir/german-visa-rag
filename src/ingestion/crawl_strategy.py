@@ -8,6 +8,10 @@ from dataclasses import dataclass, field
 from urllib.parse import urlparse
 import re
 
+import yaml
+from pathlib import Path
+
+from src.config import settings
 from src.logger import logger
 
 
@@ -178,16 +182,59 @@ GERMANY_VISA_STRATEGY = DomainCrawlStrategy(
 class StrategyRegistry:
     """Registry for domain-specific crawl strategies."""
 
-    def __init__(self):
+    def __init__(self, config_path: Optional[Path] = None):
         self._strategies: Dict[str, DomainCrawlStrategy] = {}
-        # Register built-in strategies
+        # 1. Register built-in hardcoded strategies (base rules)
         self._register_defaults()
+        # 2. Load and override/extend from YAML
+        self.load_from_yaml(config_path or settings.seed_urls_path)
 
     def _register_defaults(self):
         """Register pre-defined strategies."""
         self.register(MAKE_IT_IN_GERMANY_STRATEGY)
         self.register(CHANCENKARTE_COM_STRATEGY)
         self.register(GERMANY_VISA_STRATEGY)
+
+    def load_from_yaml(self, path: Path):
+        """Load domain configurations from a YAML file."""
+        if not path.exists():
+            logger.warning(f"Seed URLs config not found at {path}")
+            return
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+                domain_configs = config.get("domains", [])
+                
+                for dc in domain_configs:
+                    domain = dc.get("domain")
+                    if not domain:
+                        continue
+                        
+                    # If exists, update. If not, create.
+                    if domain in self._strategies:
+                        strategy = self._strategies[domain]
+                        strategy.seed_paths = dc.get("seed_paths", strategy.seed_paths)
+                        strategy.authority_level = dc.get("authority_level", strategy.authority_level)
+                        strategy.default_visa_types = dc.get("default_visa_types", strategy.default_visa_types)
+                        strategy.max_depth = dc.get("max_depth", strategy.max_depth)
+                        strategy.max_pages = dc.get("max_pages", strategy.max_pages)
+                        strategy.use_sitemap = dc.get("use_sitemap", strategy.use_sitemap)
+                    else:
+                        strategy = DomainCrawlStrategy(
+                            domain=domain,
+                            seed_paths=dc.get("seed_paths", ["/"]),
+                            authority_level=dc.get("authority_level", "third_party"),
+                            default_visa_types=dc.get("default_visa_types", ["general"]),
+                            max_depth=dc.get("max_depth", 3),
+                            max_pages=dc.get("max_pages", 100),
+                            use_sitemap=dc.get("use_sitemap", True),
+                        )
+                        self.register(strategy)
+                        
+            logger.info(f"Loaded {len(domain_configs)} domain strategies from {path}")
+        except Exception as e:
+            logger.error(f"Failed to load domain strategies from {path}: {e}")
 
     def register(self, strategy: DomainCrawlStrategy):
         """Register a crawl strategy for a domain."""

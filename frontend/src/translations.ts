@@ -106,7 +106,44 @@ export const translations = {
       altFinancial: 'Alternative Financial Proofs',
       salaryStandards: 'Salary commensurate with standards (BA check)',
       financialGoal: 'Subsistence Funds (Blocked Acc.)',
-      yearlyAmount: 'Total / year'
+      yearlyAmount: 'Total / year',
+      degreeQuals: 'Degree Recognition',
+      salaryThresholdCheck: 'High Salary Threshold',
+      profQualifications: 'Professional Qualifications',
+      employmentContract: 'Full-time Contract',
+      admissionQuals: 'University Admission',
+      finLanguage: 'Finance & Language'
+    },
+    docs: {
+      finalTitle: 'Final Document Checklist',
+      commonTitle: 'Common Mandatory Documents',
+      specificTitle: 'Visa-Specific Core Documents',
+      common: {
+        passport: 'Valid Passport (6mo+ validity, 2 blank pages)',
+        photo: 'Biometric Passport Photos (35mm x 45mm)',
+        videx: 'Online Visa Application Form (Videx, signed)',
+        insurance: 'Proof of Health Insurance (covering from day 1)'
+      },
+      specific: {
+        studentZulassung: 'Unconditional Admission Letter (Zulassungsbescheid)',
+        studentFin: 'Financial Proof: €11,904 Blocked Account / Scholarship',
+        studentDegree: 'Highest Academic Degree & Transcripts',
+        studentLang: 'Language Certificate (TestDaF/IELTS)',
+        chancenFin: 'Financial Proof: €13,092 Blocked Account / Part-time Contract',
+        chancenQual: 'Proof of Qualification (Degree / Vocational)',
+        chancenZab: 'Qualification Recognition (ZAB / Anabin)',
+        chancenLangPts: '[Points Proof] Language Certificate (if claimed)',
+        chancenExpPts: '[Points Proof] Employer References (if claimed)',
+        blueContract: 'High Salary Contract (Gen €50.7k / IT €45.9k)',
+        blueEmp: 'Declaration of Employment (Erklärung...)',
+        blueDegree: '[Standard] University Degree & Anabin Proof',
+        blueIt: '[IT Exemption] Proof of 3 years IT experience',
+        workContract: 'German Full-Time Contract (Title/Salary included)',
+        workEmp: 'Declaration of Employment (Erklärung...)',
+        workQual: 'Recognized Proof of Qualification',
+        workPreApp: 'Pre-approval from Emp. Agency (Vorabzustimmung)',
+        workPension: 'Pension Provision (Only if 45+ & low salary)'
+      }
     }
   },
   de: {
@@ -214,7 +251,44 @@ export const translations = {
       altFinancial: 'Alternative Finanzierungsnachweise',
       salaryStandards: 'Gehalt ortsüblich & branchentypisch (BA)',
       financialGoal: 'Lebensunterhalt (Sperrkonto)',
-      yearlyAmount: 'Gesamt / Jahr'
+      yearlyAmount: 'Gesamt / Jahr',
+      degreeQuals: 'Anerkennung des Abschlusses',
+      salaryThresholdCheck: 'Gehaltsschwelle',
+      profQualifications: 'Berufsqualifikationen',
+      employmentContract: 'Vollzeitvertrag',
+      admissionQuals: 'Hochschulzulassung',
+      finLanguage: 'Finanzierung & Sprache'
+    },
+    docs: {
+      finalTitle: 'Finale Dokumentenliste',
+      commonTitle: 'Allgemeine Pflichtdokumente',
+      specificTitle: 'Visumspezifische Dokumente',
+      common: {
+        passport: 'Gültiger Reisepass (mind. 6 Mon. gültig, 2 leere Seiten)',
+        photo: 'Biometrische Passbilder (35mm x 45mm)',
+        videx: 'Online-Visumantrag (Videx, ausgedruckt & unterschrieben)',
+        insurance: 'Krankenversicherungsnachweis (ab Tag 1)'
+      },
+      specific: {
+        studentZulassung: 'Unbedingter Zulassungsbescheid',
+        studentFin: 'Finanznachweis: €11.904 Sperrkonto / Stipendium',
+        studentDegree: 'Höchster Bildungsabschluss & Zeugnisse',
+        studentLang: 'Sprachzertifikat (TestDaF/IELTS)',
+        chancenFin: 'Finanznachweis: €13.092 Sperrkonto / Nebenjob',
+        chancenQual: 'Qualifikationsnachweis (Studium / Ausbildung)',
+        chancenZab: 'Anerkennungsnachweis (ZAB / Anabin)',
+        chancenLangPts: '[Punkte-Nachweis] Sprachzertifikat (falls zutreffend)',
+        chancenExpPts: '[Punkte-Nachweis] Arbeitszeugnisse (falls zutreffend)',
+        blueContract: 'Arbeitsvertrag (Gehalt mind. €50,7k / IT €45,9k)',
+        blueEmp: 'Erklärung zum Beschäftigungsverhältnis',
+        blueDegree: '[Standard] Hochschulabschluss & Anabin-Nachweis',
+        blueIt: '[IT-Ausnahme] Nachweis über 3 Jahre IT-Erfahrung',
+        workContract: 'Deutscher Vollzeitvertrag (Titel/Gehalt inbegriffen)',
+        workEmp: 'Erklärung zum Beschäftigungsverhältnis',
+        workQual: 'Anerkannter Qualifikationsnachweis',
+        workPreApp: 'Vorabzustimmung der Bundesagentur für Arbeit',
+        workPension: 'Altersvorsorge (nur ab 45 J. & geringeres Gehalt)'
+      }
     }
   },
   'zh-TW': {
@@ -322,7 +396,44 @@ export const translations = {
       altFinancial: '其他財力證明方式',
       salaryStandards: '薪資需達當地同業水準 (由勞動局 BA 審核)',
       financialGoal: '生活費證明 (限制提領帳戶)',
-      yearlyAmount: '年總額'
+      yearlyAmount: '年度總額',
+      degreeQuals: '學歷認可要求',
+      salaryThresholdCheck: '高薪合約門檻',
+      profQualifications: '專業資格認可',
+      employmentContract: '全職工作合約',
+      admissionQuals: '預科/大學入學許可',
+      finLanguage: '財力與語言門檻'
+    },
+    docs: {
+      finalTitle: '最終文件準備清單',
+      commonTitle: '通用必備文件 (適用所有簽證)',
+      specificTitle: '簽證專屬核心文件',
+      common: {
+        passport: '有效護照 (至少6個月效期，2頁空白)',
+        photo: '生物辨識證件照 (35mm x 45mm)',
+        videx: '線上簽證申請表 (Videx 印出並簽名)',
+        insurance: '德國醫療保險證明 (涵蓋入境首日)'
+      },
+      specific: {
+        studentZulassung: '大學/預科無條件入學許可 (Zulassungsbescheid)',
+        studentFin: '財力證明: €11,904 限制提領帳戶 / 獎學金',
+        studentDegree: '最高學歷證明與歷年成績單 (英文/德文)',
+        studentLang: '授課語言能力證明 (TestDaF/IELTS 等)',
+        chancenFin: '財力證明: €13,092 限制提領帳戶 / 兼職合約',
+        chancenQual: '學經歷資格證明 (學位或職業培訓)',
+        chancenZab: '外國學歷認可證明 (ZAB 認證 / Anabin)',
+        chancenLangPts: '【積分佐證】語言檢定證書 (若有加分)',
+        chancenExpPts: '【積分佐證】前雇主工作經驗證明 (若有加分)',
+        blueContract: '高薪工作合約 (一般 €50.7k / IT €45.9k)',
+        blueEmp: '雇主聲明表 (Erklärung zum Beschäftigungsverhältnis)',
+        blueDegree: '【一般】大學畢業證書與 Anabin 認可截圖',
+        blueIt: '【IT豁免】前雇主開立之 3 年 IT 實務經驗證明',
+        workContract: '德國全職工作合約 (需明列職稱/薪資)',
+        workEmp: '雇主聲明表 (Erklärung zum Beschäftigungsverhältnis)',
+        workQual: '受德國認可之學歷或專業資格證明',
+        workPreApp: '勞工局預先核准信 (Vorabzustimmung) - 加速用',
+        workPension: '退休金準備證明 (僅限滿 45 歲且薪資未達法定高標)'
+      }
     }
   }
 };

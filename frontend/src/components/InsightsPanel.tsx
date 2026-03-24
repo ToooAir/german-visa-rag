@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { CheckCircle2, Circle, AlertCircle, RefreshCw, Sparkles, FileText, CheckSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChatStore } from '../stores/chatStore';
 import { useTranslation } from '../translations';
@@ -22,19 +22,18 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
 
   // Map checklist titles
   const translateChecklistTitle = (title: string) => {
-    const lower = title.toLowerCase();
-    if (lower.includes('eligibility path')) return t.criteria.eligibilityPath;
-    if (lower.includes('eligibility check')) return t.criteria.eligibility;
-    if (lower.includes('basic thresholds')) return t.criteria.basicThresholds;
-    if (lower.includes('salary threshold')) return t.criteria.salaryThreshold;
-    if (lower.includes('points calculation') || lower.includes('points requirements')) return t.pointsReq;
-    if (lower.includes('university admission') || lower.includes('zulassung')) return t.criteria.uniAdmission;
-    if (lower.includes('job offer') || lower.includes('full-time contract')) return t.criteria.fullTimeContract;
-    if (lower.includes('salary check')) return t.salaryCheck;
-    if (lower.includes('document')) return t.docChecklist;
-    if (lower.includes('embassy') || lower.includes('appointment')) return t.embassyAppt;
-    if (lower.includes('approval') || lower.includes('final step')) return t.approval;
-    return title;
+    switch(title) {
+      case 'Basic Thresholds': return t.criteria.basicThresholds || title;
+      case 'Points Calculation': return t.criteria.pointsItems || title;
+      case 'Document Checklist': return t.docChecklist || title;
+      case 'Degree Recognition': return t.criteria.degreeQuals || title;
+      case 'High Salary Threshold': return t.criteria.salaryThresholdCheck || title;
+      case 'Professional Qualifications': return t.criteria.profQualifications || title;
+      case 'Full-time Contract': return t.criteria.employmentContract || title;
+      case 'Finance & Language': return t.criteria.finLanguage || title;
+      case 'University Admission': return t.criteria.admissionQuals || title;
+      default: return title;
+    }
   };
 
   const translateRequirementLabel = (label: string, id?: string) => {
@@ -80,12 +79,17 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
     let total = 0;
     requirements.forEach(req => {
       if (req.id?.startsWith('2-') && req.status === 'required') {
-        const match = req.value.match(/\+(\d+)/);
-        if (match) total += parseInt(match[1], 10);
-        else {
-           // fallback: try to find just a number before '分' or 'pts'
-           const fallbackMatch = req.value.match(/(\d+)\s*(?:分|pts)/i);
-           if (fallbackMatch) total += parseInt(fallbackMatch[1], 10);
+        if (req.value.includes('|')) {
+          const [, ptsStr] = req.value.split('|');
+          total += parseInt(ptsStr, 10) || 0;
+        } else {
+          // fallback for legacy cached format like 'B1 (+2分)'
+          const match = req.value.match(/\+(\d+)/);
+          if (match) total += parseInt(match[1], 10);
+          else {
+            const fallbackMatch = req.value.match(/(\d+)\s*(?:分|pts)/i);
+            if (fallbackMatch) total += parseInt(fallbackMatch[1], 10);
+          }
         }
       }
     });
@@ -120,9 +124,18 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       cards.push({ label: t.criteria.coreRequirement || 'Core Requirement', value: t.criteria.uniAdmission, sub: `(${checkStatus('4')}% ${t.met})` });
       cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €11,904`, sub: `(${checkStatus('1')}% ${t.met})` });
     } else if (cat === 'chancenkarte') {
-      // Base progress: considers 1-2 (Language) and 1-3 (Qualifications)
-      const baseProgList = requirements.filter(r => r.id === '1-2' || r.id === '1-3');
-      const baseProg = baseProgList.length ? Math.round((baseProgList.filter(r => r.status === 'required').length / baseProgList.length) * 100) : 0;
+      // Smart Inference: if points are awarded, base requirements are logically met
+      const hasLangPoints = requirements.some(r => r.id === '2-1' && r.status === 'required');
+      const hasQualPoints = requirements.some(r => r.id?.match(/^2-[45]/) && r.status === 'required');
+
+      const isLangMet = hasLangPoints || requirements.some(r => r.id === '1-2' && r.status === 'required');
+      const isQualMet = hasQualPoints || requirements.some(r => r.id === '1-3' && r.status === 'required');
+
+      let baseProgMet = 0;
+      if (isLangMet) baseProgMet++;
+      if (isQualMet) baseProgMet++;
+      
+      const baseProg = Math.round((baseProgMet / 2) * 100);
       const pts = calculatePoints();
       cards.push({ label: t.criteria.eligibilityPath || 'Eligibility Path', value: `${t.criteria.pathDirect}\n${t.criteria.pathPoints}`, sub: `(${baseProg}% ${t.met} / ${pts} ${t.criteria.pts})` });
       cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €13,092`, sub: `(${requirements.find(r => r.id === '1-1')?.status === 'required' ? 100 : 0}% ${t.met})` });
@@ -137,6 +150,75 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
   };
 
   const primaryThresholds = getPrimaryThresholds(activeVisaCategory);
+
+  const displayChecklist = checklist.map((item) => {
+    const displayItem = { ...item };
+    // Smart Inference for Chancenkarte Milestones
+    if (activeVisaCategory === 'chancenkarte') {
+      const hasLangPoints = requirements.some(r => r.id === '2-1' && r.status === 'required');
+      const hasQualPoints = requirements.some(r => r.id?.match(/^2-[45]/) && r.status === 'required');
+      const isLangMet = hasLangPoints || requirements.some(r => r.id === '1-2' && r.status === 'required');
+      const isQualMet = hasQualPoints || requirements.some(r => r.id === '1-3' && r.status === 'required');
+      const isFinMet = requirements.some(r => r.id === '1-1' && r.status === 'required');
+      const pts = calculatePoints();
+
+      if (item.id === '1') {
+         if (isFinMet && isLangMet && isQualMet) displayItem.status = 'completed';
+         else if (isFinMet || isLangMet || isQualMet) displayItem.status = 'current';
+      }
+      if (item.id === '2') {
+         if (pts >= 6) displayItem.status = 'completed';
+         else if (pts > 0) displayItem.status = 'current';
+      }
+      if (item.id === '3') {
+         if (isFinMet && isLangMet && isQualMet && pts >= 6) displayItem.status = 'current';
+      }
+    } else if (activeVisaCategory === 'blue_card') {
+      const isQualMet = requirements.some(r => r.id === '1' && r.status === 'required');
+      const isContractMet = requirements.some(r => r.id === '2' && r.status === 'required');
+      if (item.id === '1') {
+         if (isQualMet) displayItem.status = 'completed';
+         else displayItem.status = 'current';
+      }
+      if (item.id === '2') {
+        if (isContractMet) displayItem.status = 'completed';
+        else if (requirements.some(r => r.id === '2' && r.status === 'warning') || isQualMet) displayItem.status = 'current';
+      }
+      if (item.id === '3') {
+         if (isQualMet && isContractMet) displayItem.status = 'current';
+      }
+    } else if (activeVisaCategory === 'student_visa') {
+      const isFinMet = requirements.some(r => r.id === '1' && r.status === 'required');
+      const isLangMet = requirements.some(r => r.id === '2' && r.status === 'required');
+      const isAdmitted = requirements.some(r => r.id === '4' && r.status === 'required');
+      if (item.id === '1') {
+         if (isAdmitted && isLangMet) displayItem.status = 'completed';
+         else displayItem.status = 'current';
+      }
+      if (item.id === '2') {
+        if (isFinMet) displayItem.status = 'completed';
+        else if (requirements.some(r => r.id === '1' && r.status === 'warning') || (isAdmitted && isLangMet)) displayItem.status = 'current';
+      }
+      if (item.id === '3') {
+        if (isAdmitted && isLangMet && isFinMet) displayItem.status = 'current';
+      }
+    } else if (activeVisaCategory === 'work_visa') {
+      const isQualMet = requirements.some(r => r.id === '1' && r.status === 'required');
+      const isLaborMet = requirements.some(r => r.id === '2' && r.status === 'required');
+      if (item.id === '1') {
+         if (isQualMet) displayItem.status = 'completed';
+         else displayItem.status = 'current';
+      }
+      if (item.id === '2') {
+        if (isLaborMet) displayItem.status = 'completed';
+        else if (requirements.some(r => r.id === '2' && r.status === 'warning') || isQualMet) displayItem.status = 'current';
+      }
+      if (item.id === '3') {
+         if (isQualMet && isLaborMet) displayItem.status = 'current';
+      }
+    }
+    return displayItem;
+  });
 
   return (
     <div className={`flex flex-col gap-4 h-full overflow-y-auto pr-1 custom-scrollbar ${className}`}>
@@ -157,16 +239,16 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
         </div>
         <div className="space-y-3">
           <AnimatePresence mode="popLayout">
-            {checklist.map((item, index) => (
+            {displayChecklist.map((displayItem, index) => (
               <motion.div
-                key={item.id}
+                key={displayItem.id}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
                 className="flex items-center gap-3 group"
               >
-                <div className={`shrink-0 ${item.status === 'completed' ? 'text-green-500' : item.status === 'current' ? 'text-accent' : 'text-slate-300 dark:text-slate-600'}`}>
-                  {item.status === 'completed' ? <CheckCircle2 size={18} /> : item.status === 'current' ? (
+                <div className={`shrink-0 ${displayItem.status === 'completed' ? 'text-green-500' : displayItem.status === 'current' ? 'text-accent' : 'text-slate-300 dark:text-slate-600'}`}>
+                  {displayItem.status === 'completed' ? <CheckCircle2 size={18} /> : displayItem.status === 'current' ? (
                     <div className="relative">
                       <Circle size={18} className="animate-pulse" />
                       <div className="absolute inset-0 m-auto w-1.5 h-1.5 bg-accent rounded-full" />
@@ -174,20 +256,20 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                   ) : <Circle size={18} />}
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className={`text-sm font-medium truncate ${item.status === 'completed' ? 'text-slate-400 line-through' : item.status === 'current' ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500'}`}>
-                    {translateChecklistTitle(item.title)}
+                  <span className={`text-sm font-medium truncate ${displayItem.status === 'completed' ? 'text-slate-400 line-through' : displayItem.status === 'current' ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500'}`}>
+                    {translateChecklistTitle(displayItem.title)}
                   </span>
                   <div className="flex items-center gap-2">
-                    {item.status === 'current' && item.subtitle && (
+                    {displayItem.status === 'current' && displayItem.subtitle && (
                       <motion.span
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         className="text-[10px] text-accent font-medium uppercase tracking-wider"
                       >
-                        {item.subtitle}
+                        {displayItem.subtitle}
                       </motion.span>
                     )}
-                    {item.autoDetected && (
+                    {displayItem.autoDetected && (
                       <div className="flex items-center gap-1 text-[10px] text-amber-500/80 font-medium">
                         <Sparkles size={10} />
                         <span>{t.autoDetected}</span>
@@ -239,7 +321,23 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
             <div className="text-xs text-slate-500 dark:text-slate-400 mb-2 px-1">{t.mainCriteria}:</div>
             <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
               <AnimatePresence mode="popLayout">
-                {requirements.map((req, index) => (
+                {requirements.map((rawReq, index) => {
+                  const req = { ...rawReq };
+                  // Apply smart inference to visually satisfy prerequisites if points are awarded
+                  if (activeVisaCategory === 'chancenkarte') {
+                    const hasLangPoints = requirements.some(r => r.id === '2-1' && r.status === 'required');
+                    const hasQualPoints = requirements.some(r => r.id?.match(/^2-[45]/) && r.status === 'required');
+                    if (req.id === '1-2' && hasLangPoints && req.status !== 'required') {
+                      req.status = 'required';
+                      req.value = t.met || 'Met';
+                    }
+                    if (req.id === '1-3' && hasQualPoints && req.status !== 'required') {
+                      req.status = 'required';
+                      req.value = t.met || 'Met';
+                    }
+                  }
+
+                  return (
                   <motion.li
                     key={req.id || index}
                     initial={{ opacity: 0, x: 5 }}
@@ -259,16 +357,98 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                           req.status === 'warning' ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' :
                             'bg-slate-100 dark:bg-slate-800 text-slate-500'
                           }`}>
-                          {req.value}
+                          {(req.id?.startsWith('2-') && req.value.includes('|'))
+                            ? `${req.value.split('|')[0]} (+${req.value.split('|')[1]}${t.criteria.pts || 'pts'})`
+                            : req.value}
                         </span>
                       </div>
                     )}
                   </motion.li>
-                ))}
+                )})}
               </AnimatePresence>
             </ul>
           </div>
         </div>
+
+        {/* Dynamic Document Checklist View */}
+        {displayChecklist.find(c => c.id === '3')?.status !== 'pending' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 pt-5 border-t border-slate-200/50 dark:border-slate-700/50"
+          >
+            <div className="flex items-center gap-2 mb-5">
+              <div className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-500">
+                <FileText size={16} />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                {t.docs?.finalTitle || 'Final Document Checklist'}
+              </h3>
+            </div>
+
+            <div className="space-y-5">
+              {/* Common Docs */}
+              <div className="p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm">
+                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 px-1 uppercase tracking-wider flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/70"></div>
+                  {t.docs?.commonTitle}
+                </div>
+                <ul className="space-y-1">
+                  {[
+                    t.docs?.common?.passport,
+                    t.docs?.common?.photo,
+                    t.docs?.common?.videx,
+                    t.docs?.common?.insurance
+                  ].map((doc, i) => (
+                    <li key={i} className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-white/60 dark:hover:bg-slate-700/40 transition-colors group">
+                      <CheckCircle2 size={16} className="text-emerald-500/80 mt-0.5 shrink-0 group-hover:text-emerald-500 transition-colors" />
+                      <span className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300 font-medium">{doc}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Specific Docs */}
+              <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-500/20 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl -mr-10 -mt-10"></div>
+                <div className="text-xs font-bold text-indigo-600/80 dark:text-indigo-400/80 mb-3 px-1 uppercase tracking-wider flex items-center gap-2 relative z-10">
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500/70"></div>
+                  {t.docs?.specificTitle}
+                </div>
+                <ul className="space-y-1 relative z-10">
+                  {(activeVisaCategory === 'student_visa' ? [
+                    t.docs?.specific?.studentZulassung,
+                    t.docs?.specific?.studentFin,
+                    t.docs?.specific?.studentDegree,
+                    t.docs?.specific?.studentLang
+                  ] : activeVisaCategory === 'chancenkarte' ? [
+                    t.docs?.specific?.chancenFin,
+                    t.docs?.specific?.chancenQual,
+                    t.docs?.specific?.chancenZab,
+                    t.docs?.specific?.chancenLangPts,
+                    t.docs?.specific?.chancenExpPts
+                  ] : activeVisaCategory === 'blue_card' ? [
+                    t.docs?.specific?.blueContract,
+                    t.docs?.specific?.blueEmp,
+                    t.docs?.specific?.blueDegree,
+                    t.docs?.specific?.blueIt
+                  ] : [
+                    t.docs?.specific?.workContract,
+                    t.docs?.specific?.workEmp,
+                    t.docs?.specific?.workQual,
+                    t.docs?.specific?.workPreApp,
+                    t.docs?.specific?.workPension
+                  ]).map((doc, i) => (
+                    <li key={i} className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-white/60 dark:hover:bg-indigo-800/30 transition-colors group">
+                      <CheckSquare size={16} className="text-indigo-500/80 mt-0.5 shrink-0 group-hover:text-indigo-500 transition-colors" />
+                      <span className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300 font-medium">{doc}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         <motion.div
           initial={{ opacity: 0 }}

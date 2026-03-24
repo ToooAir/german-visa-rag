@@ -100,11 +100,9 @@ export const useChatStore = create<ChatState>()(
 
     if (cat === 'work_visa') {
       checklist = [
-        { id: '1', title: 'Eligibility Check', status: 'pending' },
-        { id: '2', title: 'German Full-time Contract', status: 'pending' },
-        { id: '3', title: 'Document Checklist', status: 'pending' },
-        { id: '4', title: 'Embassy Appointment', status: 'pending' },
-        { id: '5', title: 'Approval', status: 'pending' }
+        { id: '1', title: 'Professional Qualifications', status: 'pending' },
+        { id: '2', title: 'Full-time Contract', status: 'pending' },
+        { id: '3', title: 'Document Checklist', status: 'pending' }
       ];
       requirements = [
         { id: '1', label: 'Qualifications', value: '-', status: 'info' },
@@ -114,11 +112,9 @@ export const useChatStore = create<ChatState>()(
       ];
     } else if (cat === 'blue_card') {
       checklist = [
-        { id: '1', title: 'Eligibility Check', status: 'pending' },
-        { id: '2', title: 'Annual Salary Threshold', status: 'pending' },
-        { id: '3', title: 'Document Checklist', status: 'pending' },
-        { id: '4', title: 'Embassy Appointment', status: 'pending' },
-        { id: '5', title: 'Approval', status: 'pending' }
+        { id: '1', title: 'Degree Recognition', status: 'pending' },
+        { id: '2', title: 'High Salary Threshold', status: 'pending' },
+        { id: '3', title: 'Document Checklist', status: 'pending' }
       ];
       requirements = [
         { id: '1', label: 'Academic & Professional Qualifications', value: '-', status: 'info' },
@@ -127,11 +123,9 @@ export const useChatStore = create<ChatState>()(
       ];
     } else if (cat === 'student_visa') {
       checklist = [
-        { id: '1', title: 'Eligibility Check', status: 'pending' },
+        { id: '1', title: 'Finance & Language', status: 'pending' },
         { id: '2', title: 'University Admission', status: 'pending' },
-        { id: '3', title: 'Document Checklist', status: 'pending' },
-        { id: '4', title: 'Embassy Appointment', status: 'pending' },
-        { id: '5', title: 'Approval', status: 'pending' }
+        { id: '3', title: 'Document Checklist', status: 'pending' }
       ];
       requirements = [
         { id: '1', label: 'Financial Proof', value: '-', status: 'info' },
@@ -141,12 +135,9 @@ export const useChatStore = create<ChatState>()(
       ];
     } else {
       checklist = [
-        { id: '1', title: 'Eligibility Path', status: 'pending' },
-        { id: '2', title: 'Basic Thresholds', status: 'pending' },
-        { id: '3', title: 'Points Calculation', status: 'pending' },
-        { id: '4', title: 'Document Checklist', status: 'pending' },
-        { id: '5', title: 'Embassy Appointment', status: 'pending' },
-        { id: '6', title: 'Approval', status: 'pending' }
+        { id: '1', title: 'Basic Thresholds', status: 'pending' },
+        { id: '2', title: 'Points Calculation', status: 'pending' },
+        { id: '3', title: 'Document Checklist', status: 'pending' }
       ];
       requirements = [
         { id: 'header1', label: 'Mandatory Thresholds', value: '', status: 'info' },
@@ -176,9 +167,24 @@ export const useChatStore = create<ChatState>()(
         const settings = useSettingsStore.getState();
         if (settings.notificationsEnabled) {
           const t = translations[settings.language as keyof typeof translations] || translations.en;
+          
+          let translatedTitle = item.title;
+          const lower = item.title.toLowerCase();
+          if (lower.includes('eligibility path')) translatedTitle = t.criteria.eligibilityPath || item.title;
+          else if (lower.includes('eligibility check')) translatedTitle = t.criteria.eligibility || item.title;
+          else if (lower.includes('basic thresholds')) translatedTitle = t.criteria.basicThresholds || item.title;
+          else if (lower.includes('salary threshold')) translatedTitle = t.criteria.salaryThreshold || item.title;
+          else if (lower.includes('points calculation') || lower.includes('points requirements')) translatedTitle = t.pointsReq || item.title;
+          else if (lower.includes('university admission') || lower.includes('zulassung')) translatedTitle = t.criteria.uniAdmission || item.title;
+          else if (lower.includes('job offer') || lower.includes('full-time contract') || lower.includes('german full-time contract')) translatedTitle = t.criteria.fullTimeContract || item.title;
+          else if (lower.includes('salary check')) translatedTitle = t.salaryCheck || item.title;
+          else if (lower.includes('document')) translatedTitle = t.docChecklist || item.title;
+          else if (lower.includes('embassy') || lower.includes('appointment')) translatedTitle = t.embassyAppt || item.title;
+          else if (lower.includes('approval') || lower.includes('final step')) translatedTitle = t.approval || item.title;
+
           useToastStore.getState().addToast({
             title: t.milestoneReached || 'Milestone Reached',
-            message: `${item.title}: ${t.autoDetectedDesc || 'AI has updated your checklist'}`,
+            message: `${translatedTitle}: ${t.autoDetectedDesc || 'AI has updated your checklist'}`,
             type: 'success'
           });
         }
@@ -221,7 +227,8 @@ export const useChatStore = create<ChatState>()(
         body: JSON.stringify({ 
           query: content,
           language: useSettingsStore.getState().language,
-          visa_type: useChatStore.getState().activeVisaCategory || undefined
+          visa_type: useChatStore.getState().activeVisaCategory || undefined,
+          requirements: get().requirements
         }),
       });
 

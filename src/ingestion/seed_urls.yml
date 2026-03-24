@@ -1,14 +1,23 @@
 # German Visa & Chancenkarte Document Sources
 # Restructured: seed domains + discovery rules + optional extra URLs
+# Sources: Official immigration authorities, federal employment agencies, and credential recognition bodies
 
 # ============================================
 # Domain crawl configurations
 # ============================================
 # Each domain defines seed paths and discovery rules.
 # The crawler will automatically discover and crawl all relevant pages.
+#
+# authority_level values:
+#   official      — Government or EU-mandated authority
+#   semi_official — Officially linked / government-funded portal
+#   third_party   — Independent aggregator or commercial site
 
 domains:
-  - domain: "make-it-in-germany.com"
+
+  # ── 德國官方移民入口網站 ─────────────────────────────────────────────
+  - domain: "www.make-it-in-germany.com"
+    # Fix: Added www. prefix for consistent domain matching (avoids redirect misses)
     seed_paths:
       - "/en/visa-residence/"
       - "/en/visa-residence/opportunity-card"
@@ -21,17 +30,22 @@ domains:
     authority_level: "official"
     default_visa_types:
       - "general"
+      - "chancenkarte"     # seed_paths explicitly cover Chancenkarte
+      - "blue_card"        # seed_paths explicitly cover EU Blue Card
+      - "work_visa"
+      - "student_visa"
     max_depth: 3
     max_pages: 200
     use_sitemap: true
 
-  - domain: "chancenkarte.com"
+  - domain: "www.chancenkarte.com"
+    # Downgraded: chancenkarte.com is a commercial third-party site, not government
     seed_paths:
       - "/en/"
       - "/en/guides/"
       - "/en/news/"
       - "/en/calculator/"
-    authority_level: "semi_official"
+    authority_level: "third_party"
     default_visa_types:
       - "chancenkarte"
     max_depth: 2
@@ -53,9 +67,11 @@ domains:
     seed_paths:
       - "/"
       - "/chancenkarte"
+      - "/visa"
     authority_level: "official"
     default_visa_types:
       - "general"
+      - "chancenkarte"     # /chancenkarte seed explicitly targets this
     max_depth: 2
     max_pages: 50
     use_sitemap: false
@@ -66,50 +82,117 @@ domains:
     authority_level: "official"
     default_visa_types:
       - "general"
+      - "work_visa"
+      - "chancenkarte"
+      - "blue_card"
+      - "student_visa"
     max_depth: 3
     max_pages: 100
     use_sitemap: true
+
+  - domain: "www.germany.info"
+    # Added matching domain config for the extra_url entry (germany.info US embassy portal)
+    seed_paths:
+      - "/us-en/"
+    authority_level: "official"
+    default_visa_types:
+      - "work_visa"
+    max_depth: 1
+    max_pages: 20
+    use_sitemap: false
+
+  # ── 聯邦核心移民與就業機構 ─────────────────────────────────────────────
+
+  - domain: "www.bamf.de"
+    # BAMF: Bundesamt für Migration und Flüchtlinge (聯邦移民與難民局)
+    # 制定並發布簽證法規（歐盟藍卡、機會卡等）官方指南與統計數據
+    seed_paths:
+      - "/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/"
+      - "/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/Fachkraefte/fachkraefte-node.html"
+      - "/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/BlaueKarteEU/"
+      - "/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/Fachkraefte/Chancenkarte/"
+      - "/Shared/Publikationen/"
+    authority_level: "official"
+    default_visa_types:
+      - "general"
+      - "blue_card"
+      - "chancenkarte"
+      - "work_visa"
+    max_depth: 3
+    max_pages: 150
+    use_sitemap: true
+
+  - domain: "www.arbeitsagentur.de"
+    # BA: Bundesagentur für Arbeit (聯邦就業局)
+    # 審核工作合約是否符合市場薪資標準（Zustimmung）並發布缺工職業清單
+    seed_paths:
+      - "/en/"
+      - "/web/content/EN/findingajob/"
+      - "/web/content/EN/institutionunternehmen/"
+    authority_level: "official"
+    default_visa_types:
+      - "work_visa"
+      - "blue_card"
+    max_depth: 3
+    max_pages: 100
+    use_sitemap: true
+
+  # ── 學歷認可相關機構 ──────────────────────────────────────────────────
+
+  - domain: "www.kmk.org"
+    # KMK: Kultusministerkonferenz (各邦文化部長常設會議)
+    # 協調德國各邦教育政策，制定外國教育認可框架與標準
+    # 同時涵蓋 ZAB（外國教育中心）子分區，負責發行學歷可比性聲明
+    seed_paths:
+      - "/en/"
+      - "/en/themen/recognition-and-transparency/recognition/recognition-of-foreign-qualifications.html"
+      - "/zab/en/"
+      - "/zab/en/statement-of-comparability.html"
+    authority_level: "official"
+    default_visa_types:
+      - "general"
+      - "work_visa"
+      - "blue_card"
+      - "student_visa"
+    max_depth: 3
+    max_pages: 100
+    use_sitemap: true
+
+  # Note: anabin.kmk.org is a dynamic JSF application — standard crawling yields mostly
+  # query-param URLs with no static content. Removed domain config; rely on extra_urls only.
 
 # ============================================
 # Extra URLs (manual additions / special pages)
 # ============================================
 # These are crawled directly, regardless of domain discovery rules.
-# Useful for one-off pages from domains without a full strategy.
+# Only include pages NOT already covered by the domain crawl above.
+# (Overlap with domain seed_paths is intentional only for high-priority pinned pages.)
 
 extra_urls:
-  - url: "https://www.make-it-in-germany.com/en/visa-residence/opportunity-card"
-    title: "Opportunity Card (Chancenkarte) - Official Portal"
-    authority_level: "official"
-    visa_types:
-      - "chancenkarte"
 
+  # ── make-it-in-germany.com — Pinned high-value pages ────────────────
   - url: "https://www.make-it-in-germany.com/en/visa-residence/opportunity-card/questions-answers"
     title: "Chancenkarte FAQ - Official"
     authority_level: "official"
     visa_types:
       - "chancenkarte"
 
-  - url: "https://www.make-it-in-germany.com/en/visa-residence/types/eu-blue-card"
-    title: "EU Blue Card Germany"
-    authority_level: "official"
-    visa_types:
-      - "blue_card"
-
   - url: "https://www.make-it-in-germany.com/en/visa-residence/types/it-professionals"
-    title: "Visa for IT Professionals"
+    title: "Visa for IT Professionals - Make It In Germany"
     authority_level: "official"
     visa_types:
       - "work_visa"
-      - "it_visa"
 
+  # ── Auswärtiges Amt — Consular services ─────────────────────────────
   - url: "https://www.auswaertiges-amt.de/en/visa-service/215870-215870"
     title: "Visa and Consular Services - Federal Foreign Office"
     authority_level: "official"
     visa_types:
       - "general"
 
+  # ── digital.diplo.de — Online application portal ─────────────────────
   - url: "https://digital.diplo.de/chancenkarte"
-    title: "Apply online for the Opportunity Card"
+    title: "Apply Online for the Opportunity Card"
     authority_level: "official"
     visa_types:
       - "chancenkarte"
@@ -120,18 +203,14 @@ extra_urls:
     visa_types:
       - "general"
 
+  # ── germany.info — German Embassy (US) Skilled Worker overview ───────
   - url: "https://www.germany.info/us-en/skilled-worker-immigration-2304796"
-    title: "Skilled Worker Immigration Act 2026 Guidelines"
+    title: "Skilled Worker Immigration Act 2026 Guidelines - German Embassy US"
     authority_level: "official"
     visa_types:
       - "work_visa"
 
-  - url: "https://www.make-it-in-germany.com/en/visa-residence/types/studying"
-    title: "Visa for Studying"
-    authority_level: "official"
-    visa_types:
-      - "student_visa"
-
+  # ── germany-visa.org — Third-party reference pages ───────────────────
   - url: "https://www.germany-visa.org/student-visa/student-visa-visum-zu-studienzwecken/"
     title: "Student Visa for Germany"
     authority_level: "third_party"
@@ -142,6 +221,78 @@ extra_urls:
     title: "EU Blue Card Germany Guidelines"
     authority_level: "third_party"
     visa_types:
+      - "blue_card"
+
+  # ── BAMF: Federal Immigration & Refugee Authority ────────────────────
+  # Pinned as high-priority entry points even though domain crawl covers them
+  - url: "https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/BlaueKarteEU/blauekarteeu-node.html"
+    title: "EU Blue Card Germany - BAMF Official Guide"
+    authority_level: "official"
+    visa_types:
+      - "blue_card"
+
+  - url: "https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/Fachkraefte/Chancenkarte/chancenkarte-node.html"
+    title: "Chancenkarte (Opportunity Card) - BAMF Official Guide"
+    authority_level: "official"
+    visa_types:
+      - "chancenkarte"
+
+  - url: "https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/Fachkraefte/fachkraefte-node.html"
+    title: "Skilled Worker Immigration - BAMF"
+    authority_level: "official"
+    visa_types:
+      - "work_visa"
+
+  # ── BA: Federal Employment Agency ────────────────────────────────────
+  - url: "https://www.arbeitsagentur.de/en/findingajob/qualified-professionals-immigrating-to-germany"
+    title: "Qualified Professionals Immigrating to Germany - Bundesagentur für Arbeit"
+    authority_level: "official"
+    visa_types:
+      - "work_visa"
+      - "blue_card"
+
+  - url: "https://www.arbeitsagentur.de/en/managing-employees/employing-skilled-workers-from-non-eu-countries"
+    title: "Employing Skilled Workers from Non-EU Countries - BA Labour Market Approval (Zustimmung)"
+    authority_level: "official"
+    visa_types:
+      - "work_visa"
+      - "blue_card"
+
+  # ── KMK / ZAB: Credential Recognition Authorities ────────────────────
+  - url: "https://www.kmk.org/en/themen/recognition-and-transparency/recognition/recognition-of-foreign-qualifications.html"
+    title: "Recognition of Foreign Qualifications - KMK"
+    authority_level: "official"
+    visa_types:
+      - "general"
+      - "work_visa"
+      - "blue_card"
+
+  - url: "https://www.kmk.org/zab/en/statement-of-comparability.html"
+    title: "Statement of Comparability for Foreign Higher Education Qualifications - ZAB/KMK"
+    authority_level: "official"
+    visa_types:
+      - "general"
+      - "work_visa"
+      - "blue_card"
+      - "student_visa"
+
+  # ── Anabin: Official Foreign Degree Database (static pages only) ──────
+  # Dynamic JSF app — only static entry points are indexable by standard crawlers
+  - url: "https://anabin.kmk.org/anabin.html"
+    title: "Anabin - Database for the Evaluation of Foreign Educational Credentials"
+    authority_level: "official"
+    visa_types:
+      - "general"
+      - "work_visa"
+      - "blue_card"
+      - "student_visa"
+
+  - url: "https://anabin.kmk.org/anabinPortal/help_en.jsf"
+    title: "Anabin Help & Guide - How to Use the H+ Rating System"
+    authority_level: "official"
+    visa_types:
+      - "general"
+      - "work_visa"
       - "blue_card"
 
 # ============================================

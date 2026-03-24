@@ -16,6 +16,7 @@ class QueryRequest(BaseModel):
     query: str = Field(..., description="User question about German visa/Chancenkarte")
     language: Optional[str] = Field(default="auto", description="Query language")
     visa_type: Optional[str] = Field(default=None, description="Active visa category context")
+    requirements: Optional[List[Dict[str, str]]] = Field(default=None, description="Current UI checklist status")
 
 class QueryResponse(BaseModel):
     """RAG query response."""
@@ -50,7 +51,8 @@ async def ask_question(
     result = await generator.generate_answer(
         request.query, 
         language=request.language,
-        visa_type=request.visa_type
+        visa_type=request.visa_type,
+        requirements=request.requirements
     )
     return QueryResponse(**result)
 
@@ -65,6 +67,7 @@ async def ask_question_stream(
     stream = generator.generate_answer_streaming(
         request.query, 
         language=request.language,
-        visa_type=request.visa_type
+        visa_type=request.visa_type,
+        requirements=request.requirements
     )
     return create_sse_response(stream)

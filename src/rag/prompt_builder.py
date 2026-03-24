@@ -46,11 +46,9 @@ SYSTEM_PROMPT = """
 1. **里程碑進度 (MILESTONE)**：格式 `[MILESTONE:ID:STATUS]` (STATUS 必須為 current 或 completed)
    - ID=1 (資格/初步諮詢)：詢問門檻。
    - ID=2 (專一進階)：機會卡(積分計算)、藍卡/FEG(合約審核/薪資)、學生(入學證明)。
-   - ID=3 (文件準備)：詢問財力證明、公證等細節。 (通常此時應輸出 [MILESTONE:3:current][MILESTONE:1:completed][MILESTONE:2:completed])
-   - ID=4 (簽證領取)：詢問德協預約、面試。
-   - ID=5 (核發/入境)：詢問核發時間、報到。
+   - ID=3 (文件準備)：詢問財力證明、公證等細節。 (通常這已經是 AI RAG 對話的最終階段)
 
-2. **基本條件更新 (REQ)**：格式 `[REQ:ID:VALUE:STATUS]` (請主動評估用戶目前的條件狀況。VALUE 必須極簡短，若有得分請寫如「B2 (+3分)」，若僅為要求請寫「達標」或「缺 €13,092」。STATUS 對應：達標為 `required`，未達標/資訊不足/有風險為 `warning`)
+2. **基本條件更新 (REQ)**：格式 `[REQ:ID:VALUE:STATUS]` (請主動評估用戶目前的條件狀況並以標籤形式輸出，這部分為系統隱藏判定，**絕不能**將 `[REQ...]` 、 `Status: required` 等字眼寫在給用戶的對話內文裡！並且**絕對禁止**出現「以下是標籤」這類前導敘述文字！\n   - **基礎門檻項目 (ID為 1- 開頭)**：VALUE 必須極簡短，如：「已達標」、「缺 €13,092」、「待確認」。\n   - **積分加分項目 (ID為 2- 開頭)**：VALUE 必須遵守嚴格的「能力|分數」格式（用直線 | 隔開），**絕對禁止**寫出「達標」二字！例如「B1|2」、「5年相關經驗|3」、「29歲|2」。\n   - STATUS 對應：達標為 `required`，未達標/資訊不足/有風險為 `warning`。\n\n【標籤輸出標準結構範例】\n(請務必根據用戶真實情況填入變數，不可直接抄襲範例)：\n[REQ:2-1:<語言等級>|<分數>:required]\n[REQ:2-2:<經驗年數>|<分數>:required]\n[REQ:2-3:<實際年齡>|<分數>:required]\n[REQ:1-1:<狀態字串>:<warning或required>]\n\n(錯誤示範 - 絕對禁止這樣寫)：\n[REQ:2-1:達標:required] (X 錯誤：不能寫達標)\n[REQ:2-2:5年經驗(+3分):required] (X 錯誤：沒有使用 | 分隔符號)\n\n
    - **專業人才 (Skilled Worker/FEG)**: 1:學歷與專業資格, 2:薪資與勞動條件, 3:45歲以上特殊條款, 4:語言能力
    - **歐盟藍卡 (EU Blue Card)**: 1:學歷與專業資格, 2:德國全職工作合約, 3:語言加分
    - **機會卡 (Chancenkarte)**: 
@@ -68,7 +66,7 @@ SYSTEM_PROMPT = """
 請嚴格依循以下格式回覆：
 （給用戶的回覆文字，並包含 Markdown 引用來源）
 
-（在此直接放入 [MILESTONE:...] 和 [REQ:...] 等標籤，且不要加任何多餘文字，若無則留空）
+（直接換行，在此直接放入 [MILESTONE:...] 和 [REQ:...] 等標籤，禁止加任何諸如「以下是標籤」的多餘前導文字，若無則留空）
 </OUTPUT_FORMAT>
 """
 
@@ -78,7 +76,7 @@ class PromptBuilder:
     """Build and validate prompts for RAG responses."""
 
     @staticmethod
-    def build_system_prompt(context: str, question: str, language: Optional[str] = None, visa_type: Optional[str] = None) -> str:
+    def build_system_prompt(context: str, question: str, language: Optional[str] = None, visa_type: Optional[str] = None, requirements: Optional[List[Dict[str, str]]] = None) -> str:
         """Get system prompt with context and question injected."""
         citation_label = "Paragraph" if language == "en" else "Absatz" if language == "de" else "段落"
         prompt = SYSTEM_PROMPT.format(context=context, citation_label=citation_label)
@@ -94,6 +92,24 @@ class PromptBuilder:
             }
             target_lang = lang_map.get(language, language)
             prompt += f"\n\n【語言指令】\n請務必使用 **{target_lang}** 回答此問題。"
+            
+        if requirements:
+            # Filter out headers to only show real requirements
+            valid_reqs = []
+            for req in requirements:
+                if req.get('id') and not req.get('id').startswith('header'):
+                    # format properly for context
+                    val = req.get('value', '')
+                    if req.get('id').startswith('2-') and '|' in val:
+                        parts = val.split('|')
+                        display_val = f"{parts[0]} (+{parts[1]}分)"
+                    else:
+                        display_val = val
+                    valid_reqs.append(f"- ID={req.get('id')}: {req.get('label')} = {display_val} (內部狀態為: {req.get('status')})")
+            
+            if valid_reqs:
+                ui_state_str = "\n".join(valid_reqs)
+                prompt += f"\n\n<CURRENT_UI_STATE>\n以下是用戶當前的 UI 狀態紀錄（哪些條件已達成、哪些還缺漏）。這非常重要！\n**請務必根據用戶剛才提及的最新資訊，對照這份清單，判斷狀態是否該「翻盤 (從 warning 變成 required)」或「被滿足」。**\n只要用戶提及了任何能滿足條件的金額或資訊（例如換算後大於門檻），你必須立刻輸出 `[REQ:ID:已達標:required]` 的標籤來覆寫原本 `缺...:warning` 的狀態！\n特別注意：請勿將 `內部狀態` 或系統機制直接暴露在文字回覆中，絕對禁止在回答結尾寫出「(未涉及更新...)」這類解釋。如果不需更新條件，直接默默結束對話。\n{ui_state_str}\n</CURRENT_UI_STATE>"
             
         return prompt
 

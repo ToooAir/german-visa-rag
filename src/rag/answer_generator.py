@@ -43,7 +43,10 @@ class AnswerGenerator:
         self.token_counter = get_token_counter()
         self.mlflow = get_mlflow_tracker()
 
-    async def generate_answer(self, query: str, language: Optional[str] = None, visa_type: Optional[str] = None) -> Dict[str, Any]:
+    async def generate_answer(
+        self, query: str, language: str = "auto", visa_type: Optional[str] = None,
+        requirements: Optional[List[Dict[str, str]]] = None
+    ) -> Dict[str, Any]:
         """Generate answer without streaming."""
         start_time = time.time()
         
@@ -146,7 +149,7 @@ class AnswerGenerator:
             # 4. Build context & prompt
             context = self.prompt_builder.build_context_from_retrieval(reranked, language=language or "en")
             system_prompt = self.prompt_builder.build_system_prompt(
-                context=context, question=query, language=language, visa_type=visa_type
+                context=context, question=query, language=language, visa_type=visa_type, requirements=requirements
             )
             
             messages = [
@@ -214,8 +217,9 @@ class AnswerGenerator:
     async def generate_answer_streaming(
         self,
         query: str,
-        language: Optional[str] = None,
+        language: str = "auto",
         visa_type: Optional[str] = None,
+        requirements: Optional[List[Dict[str, str]]] = None,
         top_k: Optional[int] = None,
     ) -> AsyncIterator[str]:
         """Generate answer with streaming response (SSE)."""
@@ -357,7 +361,7 @@ class AnswerGenerator:
             
             # Build Prompt
             system_prompt = self.prompt_builder.build_system_prompt(
-                context=context, question=query, language=language, visa_type=visa_type
+                context=context, question=query, language=language, visa_type=visa_type, requirements=requirements
             )
             
             messages = [

@@ -26,6 +26,9 @@ class APIKeyAuth:
         Raises:
             HTTPException if invalid
         """
+        if not settings.require_api_key:
+            return x_api_key or "anonymous"
+
         if not x_api_key:
             logger.warning("Request missing API key")
             raise HTTPException(

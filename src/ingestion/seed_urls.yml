@@ -1,23 +1,31 @@
 # German Visa & Chancenkarte Document Sources
 # Restructured: seed domains + discovery rules + optional extra URLs
 # Sources: Official immigration authorities, federal employment agencies, and credential recognition bodies
-
-# ============================================
-# Domain crawl configurations
-# ============================================
-# Each domain defines seed paths and discovery rules.
-# The crawler will automatically discover and crawl all relevant pages.
+#
+# YAML fields per domain (all supported by StrategyRegistry.load_from_yaml):
+#   domain, seed_paths, authority_level, default_visa_types,
+#   max_depth, max_pages, use_sitemap,
+#   allowed_path_patterns, blocked_path_patterns,
+#   relevance_keywords, language_prefixes
 #
 # authority_level values:
 #   official      — Government or EU-mandated authority
 #   semi_official — Officially linked / government-funded portal
 #   third_party   — Independent aggregator or commercial site
+#
+# NOTE: Domains with a hardcoded strategy in crawl_strategy.py will have their
+# YAML values MERGED in (YAML overrides hardcoded where both define the same field).
+# New domains not in the hardcoded registry are created fresh from YAML.
+
+# ============================================
+# Domain crawl configurations
+# ============================================
 
 domains:
 
   # ── 德國官方移民入口網站 ─────────────────────────────────────────────
   - domain: "www.make-it-in-germany.com"
-    # Fix: Added www. prefix for consistent domain matching (avoids redirect misses)
+    # Hardcoded strategy already has path filters; YAML overrides max_pages & seed_paths
     seed_paths:
       - "/en/visa-residence/"
       - "/en/visa-residence/opportunity-card"
@@ -30,8 +38,8 @@ domains:
     authority_level: "official"
     default_visa_types:
       - "general"
-      - "chancenkarte"     # seed_paths explicitly cover Chancenkarte
-      - "blue_card"        # seed_paths explicitly cover EU Blue Card
+      - "chancenkarte"
+      - "blue_card"
       - "work_visa"
       - "student_visa"
     max_depth: 3
@@ -39,13 +47,12 @@ domains:
     use_sitemap: true
 
   - domain: "www.chancenkarte.com"
-    # Downgraded: chancenkarte.com is a commercial third-party site, not government
     seed_paths:
       - "/en/"
       - "/en/guides/"
       - "/en/news/"
       - "/en/calculator/"
-    authority_level: "third_party"
+    authority_level: "third_party"   # commercial site, not government
     default_visa_types:
       - "chancenkarte"
     max_depth: 2
@@ -71,9 +78,15 @@ domains:
     authority_level: "official"
     default_visa_types:
       - "general"
-      - "chancenkarte"     # /chancenkarte seed explicitly targets this
+      - "chancenkarte"
     max_depth: 2
     max_pages: 50
+    allowed_path_patterns:
+      - "^/chancenkarte"
+      - "^/visa"
+      - "^/$"
+    blocked_path_patterns:
+      - "\\.(pdf|jpg|png|gif|svg|css|js)$"
     use_sitemap: false
 
   - domain: "www.auswaertiges-amt.de"
@@ -88,10 +101,31 @@ domains:
       - "student_visa"
     max_depth: 3
     max_pages: 100
+    allowed_path_patterns:
+      - "/en/visa-service/"
+      - "/de/service/visa-und-aufenthalt/"
+    blocked_path_patterns:
+      - "/presse/"
+      - "/veranstaltungen/"
+      # Confirmed noise from 400-sample analysis
+      - "/de/reiseundsicherheit/"    # country travel safety alerts (Haiti, Iran, etc.)
+      - "/en/TopicPages/"            # geopolitical topic pages (en)
+      - "/de/TopicPages/"            # geopolitical topic pages (de) — was missing
+      - "/de/newsroom/"              # German-language news/press room
+      - "/en/newsroom/"              # English-language news/press room
+      - "\\.(pdf|jpg|png|gif|svg|css|js)$"
+    relevance_keywords:
+      - "visa"
+      - "residence"
+      - "work-permit"
+      - "skilled"
+      - "blue-card"
+      - "chancenkarte"
+      - "student"
     use_sitemap: true
 
   - domain: "www.germany.info"
-    # Added matching domain config for the extra_url entry (germany.info US embassy portal)
+    # German Embassy (US) — limited scope, only skilled worker overview page
     seed_paths:
       - "/us-en/"
     authority_level: "official"
@@ -99,13 +133,16 @@ domains:
       - "work_visa"
     max_depth: 1
     max_pages: 20
+    allowed_path_patterns:
+      - "/us-en/skilled"
+      - "/us-en/visa"
     use_sitemap: false
 
   # ── 聯邦核心移民與就業機構 ─────────────────────────────────────────────
 
   - domain: "www.bamf.de"
     # BAMF: Bundesamt für Migration und Flüchtlinge (聯邦移民與難民局)
-    # 制定並發布簽證法規（歐盟藍卡、機會卡等）官方指南與統計數據
+    # Hardcoded strategy already defines filters; YAML can fine-tune max_pages
     seed_paths:
       - "/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/"
       - "/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/Fachkraefte/fachkraefte-node.html"
@@ -124,7 +161,7 @@ domains:
 
   - domain: "www.arbeitsagentur.de"
     # BA: Bundesagentur für Arbeit (聯邦就業局)
-    # 審核工作合約是否符合市場薪資標準（Zustimmung）並發布缺工職業清單
+    # Hardcoded strategy already defines filters; YAML can fine-tune
     seed_paths:
       - "/en/"
       - "/web/content/EN/findingajob/"
@@ -140,9 +177,8 @@ domains:
   # ── 學歷認可相關機構 ──────────────────────────────────────────────────
 
   - domain: "www.kmk.org"
-    # KMK: Kultusministerkonferenz (各邦文化部長常設會議)
-    # 協調德國各邦教育政策，制定外國教育認可框架與標準
-    # 同時涵蓋 ZAB（外國教育中心）子分區，負責發行學歷可比性聲明
+    # KMK + ZAB: Kultusministerkonferenz / Zentralstelle für ausländisches Bildungswesen
+    # Hardcoded strategy already defines filters
     seed_paths:
       - "/en/"
       - "/en/themen/recognition-and-transparency/recognition/recognition-of-foreign-qualifications.html"
@@ -158,19 +194,18 @@ domains:
     max_pages: 100
     use_sitemap: true
 
-  # Note: anabin.kmk.org is a dynamic JSF application — standard crawling yields mostly
-  # query-param URLs with no static content. Removed domain config; rely on extra_urls only.
+  # Note: anabin.kmk.org is a dynamic JSF application — standard crawling yields only
+  # query-param URLs. No domain config; rely on pinned extra_urls only.
 
 # ============================================
 # Extra URLs (manual additions / special pages)
 # ============================================
-# These are crawled directly, regardless of domain discovery rules.
-# Only include pages NOT already covered by the domain crawl above.
-# (Overlap with domain seed_paths is intentional only for high-priority pinned pages.)
+# Only include pages NOT already covered by the domain crawl above,
+# OR high-priority entry points you want pinned regardless of discovery order.
 
 extra_urls:
 
-  # ── make-it-in-germany.com — Pinned high-value pages ────────────────
+  # ── make-it-in-germany.com — Pinned high-priority pages ─────────────
   - url: "https://www.make-it-in-germany.com/en/visa-residence/opportunity-card/questions-answers"
     title: "Chancenkarte FAQ - Official"
     authority_level: "official"
@@ -182,6 +217,12 @@ extra_urls:
     authority_level: "official"
     visa_types:
       - "work_visa"
+
+  - url: "https://www.make-it-in-germany.com/en/visa-residence/types/studying"
+    title: "Visa for Studying - Make It In Germany"
+    authority_level: "official"
+    visa_types:
+      - "student_visa"
 
   # ── Auswärtiges Amt — Consular services ─────────────────────────────
   - url: "https://www.auswaertiges-amt.de/en/visa-service/215870-215870"
@@ -223,8 +264,7 @@ extra_urls:
     visa_types:
       - "blue_card"
 
-  # ── BAMF: Federal Immigration & Refugee Authority ────────────────────
-  # Pinned as high-priority entry points even though domain crawl covers them
+  # ── BAMF: Federal Immigration & Refugee Authority — Pinned entry points
   - url: "https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/BlaueKarteEU/blauekarteeu-node.html"
     title: "EU Blue Card Germany - BAMF Official Guide"
     authority_level: "official"
@@ -243,7 +283,7 @@ extra_urls:
     visa_types:
       - "work_visa"
 
-  # ── BA: Federal Employment Agency ────────────────────────────────────
+  # ── BA: Federal Employment Agency — Pinned entry points ──────────────
   - url: "https://www.arbeitsagentur.de/en/findingajob/qualified-professionals-immigrating-to-germany"
     title: "Qualified Professionals Immigrating to Germany - Bundesagentur für Arbeit"
     authority_level: "official"

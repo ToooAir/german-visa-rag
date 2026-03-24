@@ -282,27 +282,47 @@ class Embedder:
             logger.error(f"❌ Embedding API preflight check failed: {e}")
             return False
 
-    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    async def embed_texts(
+        self,
+        texts: List[str],
+        _quota_retry: int = 0,
+    ) -> List[List[float]]:
         """
-        Embed texts with fallback support.
-        
-        Tries primary (OpenAI/Azure) first, falls back to Ollama if configured.
-        Propagates QuotaExhaustedError without fallback (quota issue, not transient).
+        Embed texts with fallback and quota-aware retry support.
+
+        On QuotaExhaustedError (HTTP 429):
+        - Waits for the reset window returned by the API (or defaults to 60s)
+        - Retries up to MAX_QUOTA_RETRIES times before raising
         """
+        MAX_QUOTA_RETRIES = 3
+        DEFAULT_WAIT_SECONDS = 60
+
         if not texts:
             return []
 
         try:
             logger.debug(f"Embedding {len(texts)} texts with primary embedder")
             return await self.primary.embed_texts(texts)
-            
-        except QuotaExhaustedError:
-            # Quota errors should NOT fall back — they affect billing/account level
-            raise
-            
+
+        except QuotaExhaustedError as qe:
+            if _quota_retry >= MAX_QUOTA_RETRIES:
+                logger.error(
+                    f"⛔ Quota exhausted after {MAX_QUOTA_RETRIES} retries. Giving up."
+                )
+                raise
+
+            wait_secs = qe.wait_seconds or DEFAULT_WAIT_SECONDS
+            logger.warning(
+                f"⏳ Quota exhausted (retry {_quota_retry + 1}/{MAX_QUOTA_RETRIES}). "
+                f"Waiting {wait_secs}s before retrying... "
+                f"[reset tokens: {qe.reset_tokens}, reset requests: {qe.reset_requests}]"
+            )
+            await asyncio.sleep(wait_secs)
+            return await self.embed_texts(texts, _quota_retry=_quota_retry + 1)
+
         except Exception as e:
             logger.warning(f"Primary embedder failed: {e}")
-            
+
             if self.fallback:
                 try:
                     logger.info("Falling back to Ollama embedder")

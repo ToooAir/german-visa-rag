@@ -273,8 +273,17 @@ class IngestionPipeline:
             )
             
             if not chunks:
-                self.state_store.mark_document_failed(doc_id, "Chunking produced no chunks")
-                return {"success": False, "error": f"No chunks created for {url}"}
+                # This is normal for low-content pages (e.g. news archives, nav items)
+                # Mark as 'ingested' so we don't keep trying to process this URL
+                self.state_store.mark_document_ingested(doc_id, content_hash)
+                logger.info(f"⏭️  Skipping document with no substantive content: {url}")
+                return {
+                    "success": True,
+                    "chunks_ingested": 0,
+                    "chunks_skipped": 0,
+                    "tokens_used": 0,
+                    "skipped_low_content": True
+                }
             
             logger.debug(f"Generated {len(chunks)} chunks for {url}")
             

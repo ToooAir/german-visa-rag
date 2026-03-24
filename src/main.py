@@ -22,6 +22,7 @@ import httpx
 from src.ingestion.url_discoverer import URLDiscoverer
 from src.rag.hybrid_retriever import HybridRetriever
 from src.storage.sqlite_state_store import get_state_store
+from src.api.rate_limiter import rate_limiter
 
 
 # ============================================
@@ -152,10 +153,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug else [
-        "https://localhost:3000",
-        "https://app.example.com",
-    ],
+    allow_origins=["*"] if settings.debug else settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -175,6 +173,21 @@ if not settings.debug:
 # ============================================
 # Request/Response Logging
 # ============================================
+
+@app.middleware("http")
+async def rate_limiting_middleware(request: Request, call_next):
+    """Enforce IP-based rate limiting on sensitive core endpoints."""
+    # Only rate limit chat/query endpoints to avoid impacting health/admin/docs
+    if request.url.path.startswith(("/query", "/ask")):
+        try:
+            await rate_limiter.check_rate_limit(request)
+        except HTTPException as e:
+            return JSONResponse(
+                status_code=e.status_code,
+                content=e.detail
+            )
+            
+    return await call_next(request)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):

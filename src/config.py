@@ -84,7 +84,18 @@ class Settings(BaseSettings):
     # ============================================
     api_key: str = Field(default="dev-key-12345", validation_alias="API_KEY")
     api_key_header: str = Field(default="X-API-Key", validation_alias="API_KEY_HEADER")
+    require_api_key: bool = Field(default=True, validation_alias="REQUIRE_API_KEY")
     allowed_hosts: Union[List[str], str] = Field(default=["*"], validation_alias="ALLOWED_HOSTS")
+    allowed_origins: Union[List[str], str] = Field(
+        default=["http://localhost:3000", "http://localhost:5173"], 
+        validation_alias="ALLOWED_ORIGINS"
+    )
+
+    # ============================================
+    # Rate Limiting
+    # ============================================
+    enable_rate_limit: bool = Field(default=True, validation_alias="ENABLE_RATE_LIMIT")
+    rate_limit_requests_per_minute: int = Field(default=20, validation_alias="RATE_LIMIT_REQUESTS_PER_MINUTE")
 
     # ============================================
     # Ingestion Pipeline
@@ -174,12 +185,12 @@ class Settings(BaseSettings):
         p.parent.mkdir(parents=True, exist_ok=True)
         return p
 
-    @field_validator("allowed_hosts", mode="before")
+    @field_validator("allowed_hosts", "allowed_origins", mode="before")
     @classmethod
-    def parse_allowed_hosts(cls, v):
-        """Parse ALLOWED_HOSTS from comma-separated string if provided as string."""
+    def parse_comma_separated_list(cls, v):
+        """Parse comma-separated string into a list if necessary."""
         if isinstance(v, str):
-            return [host.strip() for host in v.split(",") if host.strip()]
+            return [item.strip() for item in v.split(",") if item.strip()]
         return v
 
     def __init__(self, **data):

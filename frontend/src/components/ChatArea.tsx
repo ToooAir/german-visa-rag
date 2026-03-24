@@ -156,9 +156,16 @@ function ChatMessage({ message }: { message: Message }) {
       
       <div className="text-slate-700 dark:text-slate-300 text-[15px] leading-relaxed ml-11 flex flex-col gap-4">
         {/* RAG Traceability Loader */}
-        {isLoading && !message.content ? (
-          <TraceLoader currentStatus={message.status} />
-        ) : (
+        {(isLoading || message.searchQueries) && !message.content && (
+          <TraceLoader currentStatus={message.status} searchQueries={message.searchQueries} />
+        )}
+        
+        {/* Source Grid (Early Visibility) */}
+        {message.sources && message.sources.length > 0 && !message.content && (
+          <SourceGrid sources={message.sources} />
+        )}
+
+        {message.content && (
           <div className="prose prose-slate dark:prose-invert prose-p:leading-relaxed prose-pre:bg-slate-100 dark:prose-pre:bg-slate-800/50 prose-pre:border prose-pre:border-slate-200 dark:prose-pre:border-slate-700 max-w-none prose-a:text-accent hover:prose-a:text-accent/80 prose-a:font-medium prose-a:no-underline hover:prose-a:underline prose-strong:text-slate-800 dark:prose-strong:text-slate-200">
             <ReactMarkdown 
               remarkPlugins={[remarkGfm]}
@@ -173,8 +180,8 @@ function ChatMessage({ message }: { message: Message }) {
           </div>
         )}
 
-        {/* Source Chips */}
-        {message.sources && message.sources.length > 0 && (
+        {/* Source Chips (End of message) */}
+        {message.sources && message.sources.length > 0 && message.content && (
           <div className="flex flex-wrap gap-2 mt-2 pt-3 border-t border-slate-200/50 dark:border-slate-700/50">
             {Array.from(new Map(message.sources.map(src => [src.url, src])).values()).map((src, i) => (
               <SourceChip key={i} source={src} />
@@ -183,6 +190,54 @@ function ChatMessage({ message }: { message: Message }) {
         )}
       </div>
     </motion.div>
+  );
+}
+
+function SourceGrid({ sources }: { sources: Source[] }) {
+  const uniqueSources = Array.from(new Map(sources.map(src => [src.url, src])).values());
+  
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mt-2 mb-4"
+    >
+      {uniqueSources.slice(0, 3).map((src, i) => (
+        <SourceCard key={i} source={src} index={i} />
+      ))}
+      {uniqueSources.length > 3 && (
+        <div className="flex items-center justify-center p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-500 bg-slate-50/30 dark:bg-slate-800/20">
+          +{uniqueSources.length - 3} more sources
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+function SourceCard({ source, index }: { source: Source, index: number }) {
+  const hostname = new URL(source.url).hostname.replace('www.', '');
+  
+  return (
+    <motion.a
+      whileHover={{ y: -2, boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+      href={source.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: index * 0.1 }}
+      className="flex flex-col gap-2 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-all group"
+    >
+      <div className="flex items-center gap-2">
+        <div className="w-5 h-5 rounded overflow-hidden bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+          <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} alt="" className="w-3 h-3" />
+        </div>
+        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">{hostname}</span>
+      </div>
+      <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-200 line-clamp-2 leading-tight group-hover:text-accent transition-colors">
+        {source.title}
+      </h4>
+    </motion.a>
   );
 }
 
@@ -244,7 +299,7 @@ function QuickStarters({ onSelect }: { onSelect: (q: string) => void }) {
   );
 }
 
-function TraceLoader({ currentStatus }: { currentStatus?: string }) {
+function TraceLoader({ currentStatus, searchQueries }: { currentStatus?: string, searchQueries?: string[] }) {
   const { t } = useTranslation();
   const statusMap: Record<string, number> = {
     'analyzing': 0,
@@ -256,23 +311,41 @@ function TraceLoader({ currentStatus }: { currentStatus?: string }) {
   const step = currentStatus ? (statusMap[currentStatus] ?? 0) : 0;
 
   const steps = [
-    { label: t.analyzing || "Analyzing intent & parameters", icon: <SparklesIcon size={14} /> },
-    { label: t.retrieving || "Querying official vector database", icon: <Database size={14} /> },
-    { label: t.extracting || "Extracting legal requirements", icon: <FileSearch size={14} /> },
-    { label: t.synthesizing || "Synthesizing answer", icon: <Bot size={14} /> }
+    { label: t.analyzing || "Analyzing intent & parameters", icon: <SparklesIcon size={14} />, key: 'analyzing' },
+    { label: t.retrieving || "Querying official vector database", icon: <Database size={14} />, key: 'retrieving' },
+    { label: t.extracting || "Extracting legal requirements", icon: <FileSearch size={14} />, key: 'extracting' },
+    { label: t.synthesizing || "Synthesizing answer", icon: <Bot size={14} />, key: 'synthesizing' }
   ];
 
   return (
-    <div className="flex flex-col gap-3 py-2">
+    <div className="flex flex-col gap-4 py-2">
       {steps.map((s, i) => (
-        <div key={i} className={`flex items-center gap-3 text-sm transition-all duration-500 ${step >= i ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
-          <div className={`p-1.5 rounded-lg flex items-center justify-center ${step === i ? 'bg-accent/10 dark:bg-accent/20 text-accent animate-pulse' : step > i ? 'bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'}`}>
-            {s.icon}
+        <div key={i} className={`flex flex-col gap-2 transition-all duration-500 ${step >= i ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
+          <div className="flex items-center gap-3 text-sm">
+            <div className={`p-1.5 rounded-lg flex items-center justify-center ${step === i ? 'bg-accent/10 dark:bg-accent/20 text-accent animate-pulse' : step > i ? 'bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'}`}>
+              {s.icon}
+            </div>
+            <span className={`${step === i ? 'text-slate-700 dark:text-slate-300 font-medium' : step > i ? 'text-slate-500 dark:text-slate-400' : 'text-slate-400 dark:text-slate-600'}`}>
+              {s.label}
+            </span>
+            {step === i && <Loader2 size={12} className="ml-auto text-slate-400 dark:text-slate-500 animate-spin" />}
           </div>
-          <span className={`${step === i ? 'text-slate-700 dark:text-slate-300' : step > i ? 'text-slate-500 dark:text-slate-400' : 'text-slate-400 dark:text-slate-600'}`}>
-            {s.label}
-          </span>
-          {step === i && <Loader2 size={12} className="ml-auto text-slate-400 dark:text-slate-500 animate-spin" />}
+          
+          {/* Show search queries if in retrieving step OR if they exist and we are further along */}
+          {s.key === 'retrieving' && searchQueries && searchQueries.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="ml-10 flex flex-col gap-1.5 overflow-hidden"
+            >
+              {searchQueries.map((q, idx) => (
+                <div key={idx} className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                  <div className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
+                  <span className="italic">"{q}"</span>
+                </div>
+              ))}
+            </motion.div>
+          )}
         </div>
       ))}
     </div>

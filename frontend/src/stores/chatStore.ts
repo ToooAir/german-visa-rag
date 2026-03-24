@@ -30,6 +30,7 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   sources?: Source[];
+  searchQueries?: string[];
   status?: string;
 }
 
@@ -271,7 +272,7 @@ export const useChatStore = create<ChatState>()(
                   }));
                 }
                 
-                // Custom Metadata Chunk (Sources / Status)
+                // Custom Metadata Chunk (Sources / Status / Search Queries)
                 if (parsed.metadata?.sources) {
                   const newSources = parsed.metadata.sources as Source[];
                   
@@ -291,6 +292,14 @@ export const useChatStore = create<ChatState>()(
                       recentSources: currentRecent.slice(0, 5) // Keep last 5 unique ones
                     };
                   });
+                }
+                
+                if (parsed.metadata?.search_queries) {
+                  set((state) => ({
+                    messages: state.messages.map(m => 
+                      m.id === botMsgId ? { ...m, searchQueries: parsed.metadata.search_queries } : m
+                    )
+                  }));
                 }
                 
                 if (parsed.metadata?.status) {

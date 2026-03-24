@@ -287,6 +287,7 @@ class AnswerGenerator:
             # 2. Hybrid Retrieval
             yield self._format_status_chunk("retrieving")
             search_queries = await self.query_transformer.get_search_queries(query)
+            yield self._format_search_queries_chunk(search_queries)
             logger.info(f"Streaming Retrieval for queries: {search_queries}", extra={"request_id": request_id})
             
             all_results = await self.retriever.retrieve_batch(
@@ -344,6 +345,19 @@ class AnswerGenerator:
                 documents=retrieval_results,
                 top_k=settings.retrieval_top_k_reranked,
             )
+            
+            # Yield sources early for immediate UI feedback
+            sources = [
+                {
+                    "url": r.get("metadata", {}).get("source_url"),
+                    "title": r.get("metadata", {}).get("source_title"),
+                    "authority": r.get("metadata", {}).get("authority_level"),
+                }
+                for r in reranked
+            ]
+            import json
+            yield f"data: {json.dumps({'choices': [], 'metadata': {'sources': sources}}, ensure_ascii=False)}\n\n"
+            
             yield self._format_status_chunk("extracting")
             
             # 4. Build Context & Validation
@@ -511,12 +525,13 @@ class AnswerGenerator:
                 }
             })
             
-            # Yield metadata chunk containing sources for the frontend
+            # Yield metadata chunk containing sources for the frontend (Final confirmation)
             import json
             metadata_chunk = {
                 "choices": [],
                 "metadata": {
-                    "sources": sources
+                    "sources": sources,
+                    "latency_seconds": latency
                 }
             }
             yield f"data: {json.dumps(metadata_chunk, ensure_ascii=False)}\n\n"
@@ -586,6 +601,18 @@ class AnswerGenerator:
             "choices": [],
             "metadata": {
                 "status": status
+            }
+        }
+        return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+
+    @staticmethod
+    def _format_search_queries_chunk(queries: List[str]) -> str:
+        """Format search queries as SSE JSON chunk."""
+        import json
+        chunk = {
+            "choices": [],
+            "metadata": {
+                "search_queries": queries
             }
         }
         return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"

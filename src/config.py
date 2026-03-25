@@ -135,6 +135,8 @@ class Settings(BaseSettings):
     retrieval_top_k_reranked: int = Field(default=10, validation_alias="RETRIEVAL_TOP_K_RERANKED")
     retrieval_dense_weight: float = Field(default=0.7, validation_alias="RETRIEVAL_DENSE_WEIGHT")
     retrieval_sparse_weight: float = Field(default=0.3, validation_alias="RETRIEVAL_SPARSE_WEIGHT")
+    enable_sparse_search: bool = Field(default=True, validation_alias="ENABLE_SPARSE_SEARCH")
+    sparse_vocab_size: int = Field(default=30_000, validation_alias="SPARSE_VOCAB_SIZE")
     enable_query_expansion: bool = Field(default=True, validation_alias="ENABLE_QUERY_EXPANSION")
     rag_authority_boost_official: float = Field(default=1.2, validation_alias="RAG_AUTHORITY_BOOST_OFFICIAL")
     rag_authority_boost_semi: float = Field(default=1.0, validation_alias="RAG_AUTHORITY_BOOST_SEMI")

@@ -1,7 +1,3 @@
-"""
-Qdrant vector database client wrapper with collection management,
-hybrid search (dense + sparse), filtering, and upsert operations.
-"""
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
@@ -9,6 +5,7 @@ import asyncio
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from qdrant_client import QdrantClient, AsyncQdrantClient
+from qdrant_client.http import models
 from qdrant_client.http.models import (
     PointStruct,
     VectorParams,
@@ -20,6 +17,7 @@ from qdrant_client.http.models import (
     MatchValue,
     Range,
     HasIdCondition,
+    SparseVector,
 )
 
 from src.config import settings
@@ -130,68 +128,94 @@ class QdrantWrapper:
         sparse_weight: float = 0.3,
     ) -> List[Dict[str, Any]]:
         """
-        Perform hybrid search combining dense vector + sparse BM25.
-        
+        Perform hybrid search combining dense vector + sparse BM25 via Qdrant RRF fusion.
+
+        Uses Qdrant's native `prefetch` + `FusionQuery(Fusion.RRF)` for server-side
+        Reciprocal Rank Fusion (RRF). If sparse search is disabled or the sparse
+        vector is empty, falls back to pure dense search.
+
         Args:
             dense_vector: Query embedding vector
-            query_text: Query text for BM25 indexing
+            query_text: Query text for BM25 sparse encoding
             top_k: Number of results to return
             filters: Optional Qdrant filters (authority_level, visa_types, date range)
-            dense_weight: Weight for dense vector search
-            sparse_weight: Weight for sparse search
-            
+            dense_weight: Weight hint for dense search (used in logging; RRF handles fusion)
+            sparse_weight: Weight hint for sparse search (used in logging)
+
         Returns:
             List of scored search results with metadata
         """
         try:
             logger.debug(f"Performing hybrid search with top_k={top_k}")
-            
-            # Dense search (cosine similarity)
-            # Use query_points which is the recommended async API in newer versions
-            search_result = await self.client.query_points(
-                collection_name=self.collection_name,
-                prefetch=None, # Simple search
-                query=dense_vector,
-                query_filter=filters,
-                limit=top_k * 2,
-                with_payload=True,
-            )
-            dense_results = search_result.points
-            
-            # Sparse search (BM25) - Disabled for now to fix AttributeError and input issues
-            sparse_results = [] # TODO: Implement properly in Phase 3
-            
-            # Merge and deduplicate results with weighted scoring
-            merged = {}
-            
-            for result in dense_results:
-                point_id = result.id
-                score = result.score * dense_weight
-                merged[point_id] = {
-                    "id": point_id,
-                    "score": score,
-                    "payload": result.payload,
+
+            # --- Build sparse vector from query text ---
+            sparse_vec: Optional[SparseVector] = None
+            if settings.enable_sparse_search:
+                from src.vector_db.sparse_encoder import get_sparse_encoder
+                encoder = get_sparse_encoder(vocab_size=settings.sparse_vocab_size)
+                sparse_vec = encoder.encode(query_text)
+                if not sparse_vec.indices:
+                    sparse_vec = None  # Empty sparse vector — skip sparse leg
+
+            # --- Build prefetch legs ---
+            candidate_limit = top_k * 2
+            prefetches = [
+                models.Prefetch(
+                    query=dense_vector,
+                    using="",  # unnamed default dense vector
+                    filter=filters,
+                    limit=candidate_limit,
+                ),
+            ]
+            if sparse_vec is not None:
+                prefetches.append(
+                    models.Prefetch(
+                        query=sparse_vec,
+                        using="text_sparse",
+                        filter=filters,
+                        limit=candidate_limit,
+                    )
+                )
+
+            # --- Execute RRF hybrid query ---
+            if len(prefetches) > 1:
+                # True hybrid: RRF fusion of dense + sparse
+                search_result = await self.client.query_points(
+                    collection_name=self.collection_name,
+                    prefetch=prefetches,
+                    query=models.FusionQuery(fusion=models.Fusion.RRF),
+                    with_payload=True,
+                    limit=top_k,
+                )
+                logger.debug(
+                    f"Hybrid RRF search: dense + sparse legs, top_k={top_k}"
+                )
+            else:
+                # Dense-only fallback (sparse disabled or empty vector)
+                search_result = await self.client.query_points(
+                    collection_name=self.collection_name,
+                    prefetch=prefetches,
+                    query=models.FusionQuery(fusion=models.Fusion.RRF),
+                    with_payload=True,
+                    limit=top_k,
+                )
+                logger.debug(
+                    f"Dense-only fallback search (sparse disabled or empty), top_k={top_k}"
+                )
+
+            # --- Format results ---
+            ranked = [
+                {
+                    "id": point.id,
+                    "score": point.score,
+                    "payload": point.payload,
                 }
-            
-            for result in sparse_results:
-                point_id = result.id
-                score = result.score * sparse_weight
-                
-                if point_id in merged:
-                    merged[point_id]["score"] += score
-                else:
-                    merged[point_id] = {
-                        "id": point_id,
-                        "score": score,
-                        "payload": result.payload,
-                    }
-            
-            # Sort by combined score and take top_k
-            ranked = sorted(merged.values(), key=lambda x: x["score"], reverse=True)[:top_k]
-            
+                for point in search_result.points
+            ]
+
             logger.debug(f"Hybrid search returned {len(ranked)} results")
             return ranked
-            
+
         except Exception as e:
             logger.error(f"Hybrid search failed: {type(e).__name__}: {e}", exc_info=True)
             raise

@@ -17,6 +17,7 @@ from src.ingestion.chunker import get_chunker
 from src.storage.sqlite_state_store import get_state_store
 from src.vector_db.qdrant_client_wrapper import get_qdrant_client
 from src.vector_db.embedder import embedder, QuotaExhaustedError
+from src.vector_db.sparse_encoder import get_sparse_encoder
 from src.observability.mlflow_tracker import get_mlflow_tracker
 
 from qdrant_client.http.models import PointStruct
@@ -323,17 +324,27 @@ class IngestionPipeline:
             if len(embeddings) != len(chunks_to_ingest):
                 raise ValueError("Embedding count mismatch")
             
-            # Step 5: Prepare Qdrant points
+            # Step 5: Prepare Qdrant points (dense + sparse vectors)
+            sparse_encoder = get_sparse_encoder(vocab_size=settings.sparse_vocab_size)
+            sparse_vectors = sparse_encoder.encode_batch(texts_to_embed)
+            
             points = []
-            for i, (chunk, embedding) in enumerate(zip(chunks_to_ingest, embeddings)):
+            for i, (chunk, embedding, sparse_vec) in enumerate(
+                zip(chunks_to_ingest, embeddings, sparse_vectors)
+            ):
                 payload = QdrantPayload.from_chunk(chunk)
                 
                 # Use hash-based ID for deterministic point IDs
                 point_id = int(hash(chunk.metadata.text_hash) & 0x7FFFFFFF)
                 
+                # Use named vector format: "" = default unnamed dense vector
+                # Backward compatible: old points have only "", new points add "text_sparse"
                 point = PointStruct(
                     id=point_id,
-                    vector=embedding,
+                    vector={
+                        "": embedding,
+                        "text_sparse": sparse_vec,
+                    },
                     payload=payload.to_dict(),
                 )
                 points.append(point)

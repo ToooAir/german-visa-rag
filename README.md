@@ -14,7 +14,7 @@ Built with **Production-ready** standards, this project features an automated we
 
 ### 🔍 Advanced RAG Pipeline
 - **Query Transformation**: Utilizes a lightweight LLM for intent expansion and spell-checking to solve multi-lingual vector space misalignment.
-- **Hybrid Search**: Combines **Dense Vectors** (OpenAI `text-embedding-3-small`) with **Sparse BM25** search via Qdrant. *(Note: Sparse BM25 is infrastructure-ready but currently disabled — Phase 3 TODO. Dense-only search is active.)*
+- **Hybrid Search**: Combines **Dense Vectors** (OpenAI `text-embedding-3-small`) with **Sparse BM25** search via Qdrant, fused using server-side **Reciprocal Rank Fusion (RRF)**.
 - **Cross-Encoder Reranking**: Fetches Top-20 candidates and reranks them using a Cross-Encoder API to distill the precise Top-5 chunks.
 - **Time-Aware & Authority Weighting**: Prioritizes official government sources and recently fetched documents during retrieval scoring.
 
@@ -52,7 +52,7 @@ graph TB
     end
 
     subgraph "Retrieval Pipeline"
-        D1["Dense Vector Search (BM25 Planned)"]
+        D1["Hybrid Search (Dense + BM25 RRF)"]
         D2["Cross-Encoder Reranker"]
         D3["Prompt Builder (+ Safety Check)"]
         F1{{"LLM Factory"}}

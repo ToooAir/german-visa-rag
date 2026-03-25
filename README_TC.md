@@ -14,7 +14,7 @@
 
 ### 🔍 進階 RAG 檢索管線
 - **Query Transformation**：使用輕量 LLM 進行查詢意圖擴充與拼字修正，解決多語系向量偏移問題。
-- **Hybrid Search**：結合 **Dense Vector** (OpenAI `text-embedding-3-small`) 與 **Sparse BM25** 進行混合檢索。*（注意：Sparse BM25 基礎架構已就緒，但目前尚未啟用 — Phase 3 TODO，當前為 Dense-only 模式。）*
+- **Hybrid Search**：結合 **Dense Vector** (OpenAI `text-embedding-3-small`) 與 **Sparse BM25** 進行混合檢索，應用服務器端 **Reciprocal Rank Fusion (RRF)** 進行分數融合。
 - **Cross-Encoder Reranking**：檢索 Top-20 後，使用 Reranker 進行語意重排，精確提取 Top-5 丟給 LLM。
 - **時間感知與權威加權**：優先檢索官方 (Official) 來源與最新抓取的法規文件。
 
@@ -52,7 +52,7 @@ graph TB
     end
 
     subgraph "Retrieval Pipeline"
-        D1["Dense Vector Search (BM25 規劃中)"]
+        D1["Hybrid Search (Dense + BM25 RRF)"]
         D2["Cross-Encoder Reranker"]
         D3["Prompt Builder (+ Safety Check)"]
         F1{{"LLM Factory"}}

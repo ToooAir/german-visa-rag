@@ -194,6 +194,50 @@ domains:
     max_pages: 100
     use_sitemap: true
 
+  # ── 德國法律條文原文 (BM25 重點對象) ───────────────────────────────────
+
+  - domain: "www.gesetze-im-internet.de"
+    # Germany's official federal law portal
+    seed_paths:
+      - "/aufenthg_2004/"        # Aufenthaltsgesetz (居留法) - DE
+      - "/englisch_aufenthg/"    # Aufenthalts法 (居留法) - EN
+      - "/beschv_2013/"          # Beschäftigungsverordnung (就業條例) - DE
+      - "/englisch_beschv/"      # Employment Ordinance - EN
+      - "/v_mkaufenthgv/"        # Aufenthaltsverordnung (居留條例) - DE
+      - "/englisch_aufenthv/"    # Residence Ordinance - EN
+      - "/stag/"                 # Staatsangehörigkeitsgesetz (國籍法) - DE
+      - "/englisch_stag/"        # Nationality Act - EN
+      - "/freiz_gg_eu_2004/"     # Freizügigkeitsgesetz/EU - DE
+      - "/englisch_freiz_gg_eu/" # EU Freedom of Movement Act - EN
+      - "/intv/"                 # Integrationskursverordnung - DE
+    authority_level: "official"
+    default_visa_types:
+      - "general"
+      - "work_visa"
+      - "blue_card"
+      - "chancenkarte"
+    max_depth: 2
+    max_pages: 100
+    allowed_path_patterns:
+      - "^/(aufenthg_2004|beschv_2013|v_mkaufenthgv|stag|freiz_gg_eu_2004|intv|englisch_.*)/"
+    use_sitemap: false
+
+  - domain: "www.arbeitsagentur.de"
+    # BA: Bundesagentur für Arbeit (聯邦就業局)
+    seed_paths:
+      - "/en/"
+      - "/web/content/EN/findingajob/"
+      - "/web/content/EN/institutionunternehmen/"
+      # BA Fachliche Weisungen (Employment Guidelines)
+      - "/datei/dok_ba033210.pdf" 
+    authority_level: "official"
+    default_visa_types:
+      - "work_visa"
+      - "blue_card"
+    max_depth: 3
+    max_pages: 150
+    use_sitemap: true
+
   # Note: anabin.kmk.org is a dynamic JSF application — standard crawling yields only
   # query-param URLs. No domain config; rely on pinned extra_urls only.
 

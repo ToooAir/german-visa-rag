@@ -19,10 +19,14 @@ from src.utils.text_utils import normalize_whitespace
 MIN_CHILD_LENGTH  = 150   # chars — child chunks shorter than this are dropped
 MIN_PARENT_LENGTH = 100   # chars — parent (section) chunks shorter than this are dropped
 
-# ── "Introduction" section handling ────────────────────────────────────────
 # Content before the first H2/H3 header is likely navigation or page-level
 # boilerplate. We apply a stricter length threshold before keeping it.
 MIN_INTRO_LENGTH  = 300   # chars — pre-header content must be at least this long
+
+# ── Safety limits (to avoid OpenAI 8192 token limit) ──────────────────────
+# 8192 tokens is roughly 30,000 - 40,000 characters for western languages.
+# We set a safe upper bound of 20,000 chars for any single chunk.
+MAX_CHUNK_LENGTH  = 20000 
 
 
 class ParentChildChunker:
@@ -189,6 +193,7 @@ class ParentChildChunker:
 
             # If paragraph itself is too large, split by sentences
             if len(para) > max_size:
+                # 1. Try splitting by sentence punctuation first
                 para_sentences = re.split(r'([.!?](?:\s+|$))', para)
                 segments = []
                 for i in range(0, len(para_sentences) - 1, 2):
@@ -196,7 +201,18 @@ class ParentChildChunker:
                 if len(para_sentences) % 2 == 1:
                     segments.append(para_sentences[-1])
 
-                for sentence in segments:
+                # 2. Hard Fallback: If any segment is still too large (no punctuation), 
+                # split by character length
+                final_segments = []
+                for seg in segments:
+                    if len(seg) > max_size:
+                        # Force split into max_size chunks
+                        for j in range(0, len(seg), max_size):
+                            final_segments.append(seg[j:j + max_size])
+                    else:
+                        final_segments.append(seg)
+
+                for sentence in final_segments:
                     sentence = sentence.strip()
                     if not sentence:
                         continue
@@ -280,6 +296,13 @@ class ParentChildChunker:
 
             # ── Parent chunk ─────────────────────────────────────────────
             parent_text = f"{section_header}\n\n{section_content}"
+
+            # Safety check: Trim parent if it's monstrously large
+            if len(parent_text) > MAX_CHUNK_LENGTH:
+                logger.warning(
+                    f"Trimming oversized parent chunk ({len(parent_text)} chars) for {source_url}"
+                )
+                parent_text = parent_text[:MAX_CHUNK_LENGTH] + "... [Truncated]"
 
             # Drop trivially short parent sections (nav links, breadcrumbs, etc.)
             if len(parent_text.strip()) < self.min_parent_length:

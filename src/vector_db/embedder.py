@@ -101,60 +101,56 @@ class OpenAIEmbedder(EmbedderBase):
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     async def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """
-        Embed multiple texts with OpenAI API with retry logic.
-        Raises QuotaExhaustedError on 429 instead of retrying.
+        Embed multiple texts with OpenAI API with retry logic and automatic batching.
+        OpenAI has a total token limit per request (8192), so we split large lists.
         
         Args:
             texts: List of strings to embed
             
         Returns:
             List of embedding vectors (1536-dimensional)
-            
-        Raises:
-            QuotaExhaustedError: When API returns 429 rate limit error
         """
         if not texts:
             return []
 
-        client = await self._get_client()
+        # Batch size of 10 is extremely conservative. 
+        # Even with long context prefixes and dense text, this ensures we stay under 8192.
+        BATCH_SIZE = 10
+        all_embeddings = []
         
-        try:
-            response = await client.embeddings.create(
-                input=texts,
-                model=self.model,
-            )
-            
-            # Sort by index to maintain order
-            embeddings = sorted(response.data, key=lambda x: x.index)
-            return [emb.embedding for emb in embeddings]
-            
-        except Exception as e:
-            # Detect 429 rate limit errors and raise QuotaExhaustedError
-            import openai
+        client = await self._get_client()
 
-            if isinstance(e, openai.RateLimitError):
-                headers = getattr(e, "response", None).headers if hasattr(e, "response") else {}
-                reset_requests = headers.get("x-ratelimit-reset-requests")
-                reset_tokens = headers.get("x-ratelimit-reset-tokens")
-                wait_seconds = self._parse_wait_seconds(str(e))
-
-                raise QuotaExhaustedError(
-                    wait_seconds=wait_seconds,
-                    reset_requests=reset_requests,
-                    reset_tokens=reset_tokens,
-                    message=f"Provider: {'Azure' if self.is_azure else 'OpenAI'}",
-                ) from e
-
-            error_str = str(e)
-            if "429" in error_str or "RateLimit" in error_str:
-                wait_seconds = self._parse_wait_seconds(error_str)
-                raise QuotaExhaustedError(
-                    wait_seconds=wait_seconds,
-                    message=f"Provider: {'Azure' if self.is_azure else 'OpenAI'}",
-                ) from e
+        for i in range(0, len(texts), BATCH_SIZE):
+            batch = texts[i : i + BATCH_SIZE]
+            batch_chars = sum(len(t) for t in batch)
+            logger.debug(f"OpenAI embedding batch {i//BATCH_SIZE}: {len(batch)} items, ~{batch_chars} chars")
             
-            logger.error(f"OpenAI embedding failed: {e}", extra={"texts_count": len(texts)})
-            raise
+            try:
+                response = await client.embeddings.create(
+                    input=batch,
+                    model=self.model,
+                )
+                
+                # Sort by index to maintain order within batch
+                batch_embeddings = sorted(response.data, key=lambda x: x.index)
+                all_embeddings.extend([emb.embedding for emb in batch_embeddings])
+                
+            except Exception as e:
+                # Detect rate limit errors
+                import openai
+                if isinstance(e, openai.RateLimitError):
+                    headers = getattr(e, "response", None).headers if hasattr(e, "response") else {}
+                    raise QuotaExhaustedError(
+                        wait_seconds=self._parse_wait_seconds(str(e)),
+                        reset_requests=headers.get("x-ratelimit-reset-requests"),
+                        reset_tokens=headers.get("x-ratelimit-reset-tokens"),
+                        message=f"Provider: {'Azure' if self.is_azure else 'OpenAI'}",
+                    ) from e
+                
+                logger.error(f"OpenAI batch embedding failed (batch {i//BATCH_SIZE}): {e}")
+                raise
+
+        return all_embeddings
 
     @staticmethod
     def _parse_wait_seconds(error_message: str) -> int:

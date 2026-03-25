@@ -315,36 +315,46 @@ class IngestionPipeline:
                 f"Deduplication: {len(chunks_to_ingest)} to ingest, {skipped_count} skipped"
             )
             
-            # Step 4: Embed
-            logger.debug(f"Embedding {len(chunks_to_ingest)} chunks")
+            # Step 4: Embed (Children only)
+            # In Parent-Child strategy, we only search against children.
+            # Parents provide context but don't need vectors (saves cost + avoids token limits).
+            chunks_to_embed = [c for c in chunks_to_ingest if not c.metadata.is_parent]
+            texts_to_embed = [c.text for c in chunks_to_embed]
             
-            texts_to_embed = [c.text for c in chunks_to_ingest]
-            embeddings = await embedder.embed_texts(texts_to_embed)
+            embeddings: List[List[float]] = []
+            if texts_to_embed:
+                embeddings = await embedder.embed_texts(texts_to_embed)
+                if len(embeddings) != len(chunks_to_embed):
+                    raise ValueError("Embedding count mismatch")
             
-            if len(embeddings) != len(chunks_to_ingest):
-                raise ValueError("Embedding count mismatch")
-            
-            # Step 5: Prepare Qdrant points (dense + sparse vectors)
+            # Step 5: Prepare Qdrant points (dense + sparse vectors for children)
             sparse_encoder = get_sparse_encoder(vocab_size=settings.sparse_vocab_size)
             sparse_vectors = sparse_encoder.encode_batch(texts_to_embed)
             
+            # Map chunk IDs to vectors for easy lookup during point creation
+            vector_map = {}
+            for chunk, emb, sp_vec in zip(chunks_to_embed, embeddings, sparse_vectors):
+                vector_map[chunk.metadata.chunk_id] = {
+                    "": emb,
+                    "text_sparse": sp_vec
+                }
+            
             points = []
-            for i, (chunk, embedding, sparse_vec) in enumerate(
-                zip(chunks_to_ingest, embeddings, sparse_vectors)
-            ):
+            for chunk in chunks_to_ingest:
                 payload = QdrantPayload.from_chunk(chunk)
                 
                 # Use hash-based ID for deterministic point IDs
                 point_id = int(hash(chunk.metadata.text_hash) & 0x7FFFFFFF)
                 
-                # Use named vector format: "" = default unnamed dense vector
-                # Backward compatible: old points have only "", new points add "text_sparse"
+                # Retrieve vectors if this is a child chunk, else use empty vectors
+                vectors = vector_map.get(chunk.metadata.chunk_id, {
+                    "": [0.0] * settings.qdrant_vector_size, # Dummy zero vector for parents
+                    "text_sparse": {"indices": [], "values": []}
+                })
+                
                 point = PointStruct(
                     id=point_id,
-                    vector={
-                        "": embedding,
-                        "text_sparse": sparse_vec,
-                    },
+                    vector=vectors,
                     payload=payload.to_dict(),
                 )
                 points.append(point)

@@ -82,35 +82,56 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
     if (value.includes('|')) {
       const [key, pts] = value.split('|');
       const translatedKey = translateRequirementValue(key);
-      return `${translatedKey} (+${pts}${t.criteria.pts || 'pts'})`;
+      const ptsLabel = t.criteria.pts || (language === 'zh-TW' ? '分' : 'pts');
+      return `${translatedKey} (+${pts}${ptsLabel})`;
     }
 
-    const key = value.toUpperCase();
-    if (key === 'TBC') return t.criteria.reqValues?.tbc || value;
-    if (key === 'MET') return t.criteria.reqValues?.met || value;
-    if (key === 'UNDER_35') return t.criteria.reqValues?.under35 || value;
-    if (key === 'UNDER_40') return t.criteria.reqValues?.under40 || value;
-    if (key === 'OVER_45') return t.criteria.reqValues?.over45 || value;
-    if (key === '5_YEARS_EXP') return t.criteria.reqValues?.yearsExp5 || value;
-    if (key === '2_YEARS_EXP') return t.criteria.reqValues?.yearsExp2 || value;
-    if (key === 'IT_3Y_EXP' || key === '3_YEARS_IT_EXP') return t.criteria.reqValues?.itExp3y || value;
-    if (key === 'IT_EXP' || key === 'IT_EXP_GENERAL') return t.criteria.reqValues?.itExpGeneral || value;
-    if (key === 'DEGREE') return t.criteria.reqValues?.degree || value;
-    if (key === 'VOCATIONAL') return t.criteria.reqValues?.vocational || value;
-    if (key === 'SALARY_MET') return t.criteria.reqValues?.salaryMet || value;
-    if (key === 'SALARY_BELOW') return t.criteria.reqValues?.salaryBelow || value;
-    if (key === 'BA_PASSED') return t.criteria.reqValues?.baPassed || value;
-    if (key === 'BA_PENDING') return t.criteria.reqValues?.baPending || value;
-    if (key === 'CONTRACT_SIGNED') return t.criteria.reqValues?.contractSigned || value;
-    if (key === 'ADMITTED' || key === 'ADMISSION_LETTER') return t.criteria.reqValues?.admitted || value;
-    if (key === 'INSURED' || key === 'INSURANCE_READY') return t.criteria.reqValues?.insured || value;
-    if (key === 'PRE_STUDY_MET') return t.criteria.reqValues?.preStudyMet || value;
+    const key = value.toUpperCase().trim();
+    const rv = t.criteria.reqValues;
+    const ll = t.criteria.langLevels;
+    
+    // Core Status Keys
+    if (key === 'TBC') return rv?.tbc || value;
+    if (key === 'MET') return rv?.met || value;
+    if (key === 'REQUIRED') return rv?.required || rv?.met || value;
+    
+    // Language Levels (A1, B1, etc.)
+    const langLevelKey = value.toLowerCase();
+    if (ll && ll[langLevelKey as keyof typeof ll]) {
+      return ll[langLevelKey as keyof typeof ll];
+    }
+    
+    // Work & Experience
+    if (key === '5_YEARS_EXP') return rv?.yearsExp5 || value;
+    if (key === '2_YEARS_EXP') return rv?.yearsExp2 || value;
+    if (key === 'IT_3Y_EXP' || key === '3_YEARS_IT_EXP') return rv?.itExp3y || value;
+    if (key === 'IT_EXP' || key === 'IT_EXP_GENERAL' || key === 'IT') return rv?.itExpGeneral || value;
+    
+    // Personal Attributes
+    if (key === 'UNDER_35') return rv?.under35 || value;
+    if (key === 'UNDER_40') return rv?.under40 || value;
+    if (key === 'OVER_45') return rv?.over45 || value;
+    
+    // Qualifications
+    if (key === 'DEGREE') return rv?.degree || value;
+    if (key === 'VOCATIONAL') return rv?.vocational || value;
+    if (key === 'PARTIAL_RECOGNITION') return rv?.partialRecognition || value;
+    
+    // Legal & Process
+    if (key === 'SALARY_MET') return rv?.salaryMet || value;
+    if (key === 'SALARY_BELOW') return rv?.salaryBelow || value;
+    if (key === 'BA_PASSED') return rv?.baPassed || value;
+    if (key === 'BA_PENDING') return rv?.baPending || value;
+    if (key === 'CONTRACT_SIGNED') return rv?.contractSigned || value;
+    if (key === 'ADMITTED' || key === 'ADMISSION_LETTER') return rv?.admitted || value;
+    if (key === 'INSURED' || key === 'INSURANCE_READY') return rv?.insured || value;
+    if (key === 'PRE_STUDY_MET') return rv?.preStudyMet || value;
     
     // Case: LACK_OF_FUNDS:13092
     if (key.startsWith('LACK_OF_FUNDS:')) {
       const amount = key.split(':')[1];
       const formatted = amount.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-      return (t.criteria.reqValues?.lackOfFunds || 'Short €{amount}').replace('{amount}', formatted);
+      return (rv?.lackOfFunds || 'Short €{amount}').replace('{amount}', formatted);
     }
 
     return value;
@@ -370,11 +391,11 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                     const hasQualPoints = requirements.some(r => r.id?.match(/^2-[45]/) && r.status === 'required');
                     if (req.id === '1-2' && hasLangPoints && req.status !== 'required') {
                       req.status = 'required';
-                      req.value = t.met || 'Met';
+                      req.value = 'MET';
                     }
                     if (req.id === '1-3' && hasQualPoints && req.status !== 'required') {
                       req.status = 'required';
-                      req.value = t.met || 'Met';
+                      req.value = 'MET';
                     }
                   }
 

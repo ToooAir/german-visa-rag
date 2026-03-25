@@ -16,7 +16,7 @@ from src.storage.redis_cache import query_cache
 from src.rag.hybrid_retriever import HybridRetriever
 from src.rag.query_transformer import get_query_transformer
 from src.rag.reranker import get_reranker
-from src.rag.prompt_builder import get_prompt_builder
+from src.rag.prompt_builder import get_prompt_builder, PromptRequest
 from src.llm import get_llm_client  
 from src.llm.token_counter import get_token_counter
 from src.observability.mlflow_tracker import get_mlflow_tracker
@@ -148,9 +148,14 @@ class AnswerGenerator:
             
             # 4. Build context & prompt
             context = self.prompt_builder.build_context_from_retrieval(reranked, language=language or "en")
-            system_prompt = self.prompt_builder.build_system_prompt(
-                context=context, question=query, language=language, visa_type=visa_type, requirements=requirements
+            request = PromptRequest(
+                context=context,
+                question=query,
+                language=language,
+                visa_type=visa_type,
+                requirements=requirements
             )
+            system_prompt = self.prompt_builder.build_system_prompt(request)
             
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -363,20 +368,18 @@ class AnswerGenerator:
             # 4. Build Context & Validation
             context = self.prompt_builder.build_context_from_retrieval(
                 reranked,
-                top_k=settings.retrieval_top_k_reranked,
                 language=language or "en"
             )
             
-            if not self.prompt_builder.validate_context_for_injection(context):
-                logger.warning("Suspicious context detected", extra={"request_id": request_id})
-                yield self._format_sse_chunk("安全驗證失敗，無法處理此請求。")
-                yield "data: [DONE]\n\n"
-                return
-            
             # Build Prompt
-            system_prompt = self.prompt_builder.build_system_prompt(
-                context=context, question=query, language=language, visa_type=visa_type, requirements=requirements
+            request = PromptRequest(
+                context=context,
+                question=query,
+                language=language,
+                visa_type=visa_type,
+                requirements=requirements
             )
+            system_prompt = self.prompt_builder.build_system_prompt(request)
             
             messages = [
                 {"role": "system", "content": system_prompt},

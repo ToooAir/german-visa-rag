@@ -62,7 +62,7 @@ export const useChatStore = create<ChatState>()(
     }
   ],
   isLoading: false,
-  activeVisaCategory: null,
+  activeVisaCategory: 'chancenkarte',
   
   checklist: [
     { id: '1', title: 'Eligibility Check', status: 'completed' },
@@ -353,4 +353,9 @@ export const useChatStore = create<ChatState>()(
     recentSources: state.recentSources,
     activeVisaCategory: state.activeVisaCategory 
   }),
+  onRehydrateStorage: () => (state) => {
+    if (state && !state.activeVisaCategory) {
+      state.activeVisaCategory = 'chancenkarte';
+    }
+  },
 }));

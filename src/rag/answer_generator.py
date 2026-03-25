@@ -391,8 +391,15 @@ class AnswerGenerator:
             full_response = ""
             achieved_milestones = []
             updated_requirements = []
-            milestone_pattern = re.compile(r"\[MILESTONE:([\d-]+):(\w+)\]")
-            req_pattern = re.compile(r"\[REQ:([\d-]+):([^:]+):(\w+)\]")
+            
+            # BROAD STRIP PATTERN: Catch anything inside brackets that looks like a tag
+            # This ensures even malformed tags like [REQ:1:val|info] are stripped from text
+            strip_milestone_pattern = re.compile(r"\[MILESTONE:[^\]]+\]")
+            strip_req_pattern = re.compile(r"\[REQ:[^\]]+\]")
+            
+            # STRICT EXTRACTION PATTERNS: Only well-formed tags update the UI state
+            extract_milestone_pattern = re.compile(r"\[MILESTONE:([\d-]+):(\w+)\]")
+            extract_req_pattern = re.compile(r"\[REQ:([\d-]+):([^:]+):(\w+)\]")
             
             # This buffer is used to catch potential tags split across chunks
             tag_buffer = ""
@@ -407,23 +414,23 @@ class AnswerGenerator:
                     
                     # 5.1 Check for complete tags in the current buffer
                     if "[" in tag_buffer:
-                        # Find all complete milestone tags
-                        found_milestones = milestone_pattern.findall(tag_buffer)
+                        # Find all VALID milestone tags for UI updates
+                        found_milestones = extract_milestone_pattern.findall(tag_buffer)
                         for m_id, m_status in found_milestones:
                             logger.info(f"Triggering milestone: {m_id}={m_status}")
                             achieved_milestones.append({"id": m_id, "status": m_status})
                             yield self._format_milestone_chunk(m_id, m_status)
                         
-                        # Find all complete requirement tags
-                        found_reqs = req_pattern.findall(tag_buffer)
+                        # Find all VALID requirement tags for UI updates
+                        found_reqs = extract_req_pattern.findall(tag_buffer)
                         for r_id, r_val, r_status in found_reqs:
                             logger.info(f"Updating requirement: {r_id}={r_val} ({r_status})")
                             updated_requirements.append({"id": r_id, "value": r_val, "status": r_status})
                             yield self._format_req_chunk(r_id, r_val, r_status)
                             
-                        # Strip complete tags from the buffer
-                        tag_buffer = milestone_pattern.sub("", tag_buffer)
-                        tag_buffer = req_pattern.sub("", tag_buffer)
+                        # STRIP ALL TAGS (including malformed ones) from the buffer for text display
+                        tag_buffer = strip_milestone_pattern.sub("", tag_buffer)
+                        tag_buffer = strip_req_pattern.sub("", tag_buffer)
                         
                         # 5.2 Only send text that is definitely not part of an incomplete tag
                         # We wait if the buffer ends with a partial tag (e.g. "[MILE")
@@ -450,21 +457,22 @@ class AnswerGenerator:
                 
                 # Send anything left in the buffer at the end
                 if tag_buffer:
-                    # Final check for tags in the remaining buffer
-                    found_milestones = milestone_pattern.findall(tag_buffer)
+                    # Final check for valid tags in the remaining buffer
+                    found_milestones = extract_milestone_pattern.findall(tag_buffer)
                     for m_id, m_status in found_milestones:
                         logger.info(f"Triggering final milestone: {m_id}={m_status}")
                         achieved_milestones.append({"id": m_id, "status": m_status})
                         yield self._format_milestone_chunk(m_id, m_status)
                         
-                    found_reqs = req_pattern.findall(tag_buffer)
+                    found_reqs = extract_req_pattern.findall(tag_buffer)
                     for r_id, r_val, r_status in found_reqs:
                         logger.info(f"Updating final requirement: {r_id}={r_val} ({r_status})")
                         updated_requirements.append({"id": r_id, "value": r_val, "status": r_status})
                         yield self._format_req_chunk(r_id, r_val, r_status)
                     
-                    clean_last = milestone_pattern.sub("", tag_buffer)
-                    clean_last = req_pattern.sub("", clean_last)
+                    # Final aggressive strip
+                    clean_last = strip_milestone_pattern.sub("", tag_buffer)
+                    clean_last = strip_req_pattern.sub("", clean_last)
                     if clean_last:
                         yield self._format_sse_chunk(clean_last)
                         full_response += clean_last

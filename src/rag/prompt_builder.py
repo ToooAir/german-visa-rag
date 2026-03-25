@@ -29,6 +29,8 @@ SYSTEM_PROMPT = """
 - **學生簽證核心**：大學錄取通知書 (Zulassung) 是絕對關鍵。
 - **學生財力證明**：存入限制提領帳戶 (€11,904) 是常見做法，但獎學金或擔保書 (VE) 亦可。
 - **學生醫療保險**：入學註冊必備，簽證申請時也需提供。
+- **絕對禁止通靈/假定客戶資訊**：若用戶未提及年齡、學歷、具體工作年數，請標記為「待確認」，**且分數計為 0**。絕不能假設用戶「未滿40歲」或「擁有大學學位」來強行湊分。
+- **門檻優先原則**：機會卡是「先過門檻，再算積分」。必須先確認用戶滿足「財力證明」、「語言 A1/英文 B2」及「2年制基本學位」這三項基礎指標，才能開始列出加分項目或進行總分加總。
 - **機會卡路徑一 (直接認可)**：擁有受德國完全認可的專業資格，**不強制要求語言能力**，且免算積分。
 - **機會卡路徑二 (積分制硬性門檻)**：必須先達標「財力證明」、「語言 A1/英文 B2」與「基礎學位 (2年制)」才能開始算分。若未達標，請直接指出不足，不要進行積分累加。
 - **機會卡積分規則 (Step 2 - 達標 6 分即合格)**：
@@ -48,7 +50,21 @@ SYSTEM_PROMPT = """
    - ID=2 (專一進階)：機會卡(積分計算)、藍卡/FEG(合約審核/薪資)、學生(入學證明)。
    - ID=3 (文件準備)：詢問財力證明、公證等細節。 (通常這已經是 AI RAG 對話的最終階段)
 
-2. **基本條件更新 (REQ)**：格式 `[REQ:ID:VALUE:STATUS]` (請主動評估用戶目前的條件狀況並以標籤形式輸出，這部分為系統隱藏判定，**絕不能**將 `[REQ...]` 、 `Status: required` 等字眼寫在給用戶的對話內文裡！並且**絕對禁止**出現「以下是標籤」這類前導敘述文字！\n   - **基礎門檻項目 (ID為 1- 開頭)**：VALUE 必須極簡短，如：「已達標」、「缺 €13,092」、「待確認」。\n   - **積分加分項目 (ID為 2- 開頭)**：VALUE 必須遵守嚴格的「能力|分數」格式（用直線 | 隔開），**絕對禁止**寫出「達標」二字！例如「B1|2」、「5年相關經驗|3」、「29歲|2」。\n   - STATUS 對應：達標為 `required`，未達標/資訊不足/有風險為 `warning`。\n\n【標籤輸出標準結構範例】\n(請務必根據用戶真實情況填入變數，不可直接抄襲範例)：\n[REQ:2-1:<語言等級>|<分數>:required]\n[REQ:2-2:<經驗年數>|<分數>:required]\n[REQ:2-3:<實際年齡>|<分數>:required]\n[REQ:1-1:<狀態字串>:<warning或required>]\n\n(錯誤示範 - 絕對禁止這樣寫)：\n[REQ:2-1:達標:required] (X 錯誤：不能寫達標)\n[REQ:2-2:5年經驗(+3分):required] (X 錯誤：沒有使用 | 分隔符號)\n\n
+2. **基本條件更新 (REQ)**：格式 `[REQ:ID:VALUE:STATUS]` (請主動評估用戶目前的條件狀況並以標籤形式輸出，這部分為系統隱藏判定，**絕不能**將 `[REQ...]` 、 `Status: required` 等字眼寫在給用戶的對話內文裡！並且**絕對禁止**出現「以下是標籤」這類前導敘述文字！
+   - **基礎門檻項目 (ID為 1- 開頭)**：VALUE 必須極簡短且使用中性 Key，如：`MET` (已達標)、`LACK_OF_FUNDS:13092` (缺金額)、`TBC` (待確認)。
+   - **積分加分項目 (ID為 2- 開頭)**：VALUE 必須遵守嚴格的「能力|分數」格式（用直線 | 隔開），例如：`B1|2`、`5_YEARS_EXP|3`、`UNDER_35|2`、`DEGREE|4`。**若資訊不明，請寫 `TBC|0`**。
+   - **STATUS 嚴格規範**：STATUS 只能是 `required` (已達標) 或 `warning` (未達標/資訊不足/有風險/待確認)。**絕對禁止使用 `info` 作為狀態！**
+
+【標籤輸出標準結構範例】
+(請務必根據用戶真實情況填入變數，不可直接抄襲範例)：
+- 機會卡：[REQ:2-1:B1|2:required] [REQ:1-1:LACK_OF_FUNDS:13092:warning]
+- 藍卡：[REQ:2:SALARY_MET:required] [REQ:1:IT_3Y_EXP:required] (IT路徑)
+- 學生：[REQ:4:ADMITTED:required] [REQ:3:INSURED:required]
+- 通用：[REQ:2-3:TBC|0:warning] (當資訊不明時)
+
+(錯誤示範 - 絕對禁止這樣寫)：
+[REQ:2-5: - |info] (X 錯誤：使用了禁止的 info 狀態，且格式不對)
+[REQ:1-1:已達標:required] (X 錯誤：使用了中文，應使用 MET)
    - **專業人才 (Skilled Worker/FEG)**: 1:學歷與專業資格, 2:薪資與勞動條件, 3:45歲以上特殊條款, 4:語言能力
    - **歐盟藍卡 (EU Blue Card)**: 1:學歷與專業資格, 2:德國全職工作合約, 3:語言加分
    - **機會卡 (Chancenkarte)**: 
@@ -63,14 +79,13 @@ SYSTEM_PROMPT = """
 <OUTPUT_FORMAT>
 - 語言：請使用提問的語言回答。
 - 若提及機會卡，請先在文字回答中逐項列出得分項目再加總，**並且務必針對每一項提及的條件輸出對應的 `[REQ:ID:VALUE:STATUS]` 標籤。**
+- **嚴禁洩漏標籤**：標籤必須放在整個回覆的最末端，且與回覆正文之間至少空一行。正文中絕對禁止出現任何 `[REQ` 或 `[MILESTONE` 字樣。
 請嚴格依循以下格式回覆：
 （給用戶的回覆文字，並包含 Markdown 引用來源）
 
-（直接換行，在此直接放入 [MILESTONE:...] 和 [REQ:...] 等標籤，禁止加任何諸如「以下是標籤」的多餘前導文字，若無則留空）
+（在此處直接放入所有標籤，如 [MILESTONE:1:current] [REQ:1-1:MET:required] ...）
 </OUTPUT_FORMAT>
 """
-
-
 
 class PromptBuilder:
     """Build and validate prompts for RAG responses."""
@@ -79,7 +94,11 @@ class PromptBuilder:
     def build_system_prompt(context: str, question: str, language: Optional[str] = None, visa_type: Optional[str] = None, requirements: Optional[List[Dict[str, str]]] = None) -> str:
         """Get system prompt with context and question injected."""
         citation_label = "Paragraph" if language == "en" else "Absatz" if language == "de" else "段落"
-        prompt = SYSTEM_PROMPT.format(context=context, citation_label=citation_label)
+        
+        prompt = SYSTEM_PROMPT.format(
+            context=context, 
+            citation_label=citation_label
+        )
         
         if visa_type:
             prompt += f"\n\n【當前簽證脈絡】\n用戶目前正在查看的是：**{visa_type}**。請特別優先針對此類簽證進行針對性回答與標籤輸出。"

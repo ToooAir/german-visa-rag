@@ -75,6 +75,47 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
     return result;
   };
 
+  const translateRequirementValue = (value: string): string => {
+    if (!value) return value;
+    
+    // Case: Points with key (e.g. "5_YEARS_EXP|3")
+    if (value.includes('|')) {
+      const [key, pts] = value.split('|');
+      const translatedKey = translateRequirementValue(key);
+      return `${translatedKey} (+${pts}${t.criteria.pts || 'pts'})`;
+    }
+
+    const key = value.toUpperCase();
+    if (key === 'TBC') return t.criteria.reqValues?.tbc || value;
+    if (key === 'MET') return t.criteria.reqValues?.met || value;
+    if (key === 'UNDER_35') return t.criteria.reqValues?.under35 || value;
+    if (key === 'UNDER_40') return t.criteria.reqValues?.under40 || value;
+    if (key === 'OVER_45') return t.criteria.reqValues?.over45 || value;
+    if (key === '5_YEARS_EXP') return t.criteria.reqValues?.yearsExp5 || value;
+    if (key === '2_YEARS_EXP') return t.criteria.reqValues?.yearsExp2 || value;
+    if (key === 'IT_3Y_EXP' || key === '3_YEARS_IT_EXP') return t.criteria.reqValues?.itExp3y || value;
+    if (key === 'IT_EXP' || key === 'IT_EXP_GENERAL') return t.criteria.reqValues?.itExpGeneral || value;
+    if (key === 'DEGREE') return t.criteria.reqValues?.degree || value;
+    if (key === 'VOCATIONAL') return t.criteria.reqValues?.vocational || value;
+    if (key === 'SALARY_MET') return t.criteria.reqValues?.salaryMet || value;
+    if (key === 'SALARY_BELOW') return t.criteria.reqValues?.salaryBelow || value;
+    if (key === 'BA_PASSED') return t.criteria.reqValues?.baPassed || value;
+    if (key === 'BA_PENDING') return t.criteria.reqValues?.baPending || value;
+    if (key === 'CONTRACT_SIGNED') return t.criteria.reqValues?.contractSigned || value;
+    if (key === 'ADMITTED' || key === 'ADMISSION_LETTER') return t.criteria.reqValues?.admitted || value;
+    if (key === 'INSURED' || key === 'INSURANCE_READY') return t.criteria.reqValues?.insured || value;
+    if (key === 'PRE_STUDY_MET') return t.criteria.reqValues?.preStudyMet || value;
+    
+    // Case: LACK_OF_FUNDS:13092
+    if (key.startsWith('LACK_OF_FUNDS:')) {
+      const amount = key.split(':')[1];
+      const formatted = amount.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      return (t.criteria.reqValues?.lackOfFunds || 'Short €{amount}').replace('{amount}', formatted);
+    }
+
+    return value;
+  };
+
   const calculatePoints = () => {
     let total = 0;
     requirements.forEach(req => {
@@ -357,9 +398,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                           req.status === 'warning' ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' :
                             'bg-slate-100 dark:bg-slate-800 text-slate-500'
                           }`}>
-                          {(req.id?.startsWith('2-') && req.value.includes('|'))
-                            ? `${req.value.split('|')[0]} (+${req.value.split('|')[1]}${t.criteria.pts || 'pts'})`
-                            : req.value}
+                          {translateRequirementValue(req.value)}
                         </span>
                       </div>
                     )}

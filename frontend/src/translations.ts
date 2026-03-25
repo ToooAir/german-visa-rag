@@ -112,7 +112,29 @@ export const translations = {
       profQualifications: 'Professional Qualifications',
       employmentContract: 'Full-time Contract',
       admissionQuals: 'University Admission',
-      finLanguage: 'Finance & Language'
+      finLanguage: 'Finance & Language',
+      reqValues: {
+        tbc: 'To be confirmed',
+        met: 'Met',
+        lackOfFunds: 'Short €{amount}',
+        under35: '< 35 years',
+        under40: '< 40 years',
+        over45: '45+ years old',
+        yearsExp2: '2+ years experience',
+        yearsExp5: '5+ years experience',
+        itExp3y: '3+ years IT Experience',
+        itExpGeneral: 'Relevant IT Experience',
+        degree: 'University Degree',
+        vocational: 'Vocational Training',
+        salaryMet: 'Salary Threshold Met',
+        salaryBelow: 'Salary Below Threshold',
+        baPassed: 'BA Pre-approval Met',
+        baPending: 'BA Check Pending',
+        contractSigned: 'Contract Signed',
+        admitted: 'Admission Letter Received',
+        insured: 'Insurance Ready',
+        preStudyMet: 'Prerequisites Met'
+      }
     },
     docs: {
       finalTitle: 'Final Document Checklist',
@@ -257,7 +279,29 @@ export const translations = {
       profQualifications: 'Berufsqualifikationen',
       employmentContract: 'Vollzeitvertrag',
       admissionQuals: 'Hochschulzulassung',
-      finLanguage: 'Finanzierung & Sprache'
+      finLanguage: 'Finanzierung & Sprache',
+      reqValues: {
+        tbc: 'Noch zu klären',
+        met: 'Erfüllt',
+        lackOfFunds: 'Fehlt €{amount}',
+        under35: '< 35 Jahre',
+        under40: '< 40 Jahre',
+        over45: 'Über 45 Jahre alt',
+        yearsExp2: '2+ Jahre Erfahrung',
+        yearsExp5: '5+ Jahre Erfahrung',
+        itExp3y: '3+ Jahre IT-Erfahrung',
+        itExpGeneral: 'Einschlägige IT-Erfahrung',
+        degree: 'Hochschulabschluss',
+        vocational: 'Berufsausbildung',
+        salaryMet: 'Gehaltsschwelle erfüllt',
+        salaryBelow: 'Gehalt unter Schwelle',
+        baPassed: 'BA-Vorabzustimmung liegt vor',
+        baPending: 'BA-Prüfung ausstehend',
+        contractSigned: 'Arbeitsvertrag unterschrieben',
+        admitted: 'Zulassungsbescheid erhalten',
+        insured: 'Krankenversicherung bereit',
+        preStudyMet: 'Voraussetzungen erfüllt'
+      }
     },
     docs: {
       finalTitle: 'Finale Dokumentenliste',
@@ -402,7 +446,29 @@ export const translations = {
       profQualifications: '專業資格認可',
       employmentContract: '全職工作合約',
       admissionQuals: '預科/大學入學許可',
-      finLanguage: '財力與語言門檻'
+      finLanguage: '財力與語言門檻',
+      reqValues: {
+        tbc: '待確認',
+        met: '已達標',
+        lackOfFunds: '缺 €{amount}',
+        under35: '< 35 歲',
+        under40: '< 40 歲',
+        over45: '超過 45 歲',
+        yearsExp2: '2 年以上經驗',
+        yearsExp5: '5 年以上經驗',
+        itExp3y: '3 年以上 IT 相關經驗',
+        itExpGeneral: '具備相關 IT 專業經驗',
+        degree: '大學學位',
+        vocational: '職業訓練',
+        salaryMet: '薪資達標',
+        salaryBelow: '薪資未達門檻',
+        baPassed: '勞動局 (BA) 審核通過',
+        baPending: '勞動局 (BA) 審核中',
+        contractSigned: '工作合約已簽署',
+        admitted: '已取得入學許可',
+        insured: '醫療保險已就緒',
+        preStudyMet: '前置學經歷資格已核實'
+      }
     },
     docs: {
       finalTitle: '最終文件準備清單',

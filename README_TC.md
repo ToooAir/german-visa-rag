@@ -1,4 +1,3 @@
-
 # 🇩🇪 German Visa & Chancenkarte RAG API
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -15,7 +14,7 @@
 
 ### 🔍 進階 RAG 檢索管線
 - **Query Transformation**：使用輕量 LLM 進行查詢意圖擴充與拼字修正，解決多語系向量偏移問題。
-- **Hybrid Search**：結合 **Dense Vector** (OpenAI `text-embedding-3-small`) 與 **Sparse BM25** 進行混合檢索。
+- **Hybrid Search**：結合 **Dense Vector** (OpenAI `text-embedding-3-small`) 與 **Sparse BM25** 進行混合檢索。*（注意：Sparse BM25 基礎架構已就緒，但目前尚未啟用 — Phase 3 TODO，當前為 Dense-only 模式。）*
 - **Cross-Encoder Reranking**：檢索 Top-20 後，使用 Reranker 進行語意重排，精確提取 Top-5 丟給 LLM。
 - **時間感知與權威加權**：優先檢索官方 (Official) 來源與最新抓取的法規文件。
 
@@ -43,6 +42,7 @@ graph TB
     subgraph "API Gateway (FastAPI)"
         B1["/v1/chat/completions"]
         B2["/query/ask (RAG specific)"]
+        B3["/admin/ingest/* (管理 API)"]
         EH["Global Exception Handler"]
     end
 
@@ -52,7 +52,7 @@ graph TB
     end
 
     subgraph "Retrieval Pipeline"
-        D1["Hybrid Search (Vector + BM25)"]
+        D1["Dense Vector Search (BM25 規劃中)"]
         D2["Cross-Encoder Reranker"]
         D3["Prompt Builder (+ Safety Check)"]
         F1{{"LLM Factory"}}
@@ -80,6 +80,7 @@ graph TB
     F1 --> LLM_A
     F1 -. Fallback .-> LLM_B
     D1 <--> E1
+    B3 --> G0
     
     G0 --> G1 --> G2 --> G3 --> E1
     G3 <--> E3
@@ -112,7 +113,20 @@ docker-compose up -d
 curl -H "X-API-Key: dev-key-12345" http://localhost:8000/v1/health
 ```
 
-### 4. 觸發資料攝入 (CLI 獨立腳本)
+### 4. 前端手動編譯與靜態掛載 (非 Docker 開發)
+如果您希望在不安裝 Docker 的情況下直接運行 API 並顯示 UI，您需要手動編譯前端並將產出搬移至 `static` 資料夾：
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+mkdir -p static
+cp -r frontend/dist/* static/
+# 現在可以啟動 API，它會自動服務 static 內的靜態檔案
+python src/main.py
+```
+
+### 5. 觸發資料攝入 (CLI 獨立腳本)
 本專案提供專業的 CLI 工具來執行資料爬取，適合打包為 Cronjob 或 Serverless Job：
 ```bash
 # 抓取設定檔中的所有網址
@@ -126,6 +140,12 @@ python -m src.ingestion.cli ingest --auto-discover --force
 
 # 僅抓取單一網址測試
 python -m src.ingestion.cli ingest --source "https://www.make-it-in-germany.com/en/"
+
+# 乾跑測試：僅執行網址發現而不進行爬取
+python -m src.ingestion.cli discover --domain "www.make-it-in-germany.com"
+
+# 查看目前資料庫內的攝入統計數據
+python -m src.ingestion.cli status
 ```
 
 ---
@@ -150,6 +170,17 @@ response = client.chat.completions.create(
 
 for chunk in response:
     print(chunk.choices.delta.content or "", end="")
+
+# 📡 SSE 串流結構詳細說明 (供 UI 開發者參考)
+本專案的 Streaming 響應除了包含內容外，還會傳送「AI 思考過程」的 Metadata，可用於實作類似 Perplexity 的動態進度條：
+
+| Metadata 欄位 | 型別 | 說明 |
+| :--- | :--- | :--- |
+| `status` | `string` | 管線階段：`analyzing` (分析中), `retrieving` (檢索中), `extracting` (提取中), `synthesizing` (回答中) |
+| `search_queries` | `list` | LLM 拆解出的關鍵字搜尋詞，用於向向量資料庫查詢 |
+| `sources` | `list` | 本次回答引用的文獻清單，包含 `url`, `title`, `authority` 等資訊 |
+| `achieved_milestone`| `object` | 自動偵測到的進度更新：`{ "id": "1-1", "status": "completed" }` |
+| `updated_requirement`| `object` | 從對話提取到的用戶屬性：`{ "id": "age", "value": "30", "status": "valid" }` |
 ```
 *💡 提示：如果連續發送相同問題，系統將自動命中 Redis 快取，不消耗任何 API Token！*
 

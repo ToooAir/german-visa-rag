@@ -64,8 +64,9 @@ services:
       dockerfile: Dockerfile
       target: runner
     container_name: visa-rag-api
-    ports:
-      - "8000:8000"
+    # 移除或註解掉外部端口映射，改為純內網存取
+    # ports:
+    #   - "8000:8080" 
     environment:
       # App Config
       ENVIRONMENT: development
@@ -131,10 +132,13 @@ services:
     networks:
       - visa-rag-net
     healthcheck:
-      test: [ "CMD", "curl", "-f", "-H", "X-API-Key: ${API_KEY:-dev-key-12345}", "http://localhost:8000/v1/health" ]
+      test: [ "CMD", "curl", "-f", "-H", "X-API-Key: ${API_KEY:-dev-key-12345}", "http://localhost:8080/v1/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
+    ports:
+      - "8080:8080" # Unified portal
+
   # ============================================
   # Ollama (可選本地 LLM，需另行啟動)
   # ============================================

@@ -9,7 +9,10 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, FileResponse
 import time
+import os
 
 from src.config import settings
 from src.logger import logger
@@ -230,6 +233,48 @@ async def log_requests(request: Request, call_next):
 app.include_router(router)
 app.include_router(query_router)
 app.include_router(admin_router)
+
+
+# ============================================
+# Frontend Static Files & SPA Routing
+# ============================================
+
+# Mount static files (JS, CSS, etc.)
+# Note: We do this after routers to ensure API routes take precedence
+static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+
+if os.path.exists(static_dir):
+    # Mount assets directory for JS/CSS
+    assets_dir = os.path.join(static_dir, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Catch-all route to serve the SPA index.html for all non-API paths."""
+        # Check if the path is an API path, let it pass to routers or 404
+        if full_path.startswith(("v1", "query", "ask", "docs", "openapi")):
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"error": "not_found", "message": f"Path /{full_path} not found"}
+            )
+        
+        # 1. Check if it's a direct file in the static root (like vite.svg or favicon.ico)
+        file_path = os.path.join(static_dir, full_path)
+        if full_path and os.path.isfile(file_path):
+            return FileResponse(file_path)
+            
+        # 2. Otherwise, serve index.html (SPA routing)
+        index_file = os.path.join(static_dir, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+        
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"error": "frontend_not_built", "message": "Frontend assets not found"}
+        )
+else:
+    logger.warning(f"Static directory not found at {static_dir}. Frontend will not be served.")
 
 
 # ============================================

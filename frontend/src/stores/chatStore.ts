@@ -49,6 +49,7 @@ interface ChatState {
   updateMilestone: (milestoneId: string, status: 'completed' | 'current' | 'pending', autoDetected?: boolean) => void;
   updateRequirement: (id: string, value: string, status: 'required' | 'info' | 'warning') => void;
   sendMessage: (content: string) => Promise<void>;
+  newSession: () => void;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -99,7 +100,7 @@ export const useChatStore = create<ChatState>()(
     let checklist: ChecklistItem[] = [];
     let requirements: Requirement[] = [];
 
-    if (cat === 'work_visa') {
+    if (cat === 'skilled_worker' || cat === 'skilledWorker') {
       checklist = [
         { id: '1', title: 'Professional Qualifications', status: 'pending' },
         { id: '2', title: 'Full-time Contract', status: 'pending' },
@@ -111,7 +112,7 @@ export const useChatStore = create<ChatState>()(
         { id: '3', label: '45+ Age Clause', value: '-', status: 'info' },
         { id: '4', label: 'Language (Flexible)', value: '-', status: 'info' }
       ];
-    } else if (cat === 'blue_card') {
+    } else if (cat === 'blue_card' || cat === 'blueCard') {
       checklist = [
         { id: '1', title: 'Degree Recognition', status: 'pending' },
         { id: '2', title: 'High Salary Threshold', status: 'pending' },
@@ -122,7 +123,7 @@ export const useChatStore = create<ChatState>()(
         { id: '2', label: 'German Full-time Contract', value: '-', status: 'info' },
         { id: '3', label: 'PR Bonus (Language)', value: '-', status: 'info' }
       ];
-    } else if (cat === 'student_visa') {
+    } else if (cat === 'student_visa' || cat === 'studyVisa') {
       checklist = [
         { id: '1', title: 'Finance & Language', status: 'pending' },
         { id: '2', title: 'University Admission', status: 'pending' },
@@ -131,7 +132,7 @@ export const useChatStore = create<ChatState>()(
       requirements = [
         { id: '1', label: 'Financial Proof', value: '-', status: 'info' },
         { id: '2', label: 'Language Ability', value: '-', status: 'info' },
-        { id: '3', label: 'Health Insurance', value: '-', status: 'info' },
+        { id: '3', label: 'Health Insurance', status: 'info', value: '-' },
         { id: '4', label: 'Pre-study Qualifications', value: '-', status: 'info' }
       ];
     } else {
@@ -225,12 +226,17 @@ export const useChatStore = create<ChatState>()(
           'Content-Type': 'application/json',
           'X-API-Key': import.meta.env.VITE_API_KEY || ''
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           query: content,
-          language: useSettingsStore.getState().language,
           visa_type: useChatStore.getState().activeVisaCategory || undefined,
-          requirements: get().requirements
-        }),
+          language: (window as any).VITE_LANG || 'zh-TW',
+          requirements: useChatStore.getState().requirements?.map(r => ({
+            id: r.id,
+            label: r.label,
+            value: r.value,
+            status: r.status
+          }))
+        })
       });
 
       if (!response.ok) {
@@ -344,6 +350,20 @@ export const useChatStore = create<ChatState>()(
     } finally {
       set({ isLoading: false });
     }
+  },
+
+  newSession: () => {
+    const welcomeMsg = get().messages.find(m => m.id === 'welcome') || {
+      id: 'welcome',
+      role: 'assistant',
+      content: 'Hello! I am **VisaFlow DE**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.'
+    };
+    
+    set({ 
+      messages: [welcomeMsg],
+      recentSources: []
+    });
+    get().resetProgress();
   }
 }), {
   name: 'visa-rag-chat-storage',

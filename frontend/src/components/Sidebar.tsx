@@ -1,15 +1,10 @@
-import { Home, FileText, Settings, Briefcase, FileCode2, BookOpen } from 'lucide-react';
+import { Home, FileText, Settings } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useChatStore } from '../stores/chatStore';
 import { useTranslation } from '../translations';
 
 export function Sidebar({ className = '' }: { className?: string }) {
-  const { activeVisaCategory, setActiveVisaCategory } = useChatStore();
   const { t } = useTranslation();
-
-  const handleCategoryClick = (category: string) => {
-    setActiveVisaCategory(category);
-  };
 
   return (
     <div className={`glass-panel flex flex-col p-4 h-full overflow-y-auto ${className}`}>
@@ -53,37 +48,6 @@ export function Sidebar({ className = '' }: { className?: string }) {
           ))}
         </div>
       </div>
-
-      {/* Visa Categories */}
-      <div>
-        <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-2 mb-3">{t.visaCategories}</h2>
-        <div className="flex flex-col gap-1">
-          <CategoryItem 
-            icon={<Briefcase size={16} />} 
-            label={t.chancenkarte} 
-            active={activeVisaCategory === 'chancenkarte'} 
-            onClick={() => handleCategoryClick('chancenkarte')}
-          />
-          <CategoryItem 
-            icon={<FileCode2 size={16} />} 
-            label={t.skilledWorker} 
-            active={activeVisaCategory === 'work_visa'} 
-            onClick={() => handleCategoryClick('work_visa')}
-          />
-          <CategoryItem 
-            icon={<FileText size={16} />} 
-            label={t.blueCard} 
-            active={activeVisaCategory === 'blue_card'} 
-            onClick={() => handleCategoryClick('blue_card')}
-          />
-          <CategoryItem 
-            icon={<BookOpen size={16} />} 
-            label={t.studyVisa} 
-            active={activeVisaCategory === 'student_visa'} 
-            onClick={() => handleCategoryClick('student_visa')}
-          />
-        </div>
-      </div>
     </div>
   );
 }
@@ -120,17 +84,5 @@ function SourceItem({ title, url, favicon, official = false }: { title: string, 
       <span className="text-sm text-slate-700 dark:text-slate-300 truncate flex-1 group-hover:text-accent transition-colors">{title}</span>
       {official && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
     </a>
-  );
-}
-
-function CategoryItem({ icon, label, active = false, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void }) {
-  return (
-    <button onClick={onClick} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-      active ? 'bg-slate-200/80 dark:bg-slate-800/80 text-accent border border-slate-300/50 dark:border-slate-700/50' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800/30'
-    }`}>
-      {icon}
-      <span className="flex-1 text-left">{label}</span>
-      {active && <div className="w-1.5 h-1.5 rounded-full bg-accent" />}
-    </button>
   );
 }

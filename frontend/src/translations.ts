@@ -31,6 +31,7 @@ export const translations = {
     showcaseExamples: 'Showcase Examples',
     you: 'You',
     disclaimer: 'This response is based on public information and for reference only; it does not constitute legal advice. Please consult official sources or professionals for critical decisions.',
+    newSession: 'New Session',
     
     // Insights
     progress: 'Progress',
@@ -57,6 +58,10 @@ export const translations = {
     skilledWorker: 'Skilled Worker',
     blueCard: 'Blue Card',
     studyVisa: 'Study Visa',
+    official: 'Official',
+    verified: 'Verified',
+    thirdParty: 'Third Party',
+    recently: 'Recently',
 
     // Showcase
     showcase: {
@@ -208,6 +213,7 @@ export const translations = {
     showcaseExamples: 'Beispiele ansehen',
     you: 'Sie',
     disclaimer: 'Diese Antwort basiert auf öffentlichen Informationen und dient nur zu Referenzzwecken; sie stellt keine Rechtsberatung dar. Bitte konsultieren Sie offizielle Quellen für wichtige Entscheidungen.',
+    newSession: 'Neue Sitzung',
     
     // Insights
     progress: 'Fortschritt',
@@ -234,6 +240,10 @@ export const translations = {
     skilledWorker: 'Fachkraft',
     blueCard: 'Blaue Karte EU',
     studyVisa: 'Visum zum Studium',
+    official: 'Offiziell',
+    verified: 'Verifiziert',
+    thirdParty: 'Drittanbieter',
+    recently: 'Vor kurzem',
 
     // Showcase
     showcase: {
@@ -385,6 +395,7 @@ export const translations = {
     showcaseExamples: '展示範例',
     you: '您',
     disclaimer: '本回答內容僅供參考，不構成法律建議。所有重要簽證決定請務必諮詢官方機構或專業法律人士。',
+    newSession: '新對話',
     
     // Insights
     progress: '當前進度',
@@ -411,6 +422,10 @@ export const translations = {
     skilledWorker: '技術人才簽證',
     blueCard: '藍卡 (Blue Card)',
     studyVisa: '就學簽證',
+    official: '官方',
+    verified: '已驗證',
+    thirdParty: '第三方',
+    recently: '最近',
 
     // Showcase
     showcase: {

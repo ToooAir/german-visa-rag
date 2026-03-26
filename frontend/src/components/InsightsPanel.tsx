@@ -1,20 +1,20 @@
-import { CheckCircle2, Circle, AlertCircle, RefreshCw, Sparkles, FileText, CheckSquare } from 'lucide-react';
+import { CheckCircle2, Circle, AlertCircle, Sparkles, FileText, CheckSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChatStore } from '../stores/chatStore';
 import { useTranslation } from '../translations';
 
 export function InsightsPanel({ className = '' }: { className?: string }) {
-  const { checklist, requirements, activeVisaCategory, resetProgress } = useChatStore();
+  const { checklist, requirements, activeVisaCategory } = useChatStore();
   const { t, language } = useTranslation();
 
   // Map category to translation
   const getCategoryTitle = (cat: string | null) => {
     if (!cat) return '';
-    const key = cat.toLowerCase().replace(/\s+/g, '');
+    const key = cat.toLowerCase().replace(/[\s_-]+/g, '');
     if (key === 'chancenkarte') return t.chancenkarte;
-    if (key === 'skilledworker' || key === 'work_visa') return t.skilledWorker;
+    if (key === 'skilledworker' || key === 'skilled_worker') return t.skilledWorker;
     if (key === 'bluecard' || key === 'blue_card') return t.blueCard;
-    if (key === 'studyvisa' || key === 'student_visa') return t.studyVisa;
+    if (key === 'studentvisa' || key === 'student_visa' || key === 'studyvisa') return t.studyVisa;
     return cat;
   };
 
@@ -183,7 +183,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       return `0% ${t.met}`;
     };
 
-    if (cat === 'work_visa' || cat === 'skilledworker') {
+    if (cat === 'skilledWorker' || cat === 'work_visa') {
       const prog = checkStatus('1') || checkStatus('2') ? Math.round(((requirements.filter(r => r.id === '1' || r.id === '2').filter(r => r.status === 'required').length) / 2) * 100) : 0;
       cards.push({ 
         label: t.criteria.coreRequirement || 'Core Requirement', 
@@ -250,7 +250,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       if (item.id === '3') {
          if (isFinMet && isLangMet && isQualMet && pts >= 6) displayItem.status = 'current';
       }
-    } else if (activeVisaCategory === 'blue_card') {
+    } else if (activeVisaCategory === 'blueCard' || activeVisaCategory === 'blue_card') {
       const isQualMet = requirements.some(r => r.id === '1' && r.status === 'required');
       const isContractMet = requirements.some(r => r.id === '2' && r.status === 'required');
       if (item.id === '1') {
@@ -264,7 +264,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       if (item.id === '3') {
          if (isQualMet && isContractMet) displayItem.status = 'current';
       }
-    } else if (activeVisaCategory === 'student_visa') {
+    } else if (activeVisaCategory === 'studyVisa' || activeVisaCategory === 'student_visa') {
       const isFinMet = requirements.some(r => r.id === '1' && r.status === 'required');
       const isLangMet = requirements.some(r => r.id === '2' && r.status === 'required');
       const isAdmitted = requirements.some(r => r.id === '4' && r.status === 'required');
@@ -279,7 +279,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       if (item.id === '3') {
         if (isAdmitted && isLangMet && isFinMet) displayItem.status = 'current';
       }
-    } else if (activeVisaCategory === 'work_visa') {
+    } else if (activeVisaCategory === 'skilledWorker' || activeVisaCategory === 'work_visa') {
       const isQualMet = requirements.some(r => r.id === '1' && r.status === 'required');
       const isLaborMet = requirements.some(r => r.id === '2' && r.status === 'required');
       if (item.id === '1') {
@@ -305,14 +305,6 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
           <h3 className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">
             {titlePrefix} {t.progress}
           </h3>
-          <button
-            onClick={resetProgress}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded-full border border-amber-200/50 dark:border-amber-800/50 transition-all cursor-pointer group shadow-sm active:scale-95"
-            title={t.resetProgress}
-          >
-            <RefreshCw size={12} className="group-hover:rotate-180 transition-transform duration-500" />
-            <span>{t.reset}</span>
-          </button>
         </div>
         <div className="space-y-3">
           <AnimatePresence mode="popLayout">

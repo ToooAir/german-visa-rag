@@ -2,15 +2,28 @@ import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MoreVertical, Paperclip, Mic, Send, User, ShieldCheck, ExternalLink, Loader2, Sparkles, Database, FileSearch } from 'lucide-react';
+import { 
+  MoreVertical, Send, ShieldCheck, ExternalLink, Loader2, Sparkles, 
+  Database, FileSearch, Trash2, ChevronDown, Briefcase, 
+  Award, BadgeCheck, GraduationCap 
+} from 'lucide-react';
 import { useChatStore, Message, Source } from '../stores/chatStore';
 import { useTranslation } from '../translations';
 
+// Mapping for visa categories: Store ID -> Display Metadata
+const VISA_METADATA: Record<string, { labelKey: string, icon: React.ElementType }> = {
+  chancenkarte: { labelKey: 'chancenkarte', icon: Briefcase },
+  skilled_worker: { labelKey: 'skilledWorker', icon: Award },
+  blue_card: { labelKey: 'blueCard', icon: BadgeCheck },
+  student_visa: { labelKey: 'studyVisa', icon: GraduationCap }
+};
+
 export function ChatArea({ className = '' }: { className?: string }) {
-  const { messages, isLoading, sendMessage } = useChatStore();
-  const [input, setInput] = useState('');
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { messages, sendMessage, isLoading, activeVisaCategory, setActiveVisaCategory } = useChatStore();
   const { t } = useTranslation();
+  const [input, setInput] = useState('');
+  const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -29,20 +42,94 @@ export function ChatArea({ className = '' }: { className?: string }) {
     }
   };
 
+  // Get current metadata
+  const currentMeta = VISA_METADATA[activeVisaCategory || 'chancenkarte'] || VISA_METADATA.chancenkarte;
+  const ActiveIcon = currentMeta.icon;
+
   return (
     <div className={`flex flex-col h-full bg-white/40 dark:bg-slate-900/40 rounded-2xl relative border border-slate-200/50 dark:border-slate-800/50 shadow-2xl overflow-hidden ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-10">
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-          {t.chatHeader} {isLoading && <Loader2 className="w-4 h-4 animate-spin text-accent" />}
-        </h2>
-        <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-          <button className="p-1 hover:text-slate-900 dark:hover:text-white transition-colors relative">
-            <User size={20} />
-            <div className="absolute top-0 right-0 w-2 h-2 bg-green-500 rounded-full border border-white dark:border-slate-900" />
-          </button>
-          <button className="p-1 hover:text-slate-900 dark:hover:text-white transition-colors bg-slate-200 dark:bg-slate-800 rounded-full w-8 h-8 flex items-center justify-center text-xs font-bold font-mono">
-            U
+      <div className="flex items-center justify-between p-4 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-20">
+        <div className="flex items-center gap-3 relative">
+          <div className="flex flex-col">
+            <h2 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5 ml-1">
+              VisaFlow DE
+            </h2>
+            <button 
+              onClick={() => setIsSelectorOpen(!isSelectorOpen)}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group"
+            >
+              <div className="p-1 bg-accent/10 rounded-lg text-accent">
+                <ActiveIcon size={18} />
+              </div>
+              <span className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                {activeVisaCategory ? (t as Record<string, any>)[currentMeta.labelKey] : t.chatHeader}
+              </span>
+              <ChevronDown size={16} className={`text-slate-400 transition-transform duration-300 ${isSelectorOpen ? 'rotate-180' : ''}`} />
+              {isLoading && <Loader2 className="w-4 h-4 animate-spin text-accent ml-1" />}
+            </button>
+          </div>
+
+          {/* Visa Selector Dropdown */}
+          <AnimatePresence>
+            {isSelectorOpen && (
+              <>
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-30" 
+                  onClick={() => setIsSelectorOpen(false)} 
+                />
+                <motion.div 
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute top-[110%] left-0 w-64 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-2 z-40 backdrop-blur-xl"
+                >
+                  <div className="flex flex-col gap-1">
+                    {Object.entries(VISA_METADATA).map(([id, meta]) => {
+                      const Icon = meta.icon;
+                      const isActive = activeVisaCategory === id;
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => {
+                            setActiveVisaCategory(id);
+                            setIsSelectorOpen(false);
+                          }}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
+                            isActive 
+                              ? 'bg-accent/10 text-accent font-bold' 
+                              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          <div className={`p-1.5 rounded-lg ${isActive ? 'bg-accent/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                            <Icon size={16} />
+                          </div>
+                          <span className="flex-1 text-left text-sm">{(t as Record<string, any>)[meta.labelKey]}</span>
+                          {isActive && <div className="w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_8px_rgba(var(--accent-rgb),0.5)]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => {
+              if (window.confirm(t.newSession + '?')) {
+                useChatStore.getState().newSession();
+              }
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all duration-200 group border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20"
+            title={t.newSession}
+          >
+            <Trash2 size={16} className="group-hover:scale-110 transition-transform" />
+            <span className="text-xs font-semibold">{t.newSession}</span>
           </button>
         </div>
       </div>
@@ -52,7 +139,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto p-4 flex flex-col gap-6 pb-24"
       >
-        <AnimatePresence>
+        <AnimatePresence initial={false}>
           {messages.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />
           ))}
@@ -77,17 +164,11 @@ export function ChatArea({ className = '' }: { className?: string }) {
               }
             }}
             placeholder={t.askPlaceholder} 
-            className="w-full bg-transparent text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 py-4 pl-4 pr-32 outline-none text-[15px] resize-none overflow-hidden"
+            className="w-full bg-transparent text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 py-4 pl-4 pr-14 outline-none text-[15px] resize-none overflow-hidden"
             rows={1}
             style={{ minHeight: '56px' }}
           />
           <div className="absolute right-3 flex items-center gap-1">
-            <button className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors rounded-lg hover:bg-slate-100/50 dark:hover:bg-slate-700/50" disabled={isLoading}>
-              <Paperclip size={18} />
-            </button>
-            <button className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors rounded-lg hover:bg-slate-100/50 dark:hover:bg-slate-700/50" disabled={isLoading}>
-              <Mic size={18} />
-            </button>
             <button 
               onClick={handleSend}
               disabled={isLoading || !input.trim()}

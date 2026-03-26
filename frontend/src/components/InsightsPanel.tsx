@@ -127,11 +127,15 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
     if (key === 'INSURED' || key === 'INSURANCE_READY') return rv?.insured || value;
     if (key === 'PRE_STUDY_MET') return rv?.preStudyMet || value;
     
+    // Case: LACK_OF_FUNDS (without amount)
+    if (key === 'LACK_OF_FUNDS') return rv?.tbc || '待確認';
+    
     // Case: LACK_OF_FUNDS:13092
     if (key.startsWith('LACK_OF_FUNDS:')) {
-      const amount = key.split(':')[1];
+      const amount = key.split(':')[1]?.trim();
+      if (!amount) return rv?.tbc || '待確認';
       const formatted = amount.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-      return (rv?.lackOfFunds || 'Short €{amount}').replace('{amount}', formatted);
+      return (rv?.lackOfFunds || '缺 €{amount}').replace('{amount}', formatted);
     }
 
     return value;
@@ -172,7 +176,8 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       const req = requirements.find(r => r.id === id);
       if (!req) return `0% ${t.met}`;
       if (req.status === 'required') return `100% ${t.met}`;
-      if (req.value.toUpperCase().startsWith('LACK_OF_FUNDS:')) {
+      const upperVal = req.value.toUpperCase();
+      if (upperVal.includes('LACK_OF_FUNDS')) {
         return translateRequirementValue(req.value);
       }
       return `0% ${t.met}`;

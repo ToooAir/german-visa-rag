@@ -23,7 +23,13 @@ export function ChatArea({ className = '' }: { className?: string }) {
   const { t } = useTranslation();
   const [input, setInput] = useState('');
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleNewSession = () => {
+    useChatStore.getState().newSession();
+    setShowConfirmModal(false);
+  };
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -120,11 +126,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
-              if (window.confirm(t.newSession + '?')) {
-                useChatStore.getState().newSession();
-              }
-            }}
+            onClick={() => setShowConfirmModal(true)}
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all duration-200 group border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20"
             title={t.newSession}
           >
@@ -133,6 +135,61 @@ export function ChatArea({ className = '' }: { className?: string }) {
           </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showConfirmModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowConfirmModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-sm glass-panel bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="absolute -top-12 -right-12 w-32 h-32 bg-rose-500/10 dark:bg-rose-500/5 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="flex items-center gap-4 mb-5 relative z-10">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500 shadow-inner">
+                  <Trash2 size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-800 dark:text-slate-100">
+                    {t.newSessionConfirm || t.newSession + '?'}
+                  </h3>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mt-0.5 opacity-70">
+                    {t.irreversible || 'Irreversible Action'}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed mb-8 relative z-10">
+                {t.newSessionDesc || '這將清除當前的對話紀錄，並重置所有簽證進度評等指標。'}
+              </p>
+
+              <div className="flex gap-3 relative z-10">
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 px-4 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  {t.cancel || '取消'}
+                </button>
+                <button
+                  onClick={handleNewSession}
+                  className="flex-1 px-4 py-3 rounded-2xl bg-rose-500 text-white font-bold text-xs hover:bg-rose-600 transition-colors shadow-lg shadow-rose-500/20 active:scale-95"
+                >
+                  {t.confirmReset || '確認重置'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Message List */}
       <div

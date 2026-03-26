@@ -32,6 +32,11 @@ export const translations = {
     you: 'You',
     disclaimer: 'This response is based on public information and for reference only; it does not constitute legal advice. Please consult official sources or professionals for critical decisions.',
     newSession: 'New Session',
+    newSessionConfirm: 'Start fresh?',
+    newSessionDesc: 'This will clear your current conversation and reset all progress assessments.',
+    confirmReset: 'Clear & Restart',
+    irreversible: 'This cannot be undone',
+    cancel: 'Cancel',
 
     // Insights
     progress: 'Progress',
@@ -214,6 +219,11 @@ export const translations = {
     you: 'Sie',
     disclaimer: 'Diese Antwort basiert auf öffentlichen Informationen und dient nur zu Referenzzwecken; sie stellt keine Rechtsberatung dar. Bitte konsultieren Sie offizielle Quellen für wichtige Entscheidungen.',
     newSession: 'Neue Sitzung',
+    newSessionConfirm: 'Neu starten?',
+    newSessionDesc: 'Dies löscht Ihren aktuellen Chatverlauf und setzt alle Fortschrittsanzeigen zurück.',
+    confirmReset: 'Löschen & Neustart',
+    irreversible: 'Nicht rückgängig zu machen',
+    cancel: 'Abbrechen',
 
     // Insights
     progress: 'Fortschritt',
@@ -396,6 +406,11 @@ export const translations = {
     you: '您',
     disclaimer: '本回答內容僅供參考，不構成法律建議。所有重要簽證決定請務必諮詢官方機構或專業法律人士。',
     newSession: '新對話',
+    newSessionConfirm: '重新開始對話？',
+    newSessionDesc: '這將清空當前的對話紀錄，並重置您的簽證評等進度。',
+    confirmReset: '確認清空',
+    irreversible: '注意：操作無法還原',
+    cancel: '再想想',
 
     // Insights
     progress: '當前進度',

@@ -168,6 +168,16 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
   const getPrimaryThresholds = (cat: string | null) => {
     const cards: Array<{ label: string, value: string, sub: string }> = [];
     
+    const getFinancialSub = (id: string) => {
+      const req = requirements.find(r => r.id === id);
+      if (!req) return `0% ${t.met}`;
+      if (req.status === 'required') return `100% ${t.met}`;
+      if (req.value.toUpperCase().startsWith('LACK_OF_FUNDS:')) {
+        return translateRequirementValue(req.value);
+      }
+      return `0% ${t.met}`;
+    };
+
     if (cat === 'work_visa' || cat === 'skilledworker') {
       const prog = checkStatus('1') || checkStatus('2') ? Math.round(((requirements.filter(r => r.id === '1' || r.id === '2').filter(r => r.status === 'required').length) / 2) * 100) : 0;
       cards.push({ 
@@ -184,7 +194,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       });
     } else if (cat === 'student_visa') {
       cards.push({ label: t.criteria.coreRequirement || 'Core Requirement', value: t.criteria.uniAdmission, sub: `(${checkStatus('4')}% ${t.met})` });
-      cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €11,904`, sub: `(${checkStatus('1')}% ${t.met})` });
+      cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €11,904`, sub: `(${getFinancialSub('1')})` });
     } else if (cat === 'chancenkarte') {
       // Smart Inference: if points are awarded, base requirements are logically met
       const hasLangPoints = requirements.some(r => r.id === '2-1' && r.status === 'required');
@@ -200,7 +210,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       const baseProg = Math.round((baseProgMet / 2) * 100);
       const pts = calculatePoints();
       cards.push({ label: t.criteria.eligibilityPath || 'Eligibility Path', value: `${t.criteria.pathDirect}\n${t.criteria.pathPoints}`, sub: `(${baseProg}% ${t.met} / ${pts} ${t.criteria.pts})` });
-      cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €13,092`, sub: `(${requirements.find(r => r.id === '1-1')?.status === 'required' ? 100 : 0}% ${t.met})` });
+      cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €13,092`, sub: `(${getFinancialSub('1-1')})` });
     } else {
       cards.push({ 
         label: t.criteria.eligibilityPath || 'Eligibility Path', 

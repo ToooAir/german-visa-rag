@@ -1,4 +1,4 @@
-import { Home, FileText, Settings, GraduationCap, Briefcase, FileCode2, BookOpen } from 'lucide-react';
+import { Home, FileText, Settings, Briefcase, FileCode2, BookOpen } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useChatStore } from '../stores/chatStore';
 import { useTranslation } from '../translations';
@@ -14,10 +14,10 @@ export function Sidebar({ className = '' }: { className?: string }) {
   return (
     <div className={`glass-panel flex flex-col p-4 h-full overflow-y-auto ${className}`}>
       <div className="flex items-center gap-3 px-2 mb-8">
-        <div className="p-2 bg-accent/20 rounded-xl">
-          <GraduationCap className="w-6 h-6 text-accent" />
+        <div className="p-1.5 bg-accent/15 rounded-xl ring-1 ring-accent/20">
+          <img src="/logo.png" className="w-8 h-8 object-contain" alt="" />
         </div>
-        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">VisaPilot AI</h1>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">VisaFlow DE</h1>
       </div>
 
       {/* Main Nav */}

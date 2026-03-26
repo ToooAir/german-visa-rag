@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MoreVertical, Paperclip, Mic, Send, Bot, User, ShieldCheck, ExternalLink, Loader2, Sparkles, Database, FileSearch, Sparkles as SparklesIcon } from 'lucide-react';
+import { MoreVertical, Paperclip, Mic, Send, User, ShieldCheck, ExternalLink, Loader2, Sparkles, Database, FileSearch } from 'lucide-react';
 import { useChatStore, Message, Source } from '../stores/chatStore';
 import { useTranslation } from '../translations';
 
@@ -148,9 +148,9 @@ function ChatMessage({ message }: { message: Message }) {
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center text-accent ring-1 ring-accent/30">
-            <Bot size={18} />
+            <Sparkles size={18} />
           </div>
-          <span className="font-semibold text-slate-900 dark:text-white text-sm tracking-wide">VisaPilot AI</span>
+          <span className="font-semibold text-slate-900 dark:text-white text-sm tracking-wide">VisaFlow DE</span>
         </div>
       </div>
       
@@ -278,7 +278,7 @@ function QuickStarters({ onSelect }: { onSelect: (q: string) => void }) {
   return (
     <div className="ml-11 mt-2">
       <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-        <SparklesIcon size={14} className="text-accent" />
+        <Sparkles size={14} className="text-accent" />
         {t.showcaseExamples}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -311,10 +311,10 @@ function TraceLoader({ currentStatus, searchQueries }: { currentStatus?: string,
   const step = currentStatus ? (statusMap[currentStatus] ?? 0) : 0;
 
   const steps = [
-    { label: t.analyzing || "Analyzing intent & parameters", icon: <SparklesIcon size={14} />, key: 'analyzing' },
+    { label: t.analyzing || "Analyzing intent & parameters", icon: <Sparkles size={14} />, key: 'analyzing' },
     { label: t.retrieving || "Querying official vector database", icon: <Database size={14} />, key: 'retrieving' },
     { label: t.extracting || "Extracting legal requirements", icon: <FileSearch size={14} />, key: 'extracting' },
-    { label: t.synthesizing || "Synthesizing answer", icon: <Bot size={14} />, key: 'synthesizing' }
+    { label: t.synthesizing || "Synthesizing answer", icon: <Sparkles size={14} />, key: 'synthesizing' }
   ];
 
   return (

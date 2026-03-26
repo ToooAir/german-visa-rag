@@ -58,7 +58,7 @@ export const useChatStore = create<ChatState>()(
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Hello! I am **VisaPilot AI**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.'
+      content: 'Hello! I am **VisaFlow DE**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.'
     }
   ],
   isLoading: false,

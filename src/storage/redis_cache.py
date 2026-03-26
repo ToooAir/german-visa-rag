@@ -1,8 +1,9 @@
 """Redis-based semantic cache to save LLM API costs for repeated queries."""
 
-import json
 import hashlib
-from typing import Optional, Dict, Any
+import json
+from typing import Any, Dict, Optional
+
 import redis.asyncio as redis
 
 from src.config import settings

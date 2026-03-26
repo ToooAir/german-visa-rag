@@ -1,10 +1,10 @@
 """Redis-based rate limiting for API endpoints."""
 
-import time
-from fastapi import Request, HTTPException, status
+from fastapi import HTTPException, Request, status
+
 from src.config import settings
-from src.storage.redis_cache import query_cache
 from src.logger import logger
+from src.storage.redis_cache import query_cache
 
 
 class RateLimiter:

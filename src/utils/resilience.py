@@ -1,13 +1,10 @@
 """Resilience patterns: retry, circuit breaker, etc."""
 
-from functools import wraps
-from typing import Callable, Any, TypeVar, Coroutine
-import asyncio
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
 from src.logger import logger

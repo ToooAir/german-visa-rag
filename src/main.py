@@ -3,29 +3,29 @@ FastAPI application entry point.
 Sets up middleware, routes, lifecycle handlers, and exception handlers.
 """
 
+import os
+import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+
+import httpx
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, FileResponse
-import time
-import os
 
-from src.config import settings
-from src.logger import logger
-from src.exceptions import RAGException
-from src.storage.redis_cache import query_cache
-from src.api.routes import router, query_router, admin_router
-from src.ingestion.scheduler import get_scheduler
-from src.vector_db.qdrant_client_wrapper import get_qdrant_client
-import httpx
-from src.ingestion.url_discoverer import URLDiscoverer
-from src.rag.hybrid_retriever import HybridRetriever
-from src.storage.sqlite_state_store import get_state_store
 from src.api.rate_limiter import rate_limiter
+from src.api.routes import admin_router, query_router, router
+from src.config import settings
+from src.exceptions import RAGException
+from src.ingestion.scheduler import get_scheduler
+from src.ingestion.url_discoverer import URLDiscoverer
+from src.logger import logger
+from src.rag.hybrid_retriever import HybridRetriever
+from src.storage.redis_cache import query_cache
+from src.storage.sqlite_state_store import get_state_store
+from src.vector_db.qdrant_client_wrapper import get_qdrant_client
 
 # ============================================
 # Lifecycle Handlers

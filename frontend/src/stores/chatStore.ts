@@ -64,7 +64,7 @@ export const useChatStore = create<ChatState>()(
   ],
   isLoading: false,
   activeVisaCategory: 'chancenkarte',
-  
+
   checklist: [
     { id: '1', title: 'Eligibility Check', status: 'completed' },
     { id: '2', title: 'Point Calculation (0/6)', status: 'current', subtitle: 'Current' },
@@ -78,7 +78,7 @@ export const useChatStore = create<ChatState>()(
     { id: '3', label: 'Age', value: '< 35/40', status: 'info' },
     { id: '4', label: 'Qualifications', value: '(degree)', status: 'warning' }
   ],
-  
+
   pinnedSources: [
     { title: "Federal Ministry (BMI)", url: "https://www.bmi.bund.de", authority: "official" },
     { title: "Make it in Germany", url: "https://www.make-it-in-germany.com", authority: "official" },
@@ -93,10 +93,10 @@ export const useChatStore = create<ChatState>()(
   },
   setChecklist: (items) => set({ checklist: items }),
   setRequirements: (reqs) => set({ requirements: reqs }),
-  
+
   resetProgress: () => {
     const cat = get().activeVisaCategory;
-    
+
     let checklist: ChecklistItem[] = [];
     let requirements: Requirement[] = [];
 
@@ -163,13 +163,13 @@ export const useChatStore = create<ChatState>()(
     set((state) => {
       const item = state.checklist.find(i => i.id === id);
       const isStatusChanged = item && item.status !== status;
-      
+
       // Fire notification if status changed and feature is enabled
       if (isStatusChanged && (status === 'current' || status === 'completed')) {
         const settings = useSettingsStore.getState();
         if (settings.notificationsEnabled) {
           const t = translations[settings.language as keyof typeof translations] || translations.en;
-          
+
           let translatedTitle = item.title;
           const lower = item.title.toLowerCase();
           if (lower.includes('eligibility path')) translatedTitle = t.criteria.eligibilityPath || item.title;
@@ -193,7 +193,7 @@ export const useChatStore = create<ChatState>()(
       }
 
       return {
-        checklist: state.checklist.map(i => 
+        checklist: state.checklist.map(i =>
           i.id === id ? { ...i, status, autoDetected } : i
         )
       };
@@ -202,21 +202,21 @@ export const useChatStore = create<ChatState>()(
 
   updateRequirement: (id, value, status) => {
     set((state) => ({
-      requirements: state.requirements.map(req => 
+      requirements: state.requirements.map(req =>
         req.id === id ? { ...req, value, status } : req
       )
     }));
   },
-  
+
   sendMessage: async (content: string) => {
     if (!content.trim()) return;
-    
+
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content };
     const botMsgId = (Date.now() + 1).toString();
-    
-    set((state) => ({ 
+
+    set((state) => ({
       messages: [...state.messages, userMsg, { id: botMsgId, role: 'assistant', content: '' }],
-      isLoading: true 
+      isLoading: true
     }));
 
     try {
@@ -258,30 +258,30 @@ export const useChatStore = create<ChatState>()(
           lineBuffer += decoder.decode(value, { stream: true });
           const lines = lineBuffer.split('\n');
           lineBuffer = lines.pop() || '';
-          
+
           for (const line of lines) {
             const trimmedLine = line.trim();
             if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
-            
+
             const data = trimmedLine.slice(6);
             if (data === '[DONE]') continue;
-              
+
               try {
                 const parsed = JSON.parse(data);
-                
+
                 // Content Chunk
                 if (parsed.choices?.[0]?.delta?.content) {
                   set((state) => ({
-                    messages: state.messages.map(m => 
+                    messages: state.messages.map(m =>
                       m.id === botMsgId ? { ...m, content: m.content + parsed.choices[0].delta.content } : m
                     )
                   }));
                 }
-                
+
                 // Custom Metadata Chunk (Sources / Status / Search Queries)
                 if (parsed.metadata?.sources) {
                   const newSources = parsed.metadata.sources as Source[];
-                  
+
                   set((state) => {
                     // Harvest unique sources for the sidebar
                     const currentRecent = [...state.recentSources];
@@ -290,27 +290,27 @@ export const useChatStore = create<ChatState>()(
                         currentRecent.unshift(s);
                       }
                     });
-                    
+
                     return {
-                      messages: state.messages.map(m => 
+                      messages: state.messages.map(m =>
                         m.id === botMsgId ? { ...m, sources: newSources } : m
                       ),
                       recentSources: currentRecent.slice(0, 5) // Keep last 5 unique ones
                     };
                   });
                 }
-                
+
                 if (parsed.metadata?.search_queries) {
                   set((state) => ({
-                    messages: state.messages.map(m => 
+                    messages: state.messages.map(m =>
                       m.id === botMsgId ? { ...m, searchQueries: parsed.metadata.search_queries } : m
                     )
                   }));
                 }
-                
+
                 if (parsed.metadata?.status) {
                   set((state) => ({
-                    messages: state.messages.map(m => 
+                    messages: state.messages.map(m =>
                       m.id === botMsgId ? { ...m, status: parsed.metadata.status } : m
                     )
                   }));
@@ -335,15 +335,15 @@ export const useChatStore = create<ChatState>()(
       const error = err as Error;
       console.error("Chat streaming error:", error);
       let errorMsg = "_Sorry, an error occurred while streaming the response._";
-      
+
       if (error.message?.includes("429") || error.message?.includes("quota")) {
         errorMsg = "\n\n> ⚠️ **API Rate Limit Reached**\n> You have exceeded the free tier quota (24 RPM). Please wait about 30-60 seconds before trying again.";
       } else if (error.message) {
         errorMsg = `\n\n_Error: ${error.message}_`;
       }
-      
+
       set((state) => ({
-        messages: state.messages.map(m => 
+        messages: state.messages.map(m =>
           m.id === botMsgId ? { ...m, content: m.content + errorMsg } : m
         )
       }));
@@ -358,8 +358,8 @@ export const useChatStore = create<ChatState>()(
       role: 'assistant',
       content: 'Hello! I am **VisaFlow DE**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.'
     };
-    
-    set({ 
+
+    set({
       messages: [welcomeMsg],
       recentSources: []
     });
@@ -367,11 +367,11 @@ export const useChatStore = create<ChatState>()(
   }
 }), {
   name: 'visa-rag-chat-storage',
-  partialize: (state) => ({ 
-    checklist: state.checklist, 
+  partialize: (state) => ({
+    checklist: state.checklist,
     requirements: state.requirements,
     recentSources: state.recentSources,
-    activeVisaCategory: state.activeVisaCategory 
+    activeVisaCategory: state.activeVisaCategory
   }),
   onRehydrateStorage: () => (state) => {
     if (state && !state.activeVisaCategory) {

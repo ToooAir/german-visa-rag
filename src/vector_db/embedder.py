@@ -6,11 +6,11 @@ Includes quota guard (preflight check) and 429 circuit breaker.
 
 import asyncio
 import re
-from typing import List, Tuple, Optional
 from abc import ABC, abstractmethod
-import numpy as np
-from tenacity import retry, stop_after_attempt, wait_exponential
+from typing import List, Optional
+
 import httpx
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.config import settings
 from src.logger import logger

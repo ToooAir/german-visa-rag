@@ -2,6 +2,7 @@
 
 import pytest
 from qdrant_client.http.models import SparseVector
+
 from src.vector_db.sparse_encoder import SparseEncoder, get_sparse_encoder
 
 
@@ -11,7 +12,6 @@ def encoder():
 
 
 class TestSparseEncoderBasics:
-
     def test_empty_string_returns_empty_vector(self, encoder):
         result = encoder.encode("")
         assert isinstance(result, SparseVector)
@@ -47,7 +47,6 @@ class TestSparseEncoderBasics:
 
 
 class TestSparseEncoderDeterminism:
-
     def test_same_text_produces_same_indices(self, encoder):
         text = "Niederlassungserlaubnis Chancenkarte §18c"
         r1 = encoder.encode(text)
@@ -61,7 +60,6 @@ class TestSparseEncoderDeterminism:
 
 
 class TestSparseEncoderGermanTerms:
-
     def test_handles_german_umlauts(self, encoder):
         """German characters ä, ö, ü, ß must be handled without error."""
         result = encoder.encode("Aufenthaltserlaubnis für qualifizierte Beschäftigung")
@@ -80,7 +78,6 @@ class TestSparseEncoderGermanTerms:
 
 
 class TestSparseEncoderBatch:
-
     def test_batch_encoding_matches_single(self, encoder):
         texts = ["first text", "second text", "§18c AufenthG"]
         batch_results = encoder.encode_batch(texts)
@@ -103,7 +100,6 @@ class TestSparseEncoderBatch:
 
 
 class TestSparseEncoderSingleton:
-
     def test_get_sparse_encoder_returns_instance(self):
         enc = get_sparse_encoder()
         assert isinstance(enc, SparseEncoder)

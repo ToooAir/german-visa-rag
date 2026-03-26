@@ -3,9 +3,10 @@ Reranking module using cross-encoder models to improve retrieval precision.
 Supports mock, Cohere, and Jina reranker APIs.
 """
 
-from typing import Any, Optional
 from abc import ABC, abstractmethod
 from enum import Enum
+from typing import Any, Optional
+
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 

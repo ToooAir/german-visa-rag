@@ -1,15 +1,13 @@
 """Unit tests for URL discovery cache in SQLite state store."""
 
-import pytest
-import json
-import time
-from pathlib import Path
-from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, patch, MagicMock
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock
 
-from src.storage.sqlite_state_store import SQLiteStateStore
-from src.ingestion.url_discoverer import URLDiscoverer, DiscoveryResult
+import pytest
+
 from src.ingestion.crawl_strategy import DomainCrawlStrategy
+from src.ingestion.url_discoverer import DiscoveryResult, URLDiscoverer
+from src.storage.sqlite_state_store import SQLiteStateStore
 
 # ============================================
 # SQLite Discovery Cache Tests

@@ -5,23 +5,22 @@ Computes Context Precision, Answer Faithfulness, and other metrics.
 
 import asyncio
 import json
-from typing import Dict, Any, List, Optional
 from datetime import datetime
-import pandas as pd
+from typing import Any, Dict
 
+import pandas as pd
+from datasets import Dataset
 from ragas import evaluate
 from ragas.metrics import (
-    context_precision,
     answer_relevancy,
-    faithfulness,
+    context_precision,
     context_recall,
+    faithfulness,
 )
-from datasets import Dataset
 
-from src.config import settings
 from src.logger import logger
-from src.rag.answer_generator import get_answer_generator
 from src.observability.mlflow_tracker import get_mlflow_tracker
+from src.rag.answer_generator import get_answer_generator
 
 
 class RagasEvaluator:
@@ -125,7 +124,7 @@ class RagasEvaluator:
                 "count": len(results_df),
             }
 
-            logger.info(f"Evaluation completed", extra=aggregate_metrics)
+            logger.info("Evaluation completed", extra=aggregate_metrics)
 
             # Save results
             import os

@@ -1,8 +1,9 @@
 """Integration tests for the ingestion pipeline."""
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from src.ingestion.ingestion_pipeline import IngestionPipeline
 
@@ -14,7 +15,7 @@ async def test_full_ingestion_flow():
     # 1. Read sample HTML fixture
     html_path = Path("tests/fixtures/sample_html.html")
     with open(html_path, "r") as f:
-        mock_html = f.read()
+        f.read()
 
     pipeline = IngestionPipeline()
 
@@ -67,7 +68,7 @@ async def test_full_ingestion_flow():
         result = await pipeline.run_full_ingestion(source_docs, triggered_by="pytest", force=True)
 
         # 4. Assertions
-        assert result["success"] == True
+        assert result["success"]
         assert result["documents_processed"] == 1
         assert result["chunks_ingested"] > 0
 

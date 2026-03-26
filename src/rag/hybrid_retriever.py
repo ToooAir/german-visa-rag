@@ -3,17 +3,18 @@ Hybrid retrieval pipeline combining dense vector search with sparse BM25,
 authority-based filtering, and recency weighting.
 """
 
-from typing import Any, Optional
-from datetime import datetime, timezone
 import asyncio
-from tenacity import retry, stop_after_attempt, wait_exponential
+from datetime import datetime, timezone
+from typing import Any, Optional
 
 from qdrant_client import models
+from tenacity import retry, stop_after_attempt, wait_exponential
+
 from src.config import settings
 from src.logger import logger
-from src.vector_db.qdrant_client_wrapper import get_qdrant_client, QdrantWrapper
-from src.vector_db.embedder import embedder
 from src.models.chunk import AuthorityLevel, VisaType
+from src.vector_db.embedder import embedder
+from src.vector_db.qdrant_client_wrapper import QdrantWrapper, get_qdrant_client
 
 # Maps each minimum authority level to the set of accepted levels in Qdrant filter.
 # Follows a hierarchical inclusion pattern: lower minimum → more levels accepted.

@@ -4,14 +4,15 @@ Includes rate limiting, retry logic, HTML-to-Markdown conversion,
 robots.txt compliance, and recursive discovery-based crawling.
 """
 
-from typing import Optional, Dict, Any, List, Set
-from datetime import datetime, timezone
 import asyncio
-from urllib.parse import urlparse, urljoin
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Set
+from urllib.parse import urlparse
+
 import httpx
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from src.config import settings
 from src.logger import logger
@@ -292,7 +293,7 @@ class WebCrawler:
             if date_tag:
                 try:
                     published_date = datetime.fromisoformat(date_tag.get("content"))
-                except:
+                except Exception:
                     pass
 
             return {

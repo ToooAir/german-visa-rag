@@ -1,10 +1,9 @@
 """LLM Factory for seamless fallback routing between OpenAI and local models."""
 
-from typing import Optional
 from src.config import settings
-from src.logger import logger
-from src.llm.openai_client import OpenAIClient
 from src.llm.ollama_client import OllamaClient
+from src.llm.openai_client import OpenAIClient
+from src.logger import logger
 
 
 class LLMFactory:

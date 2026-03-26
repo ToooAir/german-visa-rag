@@ -44,7 +44,7 @@
   .glass-panel {
     @apply bg-panel backdrop-blur-md border border-panelBorder shadow-xl rounded-2xl;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
   }

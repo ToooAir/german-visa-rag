@@ -3,24 +3,23 @@ Complete ingestion pipeline orchestrating crawling, chunking, embedding,
 deduplication, and Qdrant upsert.
 """
 
-import uuid
-from typing import List, Optional, Dict, Any
-from datetime import datetime
 import asyncio
+import uuid
+from datetime import datetime
+from typing import Any, Dict, List
+
+from qdrant_client.http.models import FieldCondition, Filter, MatchValue, PointStruct
 
 from src.config import settings
-from src.logger import logger
-from src.models.chunk import QdrantPayload, VisaType, AuthorityLevel
-from qdrant_client.http.models import PointStruct, Filter, FieldCondition, MatchValue
-from src.ingestion.crawler import get_crawler
 from src.ingestion.chunker import get_chunker
-from src.storage.sqlite_state_store import get_state_store
-from src.vector_db.qdrant_client_wrapper import get_qdrant_client
-from src.vector_db.embedder import embedder, QuotaExhaustedError
-from src.vector_db.sparse_encoder import get_sparse_encoder
+from src.ingestion.crawler import get_crawler
+from src.logger import logger
+from src.models.chunk import AuthorityLevel, QdrantPayload, VisaType
 from src.observability.mlflow_tracker import get_mlflow_tracker
-
-from qdrant_client.http.models import PointStruct
+from src.storage.sqlite_state_store import get_state_store
+from src.vector_db.embedder import QuotaExhaustedError, embedder
+from src.vector_db.qdrant_client_wrapper import get_qdrant_client
+from src.vector_db.sparse_encoder import get_sparse_encoder
 
 
 class IngestionPipeline:
@@ -231,7 +230,7 @@ class IngestionPipeline:
                 return {"success": False, "error": f"Failed to crawl {url}"}
 
             markdown_text = crawled["markdown"]
-            fetched_at = datetime.fromisoformat(crawled["fetched_at"])
+            datetime.fromisoformat(crawled["fetched_at"])
             content_hash = self._compute_document_hash(markdown_text)
 
             # --- Optimization: Skip if content hasn't changed ---
@@ -359,7 +358,7 @@ class IngestionPipeline:
 
             # Step 7: Update state store with tracking
             for chunk, point in zip(chunks_to_ingest, points):
-                chunk_row_id = self.state_store.register_chunk(
+                self.state_store.register_chunk(
                     chunk_id=chunk.metadata.chunk_id,
                     parent_doc_id=doc_id,
                     source_url=url,
@@ -379,7 +378,7 @@ class IngestionPipeline:
             self.state_store.mark_document_ingested(doc_id, content_hash)
 
             logger.info(
-                f"Successfully ingested document",
+                "Successfully ingested document",
                 extra={
                     "url": url,
                     "chunks_ingested": len(chunks_to_ingest),

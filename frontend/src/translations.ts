@@ -8,7 +8,7 @@ export const translations = {
     settings: 'Settings',
     recentSources: 'Recent Sources',
     visaCategories: 'Visa Categories',
-    
+
     // Settings
     appearance: 'Appearance',
     themePreference: 'Theme Preference',
@@ -23,7 +23,7 @@ export const translations = {
     dark: 'Dark Mode',
     light: 'Light Mode',
     system: 'System Default',
-    
+
     // Chat
     welcome: 'Hello! I am **VisaFlow DE**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.',
     chatHeader: 'Chat',
@@ -32,7 +32,7 @@ export const translations = {
     you: 'You',
     disclaimer: 'This response is based on public information and for reference only; it does not constitute legal advice. Please consult official sources or professionals for critical decisions.',
     newSession: 'New Session',
-    
+
     // Insights
     progress: 'Progress',
     reqSummary: 'Requirement Summary',
@@ -52,7 +52,7 @@ export const translations = {
     reset: 'Reset',
     autoDetected: 'Auto-detected by AI',
     autoDetectedDesc: 'This milestone was automatically identified from your conversation history.',
-    
+
     // Visa Categories
     chancenkarte: 'Chancenkarte',
     skilledWorker: 'Skilled Worker',
@@ -190,7 +190,7 @@ export const translations = {
     settings: 'Einstellungen',
     recentSources: 'Aktuelle Quellen',
     visaCategories: 'Visum-Kategorien',
-    
+
     // Settings
     appearance: 'Erscheinungsbild',
     themePreference: 'Design-Einstellung',
@@ -205,7 +205,7 @@ export const translations = {
     dark: 'Dunkler Modus',
     light: 'Heller Modus',
     system: 'Systemstandard',
-    
+
     // Chat
     welcome: 'Hallo! Ich bin **VisaFlow DE**. Ich kann Ihnen helfen, deutsche Visumbestimmungen, die *Chancenkarte* und offizielle Anforderungen zu verstehen.',
     chatHeader: 'Chat',
@@ -214,7 +214,7 @@ export const translations = {
     you: 'Sie',
     disclaimer: 'Diese Antwort basiert auf öffentlichen Informationen und dient nur zu Referenzzwecken; sie stellt keine Rechtsberatung dar. Bitte konsultieren Sie offizielle Quellen für wichtige Entscheidungen.',
     newSession: 'Neue Sitzung',
-    
+
     // Insights
     progress: 'Fortschritt',
     reqSummary: 'Anforderungszusammenfassung',
@@ -372,7 +372,7 @@ export const translations = {
     settings: '設定',
     recentSources: '最近來源',
     visaCategories: '簽證類別',
-    
+
     // Settings
     appearance: '外觀',
     themePreference: '主題偏好',
@@ -387,7 +387,7 @@ export const translations = {
     dark: '深色模式',
     light: '淺色模式',
     system: '系統預設',
-    
+
     // Chat
     welcome: '您好！我是 **VisaFlow DE**。我可以協助您了解德國簽證法規、*機會卡 (Chancenkarte)* 以及官方要求。',
     chatHeader: '聊天',
@@ -396,7 +396,7 @@ export const translations = {
     you: '您',
     disclaimer: '本回答內容僅供參考，不構成法律建議。所有重要簽證決定請務必諮詢官方機構或專業法律人士。',
     newSession: '新對話',
-    
+
     // Insights
     progress: '當前進度',
     reqSummary: '要求摘要',

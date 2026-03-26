@@ -1,8 +1,6 @@
 """Unit tests for the Parent-Child Chunker."""
 
-import pytest
 from src.ingestion.chunker import ParentChildChunker
-from src.models.chunk import AuthorityLevel
 
 
 def test_split_by_headers():

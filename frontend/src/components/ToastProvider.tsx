@@ -33,7 +33,7 @@ export function ToastProvider() {
                 </p>
               )}
             </div>
-            <button 
+            <button
               onClick={() => removeToast(toast.id)}
               className="shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
             >

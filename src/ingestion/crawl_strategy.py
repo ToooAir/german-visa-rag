@@ -3,13 +3,13 @@ Domain-specific crawl strategies.
 Each domain can have custom rules for path filtering, depth, authority level, etc.
 """
 
-from typing import List, Optional, Dict
-from dataclasses import dataclass, field
-from urllib.parse import urlparse
 import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Dict, List, Optional
+from urllib.parse import urlparse
 
 import yaml
-from pathlib import Path
 
 from src.config import settings
 from src.logger import logger

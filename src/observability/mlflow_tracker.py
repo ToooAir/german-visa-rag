@@ -1,7 +1,6 @@
 """MLflow integration for tracking ingestion runs and experiments."""
 
-from typing import Optional, Dict, Any
-import json
+from typing import Any, Dict, Optional
 
 try:
     import mlflow

@@ -2,18 +2,14 @@
 Main router aggregator that includes sub-routers from endpoints.
 """
 
-from fastapi import APIRouter
-from fastapi import Request
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException
-from fastapi import status
 
-from src.logger import logger
-
+from src.api.endpoints.admin import router as admin_router_module
 from src.api.endpoints.chat import router as chat_router
 from src.api.endpoints.health import router as health_router
 from src.api.endpoints.rag import router as rag_router
-from src.api.endpoints.admin import router as admin_router_module
+from src.logger import logger
 
 # Assembler Router to match original structure
 router = APIRouter()

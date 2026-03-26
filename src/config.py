@@ -3,11 +3,11 @@ Configuration management with environment variable support.
 Centralized settings for LLM, Vector DB, Cache, and Observability.
 """
 
-from typing import Literal, Optional, List, Union
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, field_validator
-import os
 from pathlib import Path
+from typing import List, Literal, Optional, Union
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):

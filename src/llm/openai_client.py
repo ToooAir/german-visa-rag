@@ -3,19 +3,16 @@ OpenAI API client wrapper with retry logic, token counting, and cost tracking.
 Supports both streaming and non-streaming responses.
 """
 
-from typing import Optional, List, Dict, Any, AsyncIterator
-import asyncio
-from datetime import datetime
+from typing import Any, AsyncIterator, Dict, List, Optional
 
-from openai import AsyncOpenAI, AsyncAzureOpenAI, OpenAIError
+import tiktoken
+from openai import AsyncAzureOpenAI, AsyncOpenAI, OpenAIError
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
-    AsyncRetrying,
 )
-import tiktoken
 
 from src.config import settings
 from src.logger import logger

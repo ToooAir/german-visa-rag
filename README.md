@@ -81,7 +81,7 @@ graph TB
     F1 -. Fallback .-> LLM_B
     D1 <--> E1
     B3 --> G0
-    
+
     G0 --> G1 --> G2 --> G3 --> E1
     G3 <--> E3
 ```

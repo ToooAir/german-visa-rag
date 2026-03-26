@@ -1,7 +1,8 @@
 """API authentication and authorization using API keys."""
 
 from typing import Optional
-from fastapi import HTTPException, Header, status
+
+from fastapi import Header, HTTPException, status
 
 from src.config import settings
 from src.logger import logger

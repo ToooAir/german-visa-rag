@@ -1,7 +1,8 @@
 """Server-Sent Events (SSE) streaming utilities."""
 
-from typing import AsyncIterator
 import json
+from typing import AsyncIterator
+
 from fastapi.responses import StreamingResponse
 
 

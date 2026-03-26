@@ -30,7 +30,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
           {useChatStore.getState().pinnedSources.map((s, i) => (
             <SourceItem key={`pinned-${i}`} title={s.title} url={s.url} official />
           ))}
-          
+
           {/* Separator if we have recent ones */}
           {useChatStore.getState().recentSources.length > 0 && (
             <div className="h-px bg-slate-200 dark:bg-slate-800 my-1 mx-2" />
@@ -38,10 +38,10 @@ export function Sidebar({ className = '' }: { className?: string }) {
 
           {/* Dynamic Recent Sources */}
           {useChatStore(state => state.recentSources).slice(0, 3).map((s, i) => (
-            <SourceItem 
-              key={`recent-${i}`} 
-              title={s.title || (s.url.includes('bamf') ? 'BAMF' : s.url.split('/')[2])} 
-              url={s.url} 
+            <SourceItem
+              key={`recent-${i}`}
+              title={s.title || (s.url.includes('bamf') ? 'BAMF' : s.url.split('/')[2])}
+              url={s.url}
               favicon={s.authority === 'official' ? '🏛️' : '📄'}
               official={s.authority === 'official'}
             />
@@ -55,7 +55,7 @@ export function Sidebar({ className = '' }: { className?: string }) {
 // Subcomponents
 function NavItem({ icon, label, to, end = false }: { icon: React.ReactNode, label: string, to: string, end?: boolean }) {
   return (
-    <NavLink 
+    <NavLink
       to={to}
       end={end}
       className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -70,11 +70,11 @@ function NavItem({ icon, label, to, end = false }: { icon: React.ReactNode, labe
 
 function SourceItem({ title, url, favicon, official = false }: { title: string, url: string, favicon?: React.ReactNode, official?: boolean }) {
   const defaultFavicon = official ? '🏛️' : '📄';
-  
+
   return (
-    <a 
-      href={url} 
-      target="_blank" 
+    <a
+      href={url}
+      target="_blank"
       rel="noopener noreferrer"
       className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800/30 cursor-pointer transition-all hover:translate-x-1 group"
     >

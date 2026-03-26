@@ -1,27 +1,22 @@
-from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
-import asyncio
-from tenacity import retry, stop_after_attempt, wait_exponential
+from typing import Any, Dict, List, Optional
 
-from qdrant_client import QdrantClient, AsyncQdrantClient
+from qdrant_client import AsyncQdrantClient, QdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.models import (
-    PointStruct,
-    VectorParams,
     Distance,
-    HnswConfigDiff,
-    CollectionStatus,
-    Filter,
     FieldCondition,
+    Filter,
     MatchValue,
-    Range,
-    HasIdCondition,
+    PointStruct,
     SparseVector,
+    VectorParams,
 )
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.config import settings
 from src.logger import logger
-from src.models.chunk import QdrantPayload, AuthorityLevel
+from src.models.chunk import AuthorityLevel
 
 
 class QdrantWrapper:
@@ -318,7 +313,7 @@ class QdrantWrapper:
 
         # Recency filter (documents fetched within max_days_old)
         if max_days_old:
-            cutoff_date = datetime.now(timezone.utc).timestamp() - max_days_old * 86400
+            datetime.now(timezone.utc).timestamp() - max_days_old * 86400
             # Note: Qdrant doesn't have native datetime filtering in v0.x
             # This would need custom filtering logic
 

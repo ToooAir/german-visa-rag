@@ -3,9 +3,10 @@ Data models for chunks, vectors, and metadata.
 Defines the payload schema for Qdrant storage.
 """
 
-from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 

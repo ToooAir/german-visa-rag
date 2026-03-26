@@ -7,8 +7,8 @@ to integer indices. Designed for German/English/Chinese legal text.
 """
 
 import re
-from typing import List, Tuple, Dict
 from math import log
+from typing import Dict, List
 
 from qdrant_client.http.models import SparseVector
 

@@ -2,10 +2,10 @@
 Ollama local LLM client for fallback/offline scenarios.
 """
 
-from typing import Optional, List, Dict, Any, AsyncIterator
+from typing import AsyncIterator, Dict, List, Optional
+
 import httpx
 
-from src.config import settings
 from src.logger import logger
 
 

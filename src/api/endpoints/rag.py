@@ -1,12 +1,13 @@
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from src.logger import logger
 from src.api.auth import auth
-from src.api.sse import create_sse_response
-from src.rag.answer_generator import AnswerGenerator
 from src.api.endpoints.dependencies import get_generator, get_qdrant
+from src.api.sse import create_sse_response
+from src.logger import logger
+from src.rag.answer_generator import AnswerGenerator
 from src.vector_db.qdrant_client_wrapper import QdrantWrapper
 
 router = APIRouter(prefix="/query", tags=["rag"])

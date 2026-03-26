@@ -1,20 +1,18 @@
 """Unit tests for URL discoverer, crawl strategy, and link extractor."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from urllib.parse import urlparse
 
 from src.ingestion.crawl_strategy import (
+    CHANCENKARTE_COM_STRATEGY,
+    MAKE_IT_IN_GERMANY_STRATEGY,
     DomainCrawlStrategy,
     StrategyRegistry,
-    MAKE_IT_IN_GERMANY_STRATEGY,
-    CHANCENKARTE_COM_STRATEGY,
-    get_strategy_registry,
 )
 from src.ingestion.url_discoverer import (
     LinkExtractor,
     SitemapParser,
-    DiscoveryResult,
 )
 
 # ============================================

@@ -13,7 +13,7 @@ RUN npm install
 COPY . .
 
 # Build the application
-# Note: VITE_ variables are baked in here. 
+# Note: VITE_ variables are baked in here.
 # If they are not set, they will be empty or use defaults.
 RUN npm run build
 

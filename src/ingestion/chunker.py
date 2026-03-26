@@ -4,13 +4,13 @@ Advanced chunking strategy: Parent-Child (Small-to-Big) chunking.
 - Smaller semantic units are child chunks for precise retrieval
 """
 
-from typing import List, Dict, Optional, Tuple
 import re
 from datetime import datetime, timezone
+from typing import List, Optional, Tuple
 
 from src.config import settings
 from src.logger import logger
-from src.models.chunk import Chunk, ChunkMetadata, VisaType, AuthorityLevel
+from src.models.chunk import AuthorityLevel, Chunk, ChunkMetadata, VisaType
 from src.utils.hash_utils import compute_canonical_hash
 from src.utils.text_utils import normalize_whitespace
 

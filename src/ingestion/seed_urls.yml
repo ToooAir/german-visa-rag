@@ -229,7 +229,7 @@ domains:
       - "/web/content/EN/findingajob/"
       - "/web/content/EN/institutionunternehmen/"
       # BA Fachliche Weisungen (Employment Guidelines)
-      - "/datei/dok_ba033210.pdf" 
+      - "/datei/dok_ba033210.pdf"
     authority_level: "official"
     default_visa_types:
       - "work_visa"

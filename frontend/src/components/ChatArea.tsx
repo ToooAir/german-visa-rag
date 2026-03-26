@@ -2,10 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  MoreVertical, Send, ShieldCheck, ExternalLink, Loader2, Sparkles, 
-  Database, FileSearch, Trash2, ChevronDown, Briefcase, 
-  Award, BadgeCheck, GraduationCap 
+import {
+  MoreVertical, Send, ShieldCheck, ExternalLink, Loader2, Sparkles,
+  Database, FileSearch, Trash2, ChevronDown, Briefcase,
+  Award, BadgeCheck, GraduationCap
 } from 'lucide-react';
 import { useChatStore, Message, Source } from '../stores/chatStore';
 import { useTranslation } from '../translations';
@@ -55,7 +55,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
             <h2 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5 ml-1">
               VisaFlow DE
             </h2>
-            <button 
+            <button
               onClick={() => setIsSelectorOpen(!isSelectorOpen)}
               className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group"
             >
@@ -74,14 +74,14 @@ export function ChatArea({ className = '' }: { className?: string }) {
           <AnimatePresence>
             {isSelectorOpen && (
               <>
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-30" 
-                  onClick={() => setIsSelectorOpen(false)} 
+                  className="fixed inset-0 z-30"
+                  onClick={() => setIsSelectorOpen(false)}
                 />
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -99,8 +99,8 @@ export function ChatArea({ className = '' }: { className?: string }) {
                             setIsSelectorOpen(false);
                           }}
                           className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
-                            isActive 
-                              ? 'bg-accent/10 text-accent font-bold' 
+                            isActive
+                              ? 'bg-accent/10 text-accent font-bold'
                               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200'
                           }`}
                         >
@@ -119,7 +119,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
           </AnimatePresence>
         </div>
         <div className="flex items-center gap-2">
-          <button 
+          <button
             onClick={() => {
               if (window.confirm(t.newSession + '?')) {
                 useChatStore.getState().newSession();
@@ -135,7 +135,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
       </div>
 
       {/* Message List */}
-      <div 
+      <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto p-4 flex flex-col gap-6 pb-24"
       >
@@ -154,7 +154,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
       {/* Input Area */}
       <div className="absolute bottom-0 w-full bg-gradient-to-t from-background via-background to-transparent pb-6 pt-12 z-20">
         <div className="relative glass-panel bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200 dark:border-slate-700 mx-4 flex items-center shadow-2xl shadow-black/5 dark:shadow-black/50 overflow-hidden">
-          <textarea 
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -163,13 +163,13 @@ export function ChatArea({ className = '' }: { className?: string }) {
                 handleSend();
               }
             }}
-            placeholder={t.askPlaceholder} 
+            placeholder={t.askPlaceholder}
             className="w-full bg-transparent text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 py-4 pl-4 pr-14 outline-none text-[15px] resize-none overflow-hidden"
             rows={1}
             style={{ minHeight: '56px' }}
           />
           <div className="absolute right-3 flex items-center gap-1">
-            <button 
+            <button
               onClick={handleSend}
               disabled={isLoading || !input.trim()}
               className="p-2 ml-1 text-white bg-accent hover:bg-accent/80 transition-colors rounded-xl shadow-lg shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -178,7 +178,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
             </button>
           </div>
         </div>
-        
+
         {/* Subtle Disclaimer */}
         <div className="flex justify-center px-4 mt-3">
           <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center leading-tight max-w-2xl opacity-60">
@@ -194,11 +194,11 @@ function ChatMessage({ message }: { message: Message }) {
   const isUser = message.role === 'user';
   const { isLoading } = useChatStore();
   const { t } = useTranslation();
-  
+
   if (isUser) {
     return (
-      <motion.div 
-        initial={{ opacity: 0, x: 20 }} 
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         className="glass-panel p-4 flex flex-col gap-2 max-w-[85%] self-end bg-slate-50/80 dark:bg-slate-800/40"
       >
@@ -221,7 +221,7 @@ function ChatMessage({ message }: { message: Message }) {
   }
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       className="glass-panel p-5 flex flex-col gap-3 w-full bg-white dark:bg-panel border-l-2 border-l-accent shadow-lg relative"
@@ -234,13 +234,13 @@ function ChatMessage({ message }: { message: Message }) {
           <span className="font-semibold text-slate-900 dark:text-white text-sm tracking-wide">VisaFlow DE</span>
         </div>
       </div>
-      
+
       <div className="text-slate-700 dark:text-slate-300 text-[15px] leading-relaxed ml-11 flex flex-col gap-4">
         {/* RAG Traceability Loader */}
         {(isLoading || message.searchQueries) && !message.content && (
           <TraceLoader currentStatus={message.status} searchQueries={message.searchQueries} />
         )}
-        
+
         {/* Source Grid (Early Visibility) */}
         {message.sources && message.sources.length > 0 && !message.content && (
           <SourceGrid sources={message.sources} />
@@ -248,7 +248,7 @@ function ChatMessage({ message }: { message: Message }) {
 
         {message.content && (
           <div className="prose prose-slate dark:prose-invert prose-p:leading-relaxed prose-pre:bg-slate-100 dark:prose-pre:bg-slate-800/50 prose-pre:border prose-pre:border-slate-200 dark:prose-pre:border-slate-700 max-w-none prose-a:text-accent hover:prose-a:text-accent/80 prose-a:font-medium prose-a:no-underline hover:prose-a:underline prose-strong:text-slate-800 dark:prose-strong:text-slate-200">
-            <ReactMarkdown 
+            <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
                 a: ({ ...props }) => (
@@ -276,9 +276,9 @@ function ChatMessage({ message }: { message: Message }) {
 
 function SourceGrid({ sources }: { sources: Source[] }) {
   const uniqueSources = Array.from(new Map(sources.map(src => [src.url, src])).values());
-  
+
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mt-2 mb-4"
@@ -297,7 +297,7 @@ function SourceGrid({ sources }: { sources: Source[] }) {
 
 function SourceCard({ source, index }: { source: Source, index: number }) {
   const hostname = new URL(source.url).hostname.replace('www.', '');
-  
+
   return (
     <motion.a
       whileHover={{ y: -2, boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
@@ -325,12 +325,12 @@ function SourceCard({ source, index }: { source: Source, index: number }) {
 function SourceChip({ source }: { source: Source }) {
   const isOfficial = source.authority === 'official';
   const isSemi = source.authority === 'semi_official';
-  
+
   return (
-    <motion.a 
+    <motion.a
       whileHover={{ y: -1 }}
-      href={source.url} 
-      target="_blank" 
+      href={source.url}
+      target="_blank"
       rel="noopener noreferrer"
       className="group inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/50 border border-slate-200/80 dark:border-slate-700/80 rounded-lg transition-all duration-200 hover:shadow-sm cursor-pointer max-w-[240px]"
     >
@@ -364,7 +364,7 @@ function QuickStarters({ onSelect }: { onSelect: (q: string) => void }) {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {starters.map((s, i) => (
-          <button 
+          <button
             key={i}
             onClick={() => onSelect(s.query)}
             className="text-left p-3 rounded-xl border border-slate-200/80 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors group"
@@ -411,10 +411,10 @@ function TraceLoader({ currentStatus, searchQueries }: { currentStatus?: string,
             </span>
             {step === i && <Loader2 size={12} className="ml-auto text-slate-400 dark:text-slate-500 animate-spin" />}
           </div>
-          
+
           {/* Show search queries if in retrieving step OR if they exist and we are further along */}
           {s.key === 'retrieving' && searchQueries && searchQueries.length > 0 && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               className="ml-10 flex flex-col gap-1.5 overflow-hidden"

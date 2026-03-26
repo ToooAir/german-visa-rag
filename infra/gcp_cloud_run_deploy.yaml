@@ -20,7 +20,7 @@ spec:
           ports:
             - name: http1
               containerPort: 8000
-          
+
           env:
             - name: ENVIRONMENT
               value: "production"
@@ -28,20 +28,20 @@ spec:
               value: "INFO"
             - name: DEBUG
               value: "false"
-            
+
             # LLM
             - name: OPENAI_MODEL
               value: "gpt-4o-mini"
             - name: EMBEDDING_MODEL
               value: "text-embedding-3-small"
-            
+
             # Secrets from Secret Manager
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: german-visa-rag-secrets
                   key: openai-api-key
-            
+
             # Qdrant Cloud
             - name: QDRANT_URL
               valueFrom:
@@ -55,21 +55,21 @@ spec:
                   key: qdrant-api-key
             - name: QDRANT_COLLECTION_NAME
               value: "german-visa-docs-prod"
-            
+
             # API Key
             - name: API_KEY
               valueFrom:
                 secretKeyRef:
                   name: german-visa-rag-secrets
                   key: api-key
-            
+
             # Redis (Cloud Memorystore)
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:
                   name: german-visa-rag-secrets
                   key: redis-url
-          
+
           resources:
             requests:
               memory: "2Gi"
@@ -77,7 +77,7 @@ spec:
             limits:
               memory: "2Gi"
               cpu: "2"
-          
+
           livenessProbe:
             httpGet:
               path: /v1/health
@@ -87,7 +87,7 @@ spec:
                   value: ""  # Will be injected
             initialDelaySeconds: 30
             periodSeconds: 10
-          
+
           readinessProbe:
             httpGet:
               path: /v1/health

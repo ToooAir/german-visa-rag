@@ -1,10 +1,11 @@
 import asyncio
-import json
-from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+
+from qdrant_client.http.models import FieldCondition, Filter, MatchValue
+
 from src.ingestion.crawl_strategy import get_strategy_registry
+from src.logger import logger
 from src.storage.sqlite_state_store import get_state_store
 from src.vector_db.qdrant_client_wrapper import get_qdrant_client
-from src.logger import logger
 
 
 async def purge_orphans():

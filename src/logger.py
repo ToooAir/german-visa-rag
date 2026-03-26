@@ -5,8 +5,9 @@ Supports both console and file outputs with different levels.
 
 import logging
 import sys
-from pathlib import Path
+
 from pythonjsonlogger import jsonlogger
+
 from src.config import settings
 
 

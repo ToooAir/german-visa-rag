@@ -3,24 +3,24 @@ Answer generation with streaming support, caching, and source attribution.
 Handles LLM calls and formats responses for OpenAI-compatible endpoints.
 """
 
-from typing import Any, AsyncIterator, Optional
+import asyncio
 import json
+import re
 import time
 import uuid
-import asyncio
-import re
+from typing import Any, AsyncIterator, Optional
 
 from src.config import settings
-from src.logger import logger
 from src.exceptions import LLMGenerationError
-from src.storage.redis_cache import query_cache
-from src.rag.hybrid_retriever import HybridRetriever
-from src.rag.query_transformer import get_query_transformer
-from src.rag.reranker import get_reranker
-from src.rag.prompt_builder import get_prompt_builder, PromptRequest
 from src.llm import get_llm_client
 from src.llm.token_counter import get_token_counter
+from src.logger import logger
 from src.observability.mlflow_tracker import get_mlflow_tracker
+from src.rag.hybrid_retriever import HybridRetriever
+from src.rag.prompt_builder import PromptRequest, get_prompt_builder
+from src.rag.query_transformer import get_query_transformer
+from src.rag.reranker import get_reranker
+from src.storage.redis_cache import query_cache
 
 # Fallback messages when no retrieval results are found.
 _NO_INFO_MSG: dict[str, str] = {

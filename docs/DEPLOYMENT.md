@@ -1,7 +1,7 @@
 # 🇩🇪 German Visa RAG - Deployment Guide
 
 > [!NOTE]
-> **Deployment Status**: 
+> **Deployment Status**:
 > - **Local Docker Environment**: ✅ **Fully Verified**. Guaranteed to work out of the box.
 > - **Zeabur Deployment**: 🚀 **Recommended** for production/demo (Currently being integrated).
 > - **GCP Cloud Run**: 🏛️ **Architectural Reference**. Detailed blueprint for enterprise-grade serverless infra.

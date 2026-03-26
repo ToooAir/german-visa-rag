@@ -1,8 +1,7 @@
-import sys
-import os
 import argparse
+import os
 import random
-from typing import List
+import sys
 
 # Ensure project root is in path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -10,9 +9,8 @@ project_root = os.path.abspath(os.path.join(current_dir, "../.."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from src.vector_db.qdrant_client_wrapper import get_qdrant_client
 from src.config import settings
-from src.logger import logger
+from src.vector_db.qdrant_client_wrapper import get_qdrant_client
 
 
 def inspect_chunks(sample_size: int = 5, collection_name: str = None):
@@ -40,7 +38,7 @@ def inspect_chunks(sample_size: int = 5, collection_name: str = None):
         # Simple random sampling (scroll with offset if needed, but here we just take some)
         # For a true random sample in Qdrant, we might need more complex logic,
         # but for diagnostics, taking the first N is often enough or using a random offset.
-        offset = random.randint(0, max(0, total_points - sample_size))
+        random.randint(0, max(0, total_points - sample_size))
 
         results, next_offset = client.scroll(
             collection_name=collection_name,

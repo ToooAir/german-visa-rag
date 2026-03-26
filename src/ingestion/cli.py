@@ -5,14 +5,15 @@ Perfect for cronjobs or GCP Cloud Run Jobs.
 """
 
 import asyncio
-import typer
-from typing import Optional
-import yaml
 from pathlib import Path
+from typing import Optional
 
-from src.logger import logger
+import typer
+import yaml
+
 from src.config import settings
 from src.ingestion.ingestion_pipeline import get_ingestion_pipeline
+from src.logger import logger
 
 app = typer.Typer(help="German Visa RAG Ingestion CLI")
 
@@ -72,8 +73,8 @@ def ingest(
         result = asyncio.run(_run_discovery_ingestion(pipeline, force_refresh=force_discover, force_ingest=force))
 
         if result.get("quota_exhausted"):
-            processed = result["documents_processed"]
-            skipped = result.get("documents_skipped_quota", 0)
+            result["documents_processed"]
+            result.get("documents_skipped_quota", 0)
             wait = result.get("wait_seconds", 0)
             wait_hrs = round(wait / 3600, 1) if wait else "unknown"
             logger.error(f"⚠️  Embedding API quota exhausted! Wait ~{wait_hrs} hours.")

@@ -5,12 +5,10 @@ Ensures no duplicate chunks are ingested.
 """
 
 import json
-from typing import Optional, Dict, Any, List
-from datetime import datetime, timezone
-from pathlib import Path
 import sqlite3
 from contextlib import contextmanager
-import hashlib
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from src.config import settings
 from src.logger import logger
@@ -31,7 +29,8 @@ class SQLiteStateStore:
             cursor = conn.cursor()
 
             # Table: tracked_documents (source documents)
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS tracked_documents (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     source_url TEXT UNIQUE NOT NULL,
@@ -49,10 +48,12 @@ class SQLiteStateStore:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """
+            )
 
             # Table: chunks (deduplicated chunks)
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS chunks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     chunk_id TEXT UNIQUE NOT NULL,
@@ -68,10 +69,12 @@ class SQLiteStateStore:
                     ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (parent_doc_id) REFERENCES tracked_documents(id)
                 )
-            """)
+            """
+            )
 
             # Table: ingestion_runs (audit trail)
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS ingestion_runs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     run_id TEXT UNIQUE NOT NULL,
@@ -86,10 +89,12 @@ class SQLiteStateStore:
                     error_details TEXT,  -- JSON
                     triggered_by TEXT DEFAULT 'manual'  -- manual, scheduler
                 )
-            """)
+            """
+            )
 
             # Table: discovered_urls (URL discovery cache)
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS discovered_urls (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     domain TEXT NOT NULL,
@@ -102,7 +107,8 @@ class SQLiteStateStore:
                     discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(domain, url)
                 )
-            """)
+            """
+            )
 
             # Indices for performance
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_text_hash ON chunks(text_hash)")
@@ -191,7 +197,7 @@ class SQLiteStateStore:
             cursor.execute(
                 """
                 UPDATE tracked_documents
-                SET status = 'ingested', 
+                SET status = 'ingested',
                     content_hash = ?,
                     last_fetched_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
@@ -257,7 +263,7 @@ class SQLiteStateStore:
                 cursor.execute(
                     """
                     INSERT OR IGNORE INTO chunks
-                    (chunk_id, parent_doc_id, source_url, text_hash, text_length, 
+                    (chunk_id, parent_doc_id, source_url, text_hash, text_length,
                      is_parent, section_header, language, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -385,10 +391,12 @@ class SQLiteStateStore:
             cursor.execute("SELECT COUNT(*) FROM ingestion_runs")
             total_runs = cursor.fetchone()[0]
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT SUM(chunks_ingested), SUM(total_tokens)
                 FROM ingestion_runs WHERE status = 'completed'
-            """)
+            """
+            )
             row = cursor.fetchone()
             total_chunks_ingested = row[0] or 0
             total_tokens = row[1] or 0

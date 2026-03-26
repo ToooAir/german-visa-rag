@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends
-from src.logger import logger
+
 from src.api.auth import auth
 from src.ingestion.scheduler import get_scheduler
+from src.logger import logger
 from src.storage.sqlite_state_store import get_state_store
 
 router = APIRouter(prefix="/admin", tags=["admin"])

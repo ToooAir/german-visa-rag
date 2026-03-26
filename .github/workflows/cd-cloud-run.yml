@@ -24,33 +24,33 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    
+
     permissions:
       contents: read
       id-token: write
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-      
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Configure Docker for GCR
         run: |
           gcloud auth configure-docker gcr.io
-      
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -61,7 +61,7 @@ jobs:
             gcr.io/${{ secrets.GCP_PROJECT_ID }}/german-visa-rag:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
+
       # ==========================================
       # STAGING DEPLOYMENT
       # ==========================================
@@ -135,7 +135,7 @@ jobs:
             --set-secrets=OPENAI_API_KEY=openai-api-key:latest \
             --set-secrets=QDRANT_URL=qdrant-url:latest \
             --set-secrets=QDRANT_API_KEY=qdrant-api-key:latest
-      
+
       # ==========================================
       # VERIFICATION & NOTIFICATION
       # ==========================================
@@ -147,15 +147,15 @@ jobs:
           if [ "${{ github.event.inputs.environment }}" == "production" ]; then
             SERVICE_NAME="german-visa-rag-api-prod"
           fi
-          
+
           CLOUD_RUN_URL=$(gcloud run services describe $SERVICE_NAME \
             --platform=managed \
             --region=${{ secrets.GCP_REGION }} \
             --format='value(status.url)')
-            
+
           echo "Service URL: $CLOUD_RUN_URL"
           curl -f $CLOUD_RUN_URL/health || exit 1
-      
+
       - name: Notify deployment to Slack
         if: success()
         uses: 8398a7/action-slack@v3

@@ -11,7 +11,7 @@ export function DashboardLayout() {
       {/* Main Layout Grid */}
       <div className="flex w-full h-full p-4 gap-4 z-10">
         <Sidebar className="w-[18%] min-w-[240px]" />
-        
+
         {/* Render child routes here */}
         <div className="flex-1 flex gap-4 h-full min-w-0 overflow-hidden">
           <Outlet />

@@ -12,13 +12,13 @@ function App() {
 
   useEffect(() => {
     const root = window.document.documentElement;
-    
+
     const applyTheme = (currentTheme: Theme) => {
-      const isDark = currentTheme === 'dark' || 
+      const isDark = currentTheme === 'dark' ||
         (currentTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      
+
       console.log(`[Theme] Applying theme: ${currentTheme}, IsDark: ${isDark}`);
-      
+
       if (isDark) {
         root.classList.add('dark');
         root.classList.remove('light');
@@ -32,7 +32,7 @@ function App() {
 
     // Listen for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
+
     const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
       if (theme === 'system') {
         console.log(`[Theme] System theme changed. IsDark: ${e.matches}`);
@@ -42,7 +42,7 @@ function App() {
 
     // Modern browsers
     mediaQuery.addEventListener('change', handleChange as EventListener);
-    
+
     // Fallback for older browsers
     if (mediaQuery.addListener) {
       mediaQuery.addListener(handleChange);

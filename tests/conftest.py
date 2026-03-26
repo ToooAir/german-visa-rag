@@ -1,10 +1,12 @@
 """Pytest fixtures and configuration."""
 
+from typing import AsyncGenerator
+
 import pytest
 from httpx import AsyncClient
-from typing import AsyncGenerator
-from src.main import app
+
 from src.config import settings
+from src.main import app
 
 
 @pytest.fixture

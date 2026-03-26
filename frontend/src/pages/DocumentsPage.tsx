@@ -26,9 +26,9 @@ export function DocumentsPage() {
             'X-API-Key': import.meta.env.VITE_API_KEY || 'demo-key'
           }
         });
-        
+
         if (!response.ok) throw new Error('Failed to fetch knowledge base sources');
-        
+
         const data = await response.json();
         setSources(data);
       } catch (err) {
@@ -69,10 +69,10 @@ export function DocumentsPage() {
     try {
       const date = new Date(isoStr);
       const locale = language === 'zh-TW' ? 'zh-TW' : language === 'de' ? 'de-DE' : 'en-GB';
-      return date.toLocaleDateString(locale, { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric' 
+      return date.toLocaleDateString(locale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
       });
     } catch {
       return t.recently || 'Recently';
@@ -90,7 +90,7 @@ export function DocumentsPage() {
             {t.library}
           </h2>
           <p className="text-slate-400 text-sm mt-2 max-w-2xl">
-            Our RAG system is built on real-time indexed legislation and official guidelines. 
+            Our RAG system is built on real-time indexed legislation and official guidelines.
             Below are the primary sources currently in our knowledge base.
           </p>
         </div>
@@ -113,10 +113,10 @@ export function DocumentsPage() {
           {sources.map((source, i) => {
             const hostname = new URL(source.url).hostname.replace('www.', '');
             return (
-              <a 
-                key={i} 
-                href={source.url} 
-                target="_blank" 
+              <a
+                key={i}
+                href={source.url}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="glass-panel p-4 flex flex-col justify-between bg-white/5 dark:bg-slate-800/15 hover:bg-white/10 dark:hover:bg-slate-800/25 border border-slate-200/40 dark:border-slate-800/50 hover:border-accent/30 transition-all cursor-pointer group hover:-translate-y-1 relative overflow-hidden h-[180px] min-w-0"
               >
@@ -130,17 +130,17 @@ export function DocumentsPage() {
                     {getAuthorityBadge(source.authority_level)}
                     <ExternalLink size={12} className="text-slate-500 group-hover:text-accent transition-colors" />
                   </div>
-                  
+
                   <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-1.5 line-clamp-2 leading-snug group-hover:text-accent transition-colors">
                     {source.title || 'Untitled Source'}
                   </h3>
-                  
+
                   <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium opacity-80 group-hover:opacity-100 transition-opacity">
                     <div className="w-3.5 h-3.5 rounded-sm overflow-hidden bg-slate-100/50 dark:bg-slate-800/50 flex items-center justify-center">
-                      <img 
-                        src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`} 
-                        alt="" 
-                        className="w-2.5 h-2.5 grayscale group-hover:grayscale-0 transition-all" 
+                      <img
+                        src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`}
+                        alt=""
+                        className="w-2.5 h-2.5 grayscale group-hover:grayscale-0 transition-all"
                       />
                     </div>
                     <span className="truncate">{hostname}</span>
@@ -167,7 +167,7 @@ export function DocumentsPage() {
               </a>
             );
           })}
-          
+
           {sources.length === 0 && (
             <div className="col-span-full py-12 text-center text-slate-500 border-2 border-dashed border-slate-800 rounded-xl">
               No sources found in the knowledge base yet.

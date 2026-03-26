@@ -1,14 +1,14 @@
-from typing import Optional, List, Dict, Any
 import time
 import uuid
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from src.logger import logger
 from src.api.auth import auth
-from src.rag.answer_generator import AnswerGenerator
 from src.api.endpoints.dependencies import get_generator
+from src.logger import logger
+from src.rag.answer_generator import AnswerGenerator
 
 router = APIRouter(prefix="/v1/chat", tags=["openai-compatible"])
 
@@ -123,7 +123,7 @@ async def generate_chat_stream(request: ChatCompletionRequest, generator: Answer
             break
 
     if not query:
-        yield f"data: {{'error': 'No user message'}}\n\n"
+        yield "data: {'error': 'No user message'}\n\n"
         return
 
     # Yield streaming response

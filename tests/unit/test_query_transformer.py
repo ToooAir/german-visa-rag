@@ -1,6 +1,7 @@
 """Unit tests for query transformer."""
 
 import pytest
+
 from src.rag.query_transformer import get_query_transformer
 
 

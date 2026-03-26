@@ -3,11 +3,12 @@ Prompt building with safety checks for RAG.
 Prevents prompt injection and ensures faithful grounding in retrieved context.
 """
 
-from typing import Any, Optional, ClassVar
-from collections.abc import Sequence as ABCSequence, Mapping
-from types import MappingProxyType
 import re
+from collections.abc import Mapping
+from collections.abc import Sequence as ABCSequence
 from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import Any, ClassVar, Optional
 from urllib.parse import quote
 
 from src.config import settings

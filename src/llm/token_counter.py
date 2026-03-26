@@ -1,10 +1,10 @@
 """Token counting and cost estimation utilities."""
 
-from typing import Dict, Any, Optional
+from typing import Optional
+
 import tiktoken
 
 from src.config import settings
-from src.logger import logger
 
 
 class TokenCounter:

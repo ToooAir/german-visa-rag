@@ -1,9 +1,11 @@
 """Unit tests for Hybrid Retriever weighting logic."""
 
-import pytest
-from unittest.mock import AsyncMock, patch
-from src.rag.hybrid_retriever import HybridRetriever
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from src.rag.hybrid_retriever import HybridRetriever
 
 
 @pytest.mark.asyncio

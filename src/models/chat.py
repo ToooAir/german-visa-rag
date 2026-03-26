@@ -2,9 +2,10 @@
 OpenAI-compatible chat models and request/response schemas.
 """
 
-from typing import List, Optional, Dict, Any
 from enum import Enum
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel
 
 
 class MessageRole(str, Enum):

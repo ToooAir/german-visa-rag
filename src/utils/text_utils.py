@@ -1,7 +1,6 @@
 """Text processing utilities for normalization, deduplication, and extraction."""
 
 import re
-from typing import List
 
 
 def normalize_whitespace(text: str) -> str:

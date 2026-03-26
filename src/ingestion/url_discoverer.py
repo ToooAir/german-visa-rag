@@ -7,18 +7,18 @@ Supports persistent caching of discovered URLs via SQLite.
 
 import asyncio
 import xml.etree.ElementTree as ET
-from typing import List, Set, Optional, Dict, Any
-from urllib.parse import urljoin, urlparse
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import List, Optional, Set
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
 
 from src.config import settings
-from src.logger import logger
 from src.ingestion.crawl_strategy import DomainCrawlStrategy, get_strategy_registry
+from src.logger import logger
 
 # ============================================
 # Sitemap Parser

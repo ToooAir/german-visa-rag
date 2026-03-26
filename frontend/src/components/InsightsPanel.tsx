@@ -77,7 +77,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
 
   const translateRequirementValue = (value: string): string => {
     if (!value) return value;
-    
+
     // Case: Points with key (e.g. "5_YEARS_EXP|3")
     if (value.includes('|')) {
       const [key, pts] = value.split('|');
@@ -89,34 +89,34 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
     const key = value.toUpperCase().trim();
     const rv = t.criteria.reqValues;
     const ll = t.criteria.langLevels;
-    
+
     // Core Status Keys
     if (key === 'TBC') return rv?.tbc || value;
     if (key === 'MET') return rv?.met || value;
     if (key === 'REQUIRED') return rv?.required || rv?.met || value;
-    
+
     // Language Levels (A1, B1, etc.)
     const langLevelKey = value.toLowerCase();
     if (ll && ll[langLevelKey as keyof typeof ll]) {
       return ll[langLevelKey as keyof typeof ll];
     }
-    
+
     // Work & Experience
     if (key === '5_YEARS_EXP' || key === '5') return rv?.yearsExp5 || value;
     if (key === '2_YEARS_EXP' || key === '2') return rv?.yearsExp2 || value;
     if (key === 'IT_3Y_EXP' || key === '3_YEARS_IT_EXP') return rv?.itExp3y || value;
     if (key === 'IT_EXP' || key === 'IT_EXP_GENERAL' || key === 'IT') return rv?.itExpGeneral || value;
-    
+
     // Personal Attributes
     if (key === 'UNDER_35') return rv?.under35 || value;
     if (key === 'UNDER_40') return rv?.under40 || value;
     if (key === 'OVER_45') return rv?.over45 || value;
-    
+
     // Qualifications
     if (key === 'DEGREE') return rv?.degree || value;
     if (key === 'VOCATIONAL') return rv?.vocational || value;
     if (key === 'PARTIAL_RECOGNITION') return rv?.partialRecognition || value;
-    
+
     // Legal & Process
     if (key === 'SALARY_MET') return rv?.salaryMet || value;
     if (key === 'SALARY_BELOW') return rv?.salaryBelow || value;
@@ -126,10 +126,10 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
     if (key === 'ADMITTED' || key === 'ADMISSION_LETTER') return rv?.admitted || value;
     if (key === 'INSURED' || key === 'INSURANCE_READY') return rv?.insured || value;
     if (key === 'PRE_STUDY_MET') return rv?.preStudyMet || value;
-    
+
     // Case: LACK_OF_FUNDS (without amount)
     if (key === 'LACK_OF_FUNDS') return rv?.tbc || '待確認';
-    
+
     // Case: LACK_OF_FUNDS:13092
     if (key.startsWith('LACK_OF_FUNDS:')) {
       const amount = key.split(':')[1]?.trim();
@@ -171,7 +171,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
 
   const getPrimaryThresholds = (cat: string | null) => {
     const cards: Array<{ label: string, value: string, sub: string }> = [];
-    
+
     const getFinancialSub = (id: string) => {
       const req = requirements.find(r => r.id === id);
       if (!req) return `0% ${t.met}`;
@@ -185,17 +185,17 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
 
     if (cat === 'skilledWorker' || cat === 'work_visa') {
       const prog = checkStatus('1') || checkStatus('2') ? Math.round(((requirements.filter(r => r.id === '1' || r.id === '2').filter(r => r.status === 'required').length) / 2) * 100) : 0;
-      cards.push({ 
-        label: t.criteria.coreRequirement || 'Core Requirement', 
-        value: `${t.criteria.fullTimeContract || 'Full-time Contract'}\n${t.criteria.salaryStandards}`, 
-        sub: `(${prog}% ${t.met})` 
+      cards.push({
+        label: t.criteria.coreRequirement || 'Core Requirement',
+        value: `${t.criteria.fullTimeContract || 'Full-time Contract'}\n${t.criteria.salaryStandards}`,
+        sub: `(${prog}% ${t.met})`
       });
     } else if (cat === 'blue_card') {
       const prog = checkStatus('2');
-      cards.push({ 
-        label: t.criteria.salaryThreshold || 'Salary Threshold', 
-        value: `€50,700 (${t.criteria.blueCardGen})\n€45,934.20 (${t.criteria.blueCardIT})`, 
-        sub: `(${prog}% ${t.met})` 
+      cards.push({
+        label: t.criteria.salaryThreshold || 'Salary Threshold',
+        value: `€50,700 (${t.criteria.blueCardGen})\n€45,934.20 (${t.criteria.blueCardIT})`,
+        sub: `(${prog}% ${t.met})`
       });
     } else if (cat === 'student_visa') {
       cards.push({ label: t.criteria.coreRequirement || 'Core Requirement', value: t.criteria.uniAdmission, sub: `(${checkStatus('4')}% ${t.met})` });
@@ -211,16 +211,16 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       let baseProgMet = 0;
       if (isLangMet) baseProgMet++;
       if (isQualMet) baseProgMet++;
-      
+
       const baseProg = Math.round((baseProgMet / 2) * 100);
       const pts = calculatePoints();
       cards.push({ label: t.criteria.eligibilityPath || 'Eligibility Path', value: `${t.criteria.pathDirect}\n${t.criteria.pathPoints}`, sub: `(${baseProg}% ${t.met} / ${pts} ${t.criteria.pts})` });
       cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €13,092`, sub: `(${getFinancialSub('1-1')})` });
     } else {
-      cards.push({ 
-        label: t.criteria.eligibilityPath || 'Eligibility Path', 
-        value: t.criteria.pathDirect + ` / 6+ ${t.criteria.pts}`, 
-        sub: `(0% ${t.met})` 
+      cards.push({
+        label: t.criteria.eligibilityPath || 'Eligibility Path',
+        value: t.criteria.pathDirect + ` / 6+ ${t.criteria.pts}`,
+        sub: `(0% ${t.met})`
       });
     }
     return cards;

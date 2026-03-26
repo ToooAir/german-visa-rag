@@ -1,8 +1,6 @@
 """Integration logic test for Qdrant payload formatting."""
 
-import pytest
-from src.models.chunk import Chunk, ChunkMetadata, AuthorityLevel, VisaType
-from src.models.chunk import QdrantPayload
+from src.models.chunk import AuthorityLevel, Chunk, ChunkMetadata, QdrantPayload, VisaType
 
 
 def test_qdrant_payload_conversion():
@@ -27,4 +25,4 @@ def test_qdrant_payload_conversion():
     assert payload_dict["authority_level"] == "official"
     assert payload_dict["visa_types"] == ["chancenkarte"]
     assert "Sample text" in payload_dict["text"]
-    assert payload_dict["is_parent"] == False
+    assert not payload_dict["is_parent"]

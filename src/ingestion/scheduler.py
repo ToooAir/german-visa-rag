@@ -5,17 +5,14 @@ Supports both manual URL-based and auto-discovery ingestion.
 """
 
 from typing import Optional
-from datetime import datetime
-import asyncio
 
+import yaml
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.triggers.cron import CronTrigger
-import yaml
 
 from src.config import settings
-from src.logger import logger
 from src.ingestion.ingestion_pipeline import get_ingestion_pipeline
+from src.logger import logger
 
 
 class IngestionScheduler:
@@ -111,7 +108,7 @@ class IngestionScheduler:
             )
 
             mode = "discovery" if settings.crawler_discovery_enabled else "legacy"
-            logger.info(f"Ingestion scheduler started", extra={"interval_hours": interval_hours, "mode": mode})
+            logger.info("Ingestion scheduler started", extra={"interval_hours": interval_hours, "mode": mode})
 
             self.scheduler.start()
 

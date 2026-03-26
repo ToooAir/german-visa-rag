@@ -114,7 +114,7 @@ Analyze the user's current situation and intent. Output the following hidden tag
    - Skilled Worker (FEG): 1:Qualification, 2:Salary, 3:Age-45-Rule, 4:Language
    - EU Blue Card:         1:Qualification, 2:Work-Contract, 3:Language-Bonus
    - Chancenkarte:         Thresholds: 1-1:Financial-Proof, 1-2:Language, 1-3:Qualification
-                           Points:     2-1:Language, 2-2:Experience, 2-3:Age, 2-4:Qualification, 2-5:Germany-Exp, 2-6:Partner
+                           Points:     2-1:Language (e.g. B1|2), 2-2:Experience (e.g. 5_YEARS_EXP|3), 2-3:Age (e.g. UNDER_35|2), 2-4:Qualification (e.g. DEGREE|4), 2-5:Germany-Exp, 2-6:Partner
    - Student Visa:         1:Financial-Proof, 2:Language, 3:Health-Insurance, 4:Prior-Qualification
 </tag_schema>
 

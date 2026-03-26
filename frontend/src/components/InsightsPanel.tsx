@@ -102,8 +102,8 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
     }
     
     // Work & Experience
-    if (key === '5_YEARS_EXP') return rv?.yearsExp5 || value;
-    if (key === '2_YEARS_EXP') return rv?.yearsExp2 || value;
+    if (key === '5_YEARS_EXP' || key === '5') return rv?.yearsExp5 || value;
+    if (key === '2_YEARS_EXP' || key === '2') return rv?.yearsExp2 || value;
     if (key === 'IT_3Y_EXP' || key === '3_YEARS_IT_EXP') return rv?.itExp3y || value;
     if (key === 'IT_EXP' || key === 'IT_EXP_GENERAL' || key === 'IT') return rv?.itExpGeneral || value;
     

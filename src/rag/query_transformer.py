@@ -3,43 +3,51 @@ Query Transformer module for query expansion and multilingual support.
 Uses LLM for spell-checking, intent expansion, and query enrichment.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 from enum import Enum
+import json
 import re
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.config import settings
 from src.logger import logger
-from src.llm import get_llm_client  # <--- 修改點 1：指向 LLM Factory
+from src.llm import get_llm_client
 
 
 class QueryTransformType(str, Enum):
     """Types of query transformations."""
-    SPELL_CHECK = "spell_check"
-    EXPANSION = "expansion"
-    REFORMULATION = "reformulation"
-    SUMMARIZATION = "summarization"
+    SPELL_CHECK     = "spell_check"
+    EXPANSION       = "expansion"
+    REFORMULATION   = "reformulation"
+    SUMMARIZATION   = "summarization"
 
 
 QUERY_TRANSFORMER_PROMPT_TEMPLATE = """
-你是一位德國簽證與工作許可專家。用戶提出了一個問題，請執行以下任務：
+You are an expert on German visa and work permit regulations. Given a user query, perform the following tasks:
 
-1. **拼字修正**：糾正明顯的拼字/語法錯誤（保持原語言）
-2. **意圖擴充**：如果查詢簡短或模糊，生成 2-3 個相關的替代提問
-3. **去歧義**：識別可能指代多個簽證類別的術語
+1. **Spell Correction**: Fix obvious spelling or grammar errors while preserving the original language.
+2. **Intent Expansion**: If the query is short or ambiguous, generate 2-3 alternative phrasings that cover different angles.
+3. **Disambiguation**: Identify terms that may refer to multiple visa categories.
 
-**原始查詢**：
+**Original Query**:
 {query}
 
-**輸出格式**（JSON）：
+**Task Instructions**:
+1. Correct spelling and grammar while keeping the original language.
+2. In `english_query` and `german_query`, prioritize **legal and domain-specific terminology**
+   (e.g., Zulassung, Zusatzblatt, Chancenkarte, Verpflichtungserklärung, Fachkräfteeinwanderungsgesetz).
+   Precise terminology is critical for vector retrieval accuracy.
+3. Generate 2-3 variants with distinct focus areas.
+
+**Output Format** (strict JSON, no markdown wrapping):
 {{
-  "corrected_query": "修正後的主查詢",
-  "english_query": "English translation of the query for better retrieval",
-  "german_query": "Deutsche Übersetzung der Suchanfrage",
+  "corrected_query": "Spell-corrected version of the original query (same language as input)",
+  "english_query": "Technical English translation optimized for retrieval",
+  "german_query": "Präzise deutsche juristische Übersetzung für die Vektorssuche",
   "query_variants": [
-    "變體1：關注於簽證申請程序",
-    "變體2：關注於 Chancenkarte 資格",
-    "變體3：關注於財務要求"
+    "Variant 1: Focus on procedure and application process",
+    "Variant 2: Focus on eligibility criteria and thresholds",
+    "Variant 3: Focus on financial proof requirements"
   ],
   "detected_visa_types": ["chancenkarte", "work_visa"],
   "languages_detected": ["zh"],
@@ -51,35 +59,30 @@ QUERY_TRANSFORMER_PROMPT_TEMPLATE = """
 class QueryTransformer:
     """
     Query transformation pipeline for improving RAG retrieval.
-    
-    Optimizations:
+
+    Features:
     - Multi-language support (DE, EN, ZH)
-    - Query expansion for poor/ambiguous queries
+    - Query expansion for short or ambiguous queries
     - Spell checking and normalization
-    - Visa type detection for filtering
+    - Visa type detection for downstream filtering
     """
 
     def __init__(self):
         self.llm = get_llm_client()
-        self.enable_expansion = True
 
-    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=5))
     async def transform_query(
         self,
         query: str,
         apply_expansion: bool = True,
-    ) -> Dict[str, Any]:
-        """
-        Transform and enrich query.
-        """
-        logger.debug(f"Transforming query: {query[:100]}")
-        
+    ) -> dict[str, Any]:
+        """Transform and enrich a query."""
+        logger.debug("Transforming query: %.100s", query)
+
         try:
-            if not apply_expansion or len(query.split()) < 3:
-                # For very short queries, always expand
+            # Short queries always expand; longer queries respect apply_expansion
+            if len(query.split()) < 3 or apply_expansion:
                 return await self._expand_query_with_llm(query)
             else:
-                # For longer queries, do lightweight normalization only
                 return {
                     "corrected_query": query,
                     "query_variants": [query],
@@ -88,7 +91,7 @@ class QueryTransformer:
                     "confidence": 0.9,
                 }
         except Exception as e:
-            logger.warning(f"Query transformation failed, using original: {e}")
+            logger.warning("Query transformation failed, using original: %s", e)
             return {
                 "corrected_query": query,
                 "query_variants": [query],
@@ -97,123 +100,95 @@ class QueryTransformer:
                 "confidence": 0.5,
             }
 
-    async def _expand_query_with_llm(self, query: str) -> Dict[str, Any]:
-        """Use LLM to expand query."""
-        try:
-            prompt = QUERY_TRANSFORMER_PROMPT_TEMPLATE.format(query=query)
-            
-            # <--- 修改點 2：使用標準化介面 call_non_streaming，確保相容 OpenAI 與 Ollama
-            response_text = await self.llm.call_non_streaming(
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    }
-                ],
-                temperature=0.3,  # Low temp for deterministic expansion
-                max_tokens=500,
-            )
-            
-            # Parse JSON response safely
-            import json
-            response_text = response_text.strip()
-            
-            # Extract JSON if wrapped in markdown code blocks
-            if "```json" in response_text:
-                response_text = response_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in response_text:
-                response_text = response_text.split("```")[1].split("```")[0].strip()
-            
-            result = json.loads(response_text)
-            logger.debug(f"Query expansion result: {result}")
-            return result
-            
-        except Exception as e:
-            logger.error(f"Query expansion LLM call failed: {e}")
-            raise
+    # @retry moved here — where the actual LLM call happens
+    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=5))
+    async def _expand_query_with_llm(self, query: str) -> dict[str, Any]:
+        """Use LLM to expand and enrich query."""
+        prompt = QUERY_TRANSFORMER_PROMPT_TEMPLATE.format(query=query)
 
-    def _detect_visa_types(self, query: str) -> List[str]:
+        response_text = await self.llm.call_non_streaming(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=500,
+        )
+
+        response_text = response_text.strip()
+
+        # Strip markdown code fences if present
+        if "```json" in response_text:
+            response_text = response_text.split("```json").split("```").strip()[1]
+        elif "```" in response_text:
+            response_text = response_text.split("```")[11].split("```")[0].strip()
+
+        result = json.loads(response_text)
+        logger.debug("Query expansion result: %s", result)
+        return result
+
+    def _detect_visa_types(self, query: str) -> list[str]:
         """Detect visa types mentioned in query."""
         query_lower = query.lower()
-        
         visa_patterns = {
-            "chancenkarte": [r"chancenkarte", r"opportunity card", r"機會卡"],
-            "work_visa": [r"work permit", r"arbeitserlaubnis", r"work visa", r"技術人才", r"工作簽證"],
-            "student_visa": [r"student visa", r"studentenvisum", r"學生簽證", r"就學簽證", r"留學"],
-            "blue_card": [r"blue card", r"blaue karte", r"藍卡"],
-            "freelance_visa": [r"freelance", r"freiberufler", r"自由業"],
+            "chancenkarte":      [r"chancenkarte", r"opportunity card", r"機會卡"],
+            "work_visa":         [r"work permit", r"arbeitserlaubnis", r"work visa", r"技術人才", r"工作簽證"],
+            "student_visa":      [r"student visa", r"studentenvisum", r"學生簽證", r"就學簽證", r"留學"],
+            "blue_card":         [r"blue card", r"blaue karte", r"藍卡"],
+            "freelance_visa":    [r"freelance", r"freiberufler", r"自由業"],
             "entrepreneur_visa": [r"entrepreneur", r"unternehmer", r"創業"],
         }
-        
         detected = []
         for visa_type, patterns in visa_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, query_lower):
-                    detected.append(visa_type)
-                    break
-        
-        return list(set(detected))
+            if any(re.search(p, query_lower) for p in patterns):
+                detected.append(visa_type)
+        return detected
 
-    def _detect_languages(self, query: str) -> List[str]:
-        """Simple language detection."""
+    def _detect_languages(self, query: str) -> list[str]:
+        """Simple heuristic language detection."""
         languages = []
-        
-        # Chinese
         if any("\u4e00" <= char <= "\u9fff" for char in query):
             languages.append("zh")
-        
-        # German
-        if any(char in query.lower() for char in ["ä", "ö", "ü", "ß"]):
+        if any(char in query.lower() for char in ["ä", "ö", "ü", "ß"]) or \
+           re.search(r"\b(der|die|das|und|zu|mit|ein|eine|wie|ich)\b", query.lower()):
             languages.append("de")
-        elif re.search(r"\b(der|die|das|und|in|zu|mit|ein|eine|wie|ich)\b", query.lower()):
-            languages.append("de")
-        
-        # English (default if no other detected)
         if not languages:
             languages.append("en")
-        
         return languages
 
-    async def get_search_queries(self, query: str) -> List[str]:
+    async def get_search_queries(self, query: str) -> list[str]:
         """
-        Get list of search queries (main + variants) for hybrid search.
-        
-        Quota Optimizations:
-        1. Respect global ENABLE_QUERY_EXPANSION setting.
-        2. Fast Mode: Skip full LLM expansion for very long or specialized queries.
-        3. Strict capping: Max 2 queries total (original + 1 variant) to save embeddings quota.
+        Return search queries (main + variants) for hybrid retrieval.
+        Caps output at 3 queries: [corrected, english, german].
         """
         if not settings.enable_query_expansion:
             return [query]
 
-        # Use 100 chars as threshold for "specific enough"
         if len(query) > 100:
-            logger.debug("Fast Mode: Skipping expansion for long query")
+            logger.debug("Fast Mode: skipping expansion for long query (len=%d)", len(query))
             return [query]
 
         try:
-            # Short-circuit logic: if it's very short, we need expansion
-            # but we cap the overhead
             transformed = await self.transform_query(query)
-            
             search_queries = [transformed.get("corrected_query", query)]
-            
-            # Capping: Add only ONE variant (preferring English if available)
-            if "english_query" in transformed and transformed["english_query"] != search_queries[0]:
-                search_queries.append(transformed["english_query"])
-            elif transformed.get("query_variants"):
-                search_queries.append(transformed["query_variants"][0])
-                
-            # Final unique list, max size 2
-            return list(set(filter(None, search_queries)))[:2]
-            
+
+            for key in ("english_query", "german_query"):
+                val = transformed.get(key)
+                if val and val not in search_queries:
+                    search_queries.append(val)
+
+            if len(search_queries) < 3:
+                for variant in transformed.get("query_variants", []):
+                    if variant and variant not in search_queries:
+                        search_queries.append(variant)
+                        break
+
+            return list(dict.fromkeys(filter(None, search_queries)))[:3]
+
         except Exception as e:
-            logger.warning(f"Expansion failed, falling back to original: {e}")
+            logger.warning("Expansion failed, falling back to original: %s", e)
             return [query]
 
 
-# Singleton instance
-_transformer = None
+_transformer: Optional[QueryTransformer] = None
+
 
 def get_query_transformer() -> QueryTransformer:
     """Get or create query transformer singleton."""

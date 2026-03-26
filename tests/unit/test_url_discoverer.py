@@ -17,10 +17,10 @@ from src.ingestion.url_discoverer import (
     DiscoveryResult,
 )
 
-
 # ============================================
 # DomainCrawlStrategy Tests
 # ============================================
+
 
 class TestDomainCrawlStrategy:
     """Test domain crawl strategy filtering and scoring."""
@@ -91,6 +91,7 @@ class TestDomainCrawlStrategy:
 # StrategyRegistry Tests
 # ============================================
 
+
 class TestStrategyRegistry:
     """Test strategy registry lookup."""
 
@@ -106,9 +107,7 @@ class TestStrategyRegistry:
 
     def test_url_based_lookup(self):
         registry = StrategyRegistry()
-        strategy = registry.get_strategy(
-            "https://www.make-it-in-germany.com/en/visa-residence/"
-        )
+        strategy = registry.get_strategy("https://www.make-it-in-germany.com/en/visa-residence/")
         assert strategy.domain == "make-it-in-germany.com"
 
     def test_unknown_domain_returns_default(self):
@@ -138,6 +137,7 @@ class TestStrategyRegistry:
 # ============================================
 # LinkExtractor Tests
 # ============================================
+
 
 class TestLinkExtractor:
     """Test link extraction from HTML."""
@@ -220,6 +220,7 @@ class TestLinkExtractor:
 # ============================================
 # SitemapParser Tests
 # ============================================
+
 
 class TestSitemapParser:
     """Test sitemap XML parsing."""

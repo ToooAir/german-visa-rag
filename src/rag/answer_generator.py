@@ -22,15 +22,13 @@ from src.llm import get_llm_client
 from src.llm.token_counter import get_token_counter
 from src.observability.mlflow_tracker import get_mlflow_tracker
 
-
 # Fallback messages when no retrieval results are found.
 _NO_INFO_MSG: dict[str, str] = {
-    "en":    "I couldn't find relevant information in my database. "
-             "Please check official resources: https://www.make-it-in-germany.com",
-    "de":    "Ich konnte keine relevanten Informationen in meiner Datenbank finden. "
-             "Bitte prüfen Sie die offiziellen Ressourcen: https://www.make-it-in-germany.com",
-    "zh-TW": "我查閱的資料庫中暫時沒有相關信息。"
-             "請查詢官方資源：https://www.make-it-in-germany.com",
+    "en": "I couldn't find relevant information in my database. "
+    "Please check official resources: https://www.make-it-in-germany.com",
+    "de": "Ich konnte keine relevanten Informationen in meiner Datenbank finden. "
+    "Bitte prüfen Sie die offiziellen Ressourcen: https://www.make-it-in-germany.com",
+    "zh-TW": "我查閱的資料庫中暫時沒有相關信息。" "請查詢官方資源：https://www.make-it-in-germany.com",
 }
 
 
@@ -78,8 +76,8 @@ class AnswerGenerator:
         """Extract source metadata from reranked documents."""
         return [
             {
-                "url":       r.get("metadata", {}).get("source_url"),
-                "title":     r.get("metadata", {}).get("source_title"),
+                "url": r.get("metadata", {}).get("source_url"),
+                "title": r.get("metadata", {}).get("source_title"),
                 "authority": r.get("metadata", {}).get("authority_level"),
             }
             for r in reranked
@@ -88,9 +86,7 @@ class AnswerGenerator:
     @staticmethod
     def _format_sse_chunk(content: str) -> str:
         """Format content as SSE JSON chunk (OpenAI-compatible)."""
-        chunk = {
-            "choices": [{"delta": {"content": content}, "finish_reason": None}]
-        }
+        chunk = {"choices": [{"delta": {"content": content}, "finish_reason": None}]}
         return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
 
     @staticmethod
@@ -105,11 +101,7 @@ class AnswerGenerator:
     @staticmethod
     def _format_req_chunk(req_id: str, value: str, status: str) -> str:
         """Format requirement update as SSE JSON chunk."""
-        chunk = {
-            "metadata": {
-                "updated_requirement": {"id": req_id, "value": value, "status": status}
-            }
-        }
+        chunk = {"metadata": {"updated_requirement": {"id": req_id, "value": value, "status": status}}}
         return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
 
     @staticmethod
@@ -158,9 +150,7 @@ class AnswerGenerator:
             logger.info("Step 2: Retrieving for queries: %s", search_queries)
 
             visa_types_filter = [visa_type] if visa_type else None
-            all_results = await self.retriever.retrieve_batch(
-                queries=search_queries, visa_types=visa_types_filter
-            )
+            all_results = await self.retriever.retrieve_batch(queries=search_queries, visa_types=visa_types_filter)
             retrieval_results = self._flatten_and_deduplicate(all_results)
 
             # Fallback: retry without visa filter if no results
@@ -185,9 +175,7 @@ class AnswerGenerator:
             )
 
             # 4. Build prompt
-            context = self.prompt_builder.build_context_from_retrieval(
-                reranked, language=language or "en"
-            )
+            context = self.prompt_builder.build_context_from_retrieval(reranked, language=language or "en")
             request = PromptRequest(
                 context=context,
                 question=query,
@@ -227,15 +215,15 @@ class AnswerGenerator:
             await query_cache.set(query, result)
 
             if self.mlflow:
-                input_tokens  = self.token_counter.count_messages(messages)
+                input_tokens = self.token_counter.count_messages(messages)
                 output_tokens = self.token_counter.count_text(response_text)
                 self.mlflow.log_query_result(
                     query,
                     {
                         "latency_seconds": latency,
-                        "input_tokens":    input_tokens,
-                        "output_tokens":   output_tokens,
-                        "cost_usd":        self.token_counter.estimate_cost(input_tokens, output_tokens),
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "cost_usd": self.token_counter.estimate_cost(input_tokens, output_tokens),
                     },
                 )
 
@@ -263,14 +251,14 @@ class AnswerGenerator:
         cached_result = await query_cache.get(query)
         if cached_result:
             logger.info("Streaming from cache (request_id=%s)", request_id)
-            answer  = cached_result.get("answer", "")
+            answer = cached_result.get("answer", "")
             sources = cached_result.get("sources", [])
 
             yield f"data: {json.dumps({'choices': [], 'metadata': {'sources': sources}}, ensure_ascii=False)}\n\n"
 
             # Support legacy caches where tags were embedded in answer text
             milestone_pattern = re.compile(r"\[MILESTONE:([\d-]+):(\w+)\]")
-            req_pattern       = re.compile(r"\[REQ:([\d-]+):([^:]+):(\w+)\]")
+            req_pattern = re.compile(r"\[REQ:([\d-]+):([^:]+):(\w+)\]")
 
             for m_id, m_status in milestone_pattern.findall(answer):
                 yield self._format_milestone_chunk(m_id, m_status)
@@ -286,7 +274,7 @@ class AnswerGenerator:
             clean_answer = milestone_pattern.sub("", req_pattern.sub("", answer))
             chunk_size = 30
             for i in range(0, len(clean_answer), chunk_size):
-                yield self._format_sse_chunk(clean_answer[i:i + chunk_size])
+                yield self._format_sse_chunk(clean_answer[i : i + chunk_size])
                 await asyncio.sleep(0.01)
 
             yield "data: [DONE]\n\n"
@@ -295,7 +283,7 @@ class AnswerGenerator:
         try:
             # 1. Query transformation
             transformed = await self.query_transformer.transform_query(query)
-            main_query  = transformed["corrected_query"]
+            main_query = transformed["corrected_query"]
 
             # 2. Retrieval
             yield self._format_status_chunk("retrieving")
@@ -333,9 +321,7 @@ class AnswerGenerator:
             yield self._format_status_chunk("extracting")
 
             # 4. Build prompt
-            context = self.prompt_builder.build_context_from_retrieval(
-                reranked, language=language or "en"
-            )
+            context = self.prompt_builder.build_context_from_retrieval(reranked, language=language or "en")
             request = PromptRequest(
                 context=context,
                 question=query,
@@ -352,15 +338,15 @@ class AnswerGenerator:
 
             # 5. Stream LLM response
             yield self._format_status_chunk("synthesizing")
-            full_response        = ""
-            achieved_milestones  = []
+            full_response = ""
+            achieved_milestones = []
             updated_requirements = []
 
             # Broad strip patterns catch malformed tags; strict patterns update UI state only
             strip_milestone = re.compile(r"\[MILESTONE:[^\]]+\]")
-            strip_req       = re.compile(r"\[REQ:[^\]]+\]")
+            strip_req = re.compile(r"\[REQ:[^\]]+\]")
             extract_milestone = re.compile(r"\[MILESTONE:([\d-]+):(\w+)\]")
-            extract_req       = re.compile(r"\[REQ:([\d-]+):([^:]+):(\w+)\]")
+            extract_req = re.compile(r"\[REQ:([\d-]+):([^:]+):(\w+)\]")
 
             tag_buffer = ""
 
@@ -387,7 +373,7 @@ class AnswerGenerator:
                         tag_buffer = strip_req.sub("", tag_buffer)
 
                         if "[" in tag_buffer:
-                            parts   = tag_buffer.split("[")
+                            parts = tag_buffer.split("[")
                             to_send = "[".join(parts[:-1])
                             tag_buffer = "[" + parts[-1]
                             if to_send:
@@ -425,40 +411,49 @@ class AnswerGenerator:
             # 6. Observability + cache
             output_tokens = self.token_counter.count_text(full_response)
             latency = time.time() - start_time
-            cost    = self.token_counter.estimate_cost(input_tokens, output_tokens)
+            cost = self.token_counter.estimate_cost(input_tokens, output_tokens)
 
             logger.info(
                 "Streaming completed (request_id=%s): latency=%.2fs tokens=%d/%d cost=$%.5f",
-                request_id, latency, input_tokens, output_tokens, cost,
+                request_id,
+                latency,
+                input_tokens,
+                output_tokens,
+                cost,
                 extra={"retrieval_count": len(reranked)},
             )
 
             if self.mlflow:
                 self.mlflow.log_query_result(
                     query,
-                    {"latency_seconds": latency, "cost_usd": cost,
-                     "input_tokens": input_tokens, "output_tokens": output_tokens},
+                    {
+                        "latency_seconds": latency,
+                        "cost_usd": cost,
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                    },
                 )
 
-            await query_cache.set(query, {
-                "answer":       full_response,
-                "sources":      sources,
-                "milestones":   achieved_milestones,
-                "requirements": updated_requirements,
-                "metadata": {
-                    "query": query,
-                    "retrieval_count": len(reranked),
-                    "cache_hit": False,
+            await query_cache.set(
+                query,
+                {
+                    "answer": full_response,
+                    "sources": sources,
+                    "milestones": achieved_milestones,
+                    "requirements": updated_requirements,
+                    "metadata": {
+                        "query": query,
+                        "retrieval_count": len(reranked),
+                        "cache_hit": False,
+                    },
                 },
-            })
+            )
 
             yield f"data: {json.dumps({'choices': [], 'metadata': {'sources': sources, 'latency_seconds': latency}}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
 
         except Exception as e:
-            logger.error(
-                "Answer generation failed: %s (request_id=%s)", e, request_id, exc_info=True
-            )
+            logger.error("Answer generation failed: %s (request_id=%s)", e, request_id, exc_info=True)
             yield self._format_sse_chunk(f"[Error: {e}]")
             yield "data: [DONE]\n\n"
 

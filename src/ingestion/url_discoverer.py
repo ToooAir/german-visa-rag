@@ -20,10 +20,10 @@ from src.config import settings
 from src.logger import logger
 from src.ingestion.crawl_strategy import DomainCrawlStrategy, get_strategy_registry
 
-
 # ============================================
 # Sitemap Parser
 # ============================================
+
 
 class SitemapParser:
     """Parse XML sitemaps to discover URLs."""
@@ -61,7 +61,7 @@ class SitemapParser:
                     if urls:
                         discovered.update(urls)
                         logger.info(f"Found {len(urls)} URLs from sitemap: {sitemap_url}")
-                        return discovered # Success!
+                        return discovered  # Success!
                 except Exception as e:
                     logger.debug(f"Sitemap not found or error at {sitemap_url}: {e}")
                     continue
@@ -79,17 +79,14 @@ class SitemapParser:
         return discovered
 
     async def _fetch_and_parse_sitemap(
-        self,
-        sitemap_url: str,
-        strategy: DomainCrawlStrategy,
-        depth: int = 0
+        self, sitemap_url: str, strategy: DomainCrawlStrategy, depth: int = 0
     ) -> Set[str]:
         """Fetch and parse a single sitemap file with recursion support."""
-        if depth > 5: # Prevent infinite sitemap loops
+        if depth > 5:  # Prevent infinite sitemap loops
             return set()
 
         urls = set()
-        
+
         # Apply rate limiting even for sitemaps
         await asyncio.sleep(1.0 / settings.crawler_rate_limit_requests_per_second)
 
@@ -99,7 +96,7 @@ class SitemapParser:
                 headers={"User-Agent": settings.crawler_user_agent},
                 timeout=settings.crawler_timeout_seconds,
             )
-            
+
             if response.status_code != 200:
                 logger.debug(f"Sitemap {sitemap_url} returned status {response.status_code}")
                 return set()
@@ -107,7 +104,7 @@ class SitemapParser:
             content = response.text
             if not content.strip():
                 return set()
-                
+
             root = ET.fromstring(content)
         except Exception as e:
             logger.debug(f"Failed to fetch or parse sitemap {sitemap_url}: {e}")
@@ -125,9 +122,7 @@ class SitemapParser:
             for sitemap_tag in sitemap_tags:
                 loc = sitemap_tag.find(f"{namespace}loc")
                 if loc is not None and loc.text:
-                    child_urls = await self._fetch_and_parse_sitemap(
-                        loc.text.strip(), strategy, depth + 1
-                    )
+                    child_urls = await self._fetch_and_parse_sitemap(loc.text.strip(), strategy, depth + 1)
                     urls.update(child_urls)
         else:
             # It's a regular sitemap — extract URLs
@@ -164,6 +159,7 @@ class SitemapParser:
 # ============================================
 # Link Extractor
 # ============================================
+
 
 class LinkExtractor:
     """Extract and filter links from HTML pages."""
@@ -228,9 +224,11 @@ class LinkExtractor:
 # URL Discoverer (main orchestrator)
 # ============================================
 
+
 @dataclass
 class DiscoveryResult:
     """Result of a URL discovery run."""
+
     domain: str
     discovered_urls: List[str] = field(default_factory=list)
     from_sitemap: int = 0
@@ -251,6 +249,7 @@ class URLDiscoverer:
 
     def __init__(self, client: httpx.AsyncClient, state_store=None):
         from src.storage.sqlite_state_store import get_state_store
+
         self.registry = get_strategy_registry()
         self.client = client
         self.sitemap_parser = SitemapParser(self.client)
@@ -318,38 +317,25 @@ class URLDiscoverer:
         # Phase 1: Sitemap discovery
         if strategy.use_sitemap:
             try:
-                sitemap_urls = await self.sitemap_parser.discover_from_sitemap(
-                    strategy.domain, strategy
-                )
+                sitemap_urls = await self.sitemap_parser.discover_from_sitemap(strategy.domain, strategy)
                 result.from_sitemap = len(sitemap_urls)
                 all_discovered.update(sitemap_urls)
-                logger.info(
-                    f"[{strategy.domain}] Sitemap: found {len(sitemap_urls)} URLs"
-                )
+                logger.info(f"[{strategy.domain}] Sitemap: found {len(sitemap_urls)} URLs")
             except Exception as e:
-                logger.warning(
-                    f"[{strategy.domain}] Sitemap discovery failed: {e}"
-                )
+                logger.warning(f"[{strategy.domain}] Sitemap discovery failed: {e}")
 
         # Phase 2: BFS crawl from seed paths
         try:
-            crawled_urls, filtered = await self._bfs_discover(
-                strategy, already_known=all_discovered
-            )
+            crawled_urls, filtered = await self._bfs_discover(strategy, already_known=all_discovered)
             result.from_crawling = len(crawled_urls)
             total_filtered += filtered
             all_discovered.update(crawled_urls)
-            logger.info(
-                f"[{strategy.domain}] BFS crawl: found {len(crawled_urls)} new URLs"
-            )
+            logger.info(f"[{strategy.domain}] BFS crawl: found {len(crawled_urls)} new URLs")
         except Exception as e:
             logger.warning(f"[{strategy.domain}] BFS discovery failed: {e}")
 
         # Sort by relevance score
-        scored_urls = [
-            (url, strategy.get_relevance_score(url))
-            for url in all_discovered
-        ]
+        scored_urls = [(url, strategy.get_relevance_score(url)) for url in all_discovered]
         scored_urls.sort(key=lambda x: x[1], reverse=True)
 
         # Apply max_pages limit
@@ -388,10 +374,7 @@ class URLDiscoverer:
         )
 
         age_str = cached[0]["discovered_at"] if cached else "unknown"
-        logger.info(
-            f"[{strategy.domain}] Using cached discovery "
-            f"({len(cached)} URLs, cached at: {age_str})"
-        )
+        logger.info(f"[{strategy.domain}] Using cached discovery " f"({len(cached)} URLs, cached at: {age_str})")
         return result
 
     def _save_to_cache(
@@ -408,14 +391,16 @@ class URLDiscoverer:
         # We don't have per-URL provenance, so approximate:
         # all URLs are from the combined discovery
         for url, score in scored_urls:
-            urls_with_metadata.append({
-                "url": url,
-                "authority_level": strategy.authority_level,
-                "visa_types": strategy.default_visa_types,
-                "relevance_score": score,
-                "from_sitemap": result.from_sitemap > 0,
-                "from_crawling": result.from_crawling > 0,
-            })
+            urls_with_metadata.append(
+                {
+                    "url": url,
+                    "authority_level": strategy.authority_level,
+                    "visa_types": strategy.default_visa_types,
+                    "relevance_score": score,
+                    "from_sitemap": result.from_sitemap > 0,
+                    "from_crawling": result.from_crawling > 0,
+                }
+            )
 
         state_store.save_discovered_urls(strategy.domain, urls_with_metadata)
 
@@ -466,9 +451,7 @@ class URLDiscoverer:
                 pages_crawled += 1
 
                 # Extract links
-                new_links = LinkExtractor.extract_links(
-                    response.text, url, strategy
-                )
+                new_links = LinkExtractor.extract_links(response.text, url, strategy)
 
                 for link in new_links:
                     if link not in visited:
@@ -510,11 +493,11 @@ _discoverer = None
 def get_url_discoverer(client: Optional[httpx.AsyncClient] = None) -> URLDiscoverer:
     """
     Get or create URLDiscoverer singleton.
-    
+
     Args:
         client: Optional httpx.AsyncClient to use. If not provided,
                a new one will be created with default settings.
-               
+
     Returns:
         URLDiscoverer instance
     """
@@ -532,6 +515,6 @@ def get_url_discoverer(client: Optional[httpx.AsyncClient] = None) -> URLDiscove
                 ),
             )
         from src.storage.sqlite_state_store import get_state_store
+
         _discoverer = URLDiscoverer(client=client, state_store=get_state_store())
     return _discoverer
-

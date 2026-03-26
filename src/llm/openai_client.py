@@ -33,7 +33,7 @@ class OpenAIClient:
         self.api_key = api_key
         self.model = model
         self.base_url = base_url or settings.openai_api_base
-        
+
         if settings.use_azure_openai:
             self.model = settings.azure_llm_deployment
             self.client = AsyncAzureOpenAI(
@@ -50,14 +50,14 @@ class OpenAIClient:
                 timeout=settings.api_timeout_seconds,
             )
             logger.info("Standard OpenAI client initialized")
-        
+
         # Token counting
         try:
             self.encoding = tiktoken.encoding_for_model(model)
         except KeyError:
             # Fallback for custom models
             self.encoding = tiktoken.get_encoding("cl100k_base")
-        
+
         # Cost tracking (USD per 1K tokens)
         self.costs = {
             "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
@@ -80,10 +80,10 @@ class OpenAIClient:
     ) -> float:
         """Estimate API cost in USD."""
         model_costs = self.costs.get(self.model, {"input": 0, "output": 0})
-        
+
         input_cost = (input_tokens / 1000) * model_costs["input"]
         output_cost = (output_tokens / 1000) * model_costs["output"]
-        
+
         return input_cost + output_cost
 
     @retry(
@@ -110,9 +110,9 @@ class OpenAIClient:
                     "messages": len(messages),
                     "temperature": temperature,
                     "stream": stream,
-                }
+                },
             )
-            
+
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -121,9 +121,9 @@ class OpenAIClient:
                 top_p=top_p,
                 stream=stream,
             )
-            
+
             return response
-            
+
         except OpenAIError as e:
             logger.error(f"OpenAI API error: {e}", extra={"model": self.model})
             raise
@@ -144,7 +144,7 @@ class OpenAIClient:
             max_tokens=max_tokens,
             stream=False,
         )
-        
+
         return response.choices[0].message.content
 
     async def call_streaming(
@@ -162,7 +162,7 @@ class OpenAIClient:
             max_tokens=max_tokens,
             stream=True,
         )
-        
+
         async for chunk in response:
             if chunk.choices and len(chunk.choices) > 0:
                 delta = chunk.choices[0].delta

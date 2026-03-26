@@ -16,10 +16,11 @@ from src.llm import get_llm_client
 
 class QueryTransformType(str, Enum):
     """Types of query transformations."""
-    SPELL_CHECK     = "spell_check"
-    EXPANSION       = "expansion"
-    REFORMULATION   = "reformulation"
-    SUMMARIZATION   = "summarization"
+
+    SPELL_CHECK = "spell_check"
+    EXPANSION = "expansion"
+    REFORMULATION = "reformulation"
+    SUMMARIZATION = "summarization"
 
 
 QUERY_TRANSFORMER_PROMPT_TEMPLATE = """
@@ -128,11 +129,11 @@ class QueryTransformer:
         """Detect visa types mentioned in query."""
         query_lower = query.lower()
         visa_patterns = {
-            "chancenkarte":      [r"chancenkarte", r"opportunity card", r"機會卡"],
-            "work_visa":         [r"work permit", r"arbeitserlaubnis", r"work visa", r"技術人才", r"工作簽證"],
-            "student_visa":      [r"student visa", r"studentenvisum", r"學生簽證", r"就學簽證", r"留學"],
-            "blue_card":         [r"blue card", r"blaue karte", r"藍卡"],
-            "freelance_visa":    [r"freelance", r"freiberufler", r"自由業"],
+            "chancenkarte": [r"chancenkarte", r"opportunity card", r"機會卡"],
+            "work_visa": [r"work permit", r"arbeitserlaubnis", r"work visa", r"技術人才", r"工作簽證"],
+            "student_visa": [r"student visa", r"studentenvisum", r"學生簽證", r"就學簽證", r"留學"],
+            "blue_card": [r"blue card", r"blaue karte", r"藍卡"],
+            "freelance_visa": [r"freelance", r"freiberufler", r"自由業"],
             "entrepreneur_visa": [r"entrepreneur", r"unternehmer", r"創業"],
         }
         detected = []
@@ -146,8 +147,9 @@ class QueryTransformer:
         languages = []
         if any("\u4e00" <= char <= "\u9fff" for char in query):
             languages.append("zh")
-        if any(char in query.lower() for char in ["ä", "ö", "ü", "ß"]) or \
-           re.search(r"\b(der|die|das|und|zu|mit|ein|eine|wie|ich)\b", query.lower()):
+        if any(char in query.lower() for char in ["ä", "ö", "ü", "ß"]) or re.search(
+            r"\b(der|die|das|und|zu|mit|ein|eine|wie|ich)\b", query.lower()
+        ):
             languages.append("de")
         if not languages:
             languages.append("en")

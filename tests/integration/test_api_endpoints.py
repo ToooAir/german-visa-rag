@@ -10,7 +10,7 @@ async def test_health_endpoint():
     """Test health check endpoint."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/v1/health")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["status"] in ["healthy", "degraded"]
@@ -25,12 +25,10 @@ async def test_chat_completions_endpoint():
             headers={"X-API-Key": "dev-key-12345"},
             json={
                 "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "user", "content": "Chancenkarte 的條件？"}
-                ],
+                "messages": [{"role": "user", "content": "Chancenkarte 的條件？"}],
             },
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "choices" in data
@@ -44,5 +42,5 @@ async def test_auth_required():
         # No API key
         response = await client.get("/v1/health", headers={"X-API-Key": ""})
         # Wait, the health endpoint doesn't actually require an API key by default right? Let me check main.py. If health endpoint DOES require an API key, then this assert works. If not, maybe use /v1/chat/completions without key.
-        response = await client.post("/v1/chat/completions", json={"messages":[]})
+        response = await client.post("/v1/chat/completions", json={"messages": []})
         assert response.status_code == 401

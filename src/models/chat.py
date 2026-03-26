@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 class MessageRole(str, Enum):
     """Valid message roles."""
+
     SYSTEM = "system"
     USER = "user"
     ASSISTANT = "assistant"
@@ -16,6 +17,7 @@ class MessageRole(str, Enum):
 
 class Message(BaseModel):
     """Chat message."""
+
     role: MessageRole
     content: str
     name: Optional[str] = None
@@ -23,6 +25,7 @@ class Message(BaseModel):
 
 class Choice(BaseModel):
     """Completion choice."""
+
     index: int = 0
     message: Message
     finish_reason: Optional[str] = None
@@ -30,6 +33,7 @@ class Choice(BaseModel):
 
 class Usage(BaseModel):
     """Token usage statistics."""
+
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
@@ -37,6 +41,7 @@ class Usage(BaseModel):
 
 class ChatCompletion(BaseModel):
     """Chat completion response."""
+
     id: str
     object: str = "chat.completion"
     created: int
@@ -47,6 +52,7 @@ class ChatCompletion(BaseModel):
 
 class ChatCompletionStream(BaseModel):
     """Streaming chat completion chunk."""
+
     id: str
     object: str = "chat.completion.chunk"
     created: int

@@ -23,6 +23,7 @@ router.include_router(health_router)
 query_router = rag_router
 admin_router = admin_router_module
 
+
 # Exception Handlers
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions."""
@@ -31,6 +32,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         status_code=exc.status_code,
         content={"detail": exc.detail, "status": exc.status_code},
     )
+
 
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle general exceptions."""

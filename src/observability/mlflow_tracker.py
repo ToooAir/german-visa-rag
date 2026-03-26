@@ -5,6 +5,7 @@ import json
 
 try:
     import mlflow
+
     MLFLOW_AVAILABLE = True
 except ImportError:
     MLFLOW_AVAILABLE = False
@@ -18,7 +19,7 @@ class MLflowTracker:
 
     def __init__(self):
         self.enabled = settings.enable_mlflow and MLFLOW_AVAILABLE
-        
+
         if self.enabled:
             try:
                 mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
@@ -32,26 +33,30 @@ class MLflowTracker:
         """Log ingestion run to MLflow."""
         if not self.enabled:
             return
-        
+
         try:
             with mlflow.start_run(run_name=f"ingest_{summary['run_id'][:8]}"):
-                mlflow.log_params({
-                    "run_id": summary["run_id"],
-                    "triggered_by": summary.get("triggered_by", "unknown"),
-                })
-                
-                mlflow.log_metrics({
-                    "documents_processed": summary["documents_processed"],
-                    "chunks_ingested": summary["chunks_ingested"],
-                    "chunks_skipped": summary["chunks_skipped"],
-                    "error_count": summary.get("error_count", 0),
-                })
-                
+                mlflow.log_params(
+                    {
+                        "run_id": summary["run_id"],
+                        "triggered_by": summary.get("triggered_by", "unknown"),
+                    }
+                )
+
+                mlflow.log_metrics(
+                    {
+                        "documents_processed": summary["documents_processed"],
+                        "chunks_ingested": summary["chunks_ingested"],
+                        "chunks_skipped": summary["chunks_skipped"],
+                        "error_count": summary.get("error_count", 0),
+                    }
+                )
+
                 mlflow.log_dict(
                     {"summary": summary},
                     artifact_file="ingestion_summary.json",
                 )
-                
+
                 logger.debug("Ingestion run logged to MLflow")
         except Exception as e:
             logger.warning(f"MLflow logging failed: {e}")
@@ -60,7 +65,7 @@ class MLflowTracker:
         """Log query result for evaluation."""
         if not self.enabled:
             return
-        
+
         try:
             with mlflow.start_run(run_name="query"):
                 mlflow.log_text(query, artifact_file="query.txt")

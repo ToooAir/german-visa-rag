@@ -48,8 +48,12 @@ def ingest(
     source: Optional[str] = typer.Option(None, "--source", "-s", help="Specific URL to ingest"),
     config: Optional[str] = typer.Option(None, "--config", "-c", help="Path to custom seed_urls.yml"),
     auto_discover: bool = typer.Option(False, "--auto-discover", "-a", help="Enable automatic URL discovery mode"),
-    force_discover: bool = typer.Option(False, "--force-discover", "-f", help="Force fresh URL discovery (bypass cache)"),
-    force: bool = typer.Option(False, "--force", help="Force re-processing of all documents even if content hasn't changed"),
+    force_discover: bool = typer.Option(
+        False, "--force-discover", "-f", help="Force fresh URL discovery (bypass cache)"
+    ),
+    force: bool = typer.Option(
+        False, "--force", help="Force re-processing of all documents even if content hasn't changed"
+    ),
 ):
     """Run the ingestion pipeline."""
     logger.info("Starting CLI Ingestion...")
@@ -58,12 +62,9 @@ def ingest(
 
     if source:
         # 單一網址測試
-        docs_to_process = [{
-            "url": source,
-            "title": "CLI Manual Ingest",
-            "authority_level": "third_party",
-            "visa_types": ["general"]
-        }]
+        docs_to_process = [
+            {"url": source, "title": "CLI Manual Ingest", "authority_level": "third_party", "visa_types": ["general"]}
+        ]
         logger.info(f"Ingesting single source: {source}")
     elif auto_discover:
         # 自動發現模式：先發現 URL 再爬取
@@ -71,14 +72,14 @@ def ingest(
         result = asyncio.run(_run_discovery_ingestion(pipeline, force_refresh=force_discover, force_ingest=force))
 
         if result.get("quota_exhausted"):
-            processed = result['documents_processed']
-            skipped = result.get('documents_skipped_quota', 0)
-            wait = result.get('wait_seconds', 0)
+            processed = result["documents_processed"]
+            skipped = result.get("documents_skipped_quota", 0)
+            wait = result.get("wait_seconds", 0)
             wait_hrs = round(wait / 3600, 1) if wait else "unknown"
             logger.error(f"⚠️  Embedding API quota exhausted! Wait ~{wait_hrs} hours.")
             _print_ingestion_summary(result)
             raise typer.Exit(code=2)
-        
+
         _print_ingestion_summary(result)
         if not result["success"]:
             raise typer.Exit(code=1)
@@ -103,14 +104,14 @@ def ingest(
 def _print_ingestion_summary(result: dict):
     """Print a structured summary of the ingestion run."""
     from collections import Counter
-    
+
     processed = result.get("documents_processed", 0)
     ingested = result.get("chunks_ingested", 0)
     skipped = result.get("chunks_skipped", 0)
     skipped_quota = result.get("documents_skipped_quota", 0)
     errors = result.get("errors", [])
 
-    typer.echo("\n" + "="*40)
+    typer.echo("\n" + "=" * 40)
     typer.echo("📊 INGESTION SUMMARY")
     typer.echo("-" * 40)
     typer.echo(f"📄 Total Documents:    {processed + len(errors) + skipped_quota}")
@@ -127,36 +128,34 @@ def _print_ingestion_summary(result: dict):
         # Extract messages for counting (errors are now dicts: {"url": "...", "error": "..."})
         error_msgs = [e["error"] if isinstance(e, dict) else str(e) for e in errors]
         error_counts = Counter(error_msgs)
-        
+
         for msg, count in error_counts.most_common(5):
             # Shorten very long error messages
-            display_msg = (msg[:75] + '...') if len(msg) > 75 else msg
+            display_msg = (msg[:75] + "...") if len(msg) > 75 else msg
             typer.echo(f" - {count:3d}x: {display_msg}")
-        
+
         # Save detailed failures to file
         import json
         from datetime import datetime
+
         failure_log_path = Path("data/ingestion_failures.json")
         failure_log_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         failure_data = {
             "run_id": result.get("run_id"),
             "timestamp": datetime.now().isoformat(),
-            "summary": {
-                "total_failed": len(errors),
-                "unique_errors": len(error_counts)
-            },
-            "failures": errors
+            "summary": {"total_failed": len(errors), "unique_errors": len(error_counts)},
+            "failures": errors,
         }
-        
+
         with open(failure_log_path, "w", encoding="utf-8") as f:
             json.dump(failure_data, f, indent=2, ensure_ascii=False)
-            
+
         typer.echo("-" * 40)
         typer.echo(f"📝 Detailed failure log: {failure_log_path}")
         typer.echo("-" * 40)
-    
-    typer.echo("="*40 + "\n")
+
+    typer.echo("=" * 40 + "\n")
 
 
 async def _run_discovery_ingestion(pipeline, force_refresh: bool = False, force_ingest: bool = False):
@@ -172,12 +171,14 @@ async def _run_discovery_ingestion(pipeline, force_refresh: bool = False, force_
     # Convert crawled docs to ingestion format
     source_docs = []
     for doc in crawled_docs:
-        source_docs.append({
-            "url": doc["url"],
-            "title": doc.get("metadata", {}).get("title", doc["url"]),
-            "authority_level": doc.get("authority_level", "third_party"),
-            "visa_types": doc.get("visa_types", ["general"]),
-        })
+        source_docs.append(
+            {
+                "url": doc["url"],
+                "title": doc.get("metadata", {}).get("title", doc["url"]),
+                "authority_level": doc.get("authority_level", "third_party"),
+                "visa_types": doc.get("visa_types", ["general"]),
+            }
+        )
 
     return await pipeline.run_full_ingestion(source_docs, triggered_by="cli_discovery", force=force_ingest)
 
@@ -232,11 +233,13 @@ async def _run_discovery(domain: Optional[str] = None):
 def status():
     """Show ingestion statistics."""
     from src.storage.sqlite_state_store import get_state_store
+
     store = get_state_store()
     stats = store.get_stats()
     typer.echo("=== Ingestion Statistics ===")
     for k, v in stats.items():
         typer.echo(f"{k}: {v}")
+
 
 if __name__ == "__main__":
     app()

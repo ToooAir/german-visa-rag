@@ -50,10 +50,10 @@ class TokenCounter:
         """Estimate API cost in USD."""
         model = model or settings.openai_model
         costs = self.MODEL_COSTS.get(model, {"input": 0, "output": 0})
-        
+
         input_cost = (input_tokens / 1000) * costs["input"]
         output_cost = (output_tokens / 1000) * costs["output"]
-        
+
         return round(input_cost + output_cost, 6)
 
     def estimate_query_cost(

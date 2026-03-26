@@ -32,14 +32,11 @@ class RateLimiter:
         async with self.lock:
             now = datetime.now(timezone.utc)
             elapsed = (now - self.last_update).total_seconds()
-            
+
             # Refill tokens
-            self.tokens = min(
-                self.rate,
-                self.tokens + elapsed * self.rate
-            )
+            self.tokens = min(self.rate, self.tokens + elapsed * self.rate)
             self.last_update = now
-            
+
             if self.tokens < 1:
                 sleep_time = (1 - self.tokens) / self.rate
                 await asyncio.sleep(sleep_time)
@@ -106,7 +103,7 @@ class RobotsTxtChecker:
 class WebCrawler:
     """
     Web crawler for fetching visa regulation documents.
-    
+
     Features:
     - Rate limiting (requests/sec)
     - User-Agent rotation
@@ -118,14 +115,12 @@ class WebCrawler:
     """
 
     def __init__(self):
-        self.rate_limiter = RateLimiter(
-            settings.crawler_rate_limit_requests_per_second
-        )
+        self.rate_limiter = RateLimiter(settings.crawler_rate_limit_requests_per_second)
         self.timeout = settings.crawler_timeout_seconds
         self.max_retries = settings.crawler_max_retries
         self.user_agent = settings.crawler_user_agent
         self._visited_urls: Set[str] = set()
-        
+
         # HTTP client with pooling
         self.client = httpx.AsyncClient(
             timeout=self.timeout,
@@ -135,7 +130,7 @@ class WebCrawler:
                 max_connections=10,
             ),
         )
-        
+
         # robots.txt checker
         self.robots_checker = RobotsTxtChecker(self.client)
 
@@ -151,29 +146,29 @@ class WebCrawler:
     ) -> Optional[str]:
         """
         Fetch URL content with rate limiting and retries.
-        
+
         Args:
             url: URL to fetch
             headers: Optional custom headers
-            
+
         Returns:
             HTML content or None if fetch failed
         """
         # Apply rate limiting
         await self.rate_limiter.acquire()
-        
+
         try:
             request_headers = headers or {}
             request_headers["User-Agent"] = self.user_agent
-            
+
             logger.debug(f"Fetching URL: {url}")
-            
+
             response = await self.client.get(url, headers=request_headers)
             response.raise_for_status()
-            
+
             logger.info(f"Successfully fetched {url}", extra={"status_code": response.status_code})
             return response.text
-            
+
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error {e.response.status_code} for {url}")
             raise
@@ -187,60 +182,86 @@ class WebCrawler:
     def parse_html_to_markdown(self, html_content: str, url: str) -> str:
         """
         Convert HTML to Markdown with structure preservation.
-        
+
         Args:
             html_content: Raw HTML
             url: Source URL (for logging)
-            
+
         Returns:
             Cleaned Markdown text
         """
         try:
             soup = BeautifulSoup(html_content, "lxml")
-            
+
             # Remove script and style elements and common noise
             noise_selectors = [
-                "script", "style", "nav", "footer", "header", "aside", 
-                ".sidebar", ".navigation", ".menu", ".footer", ".header",
-                ".cookie-banner", ".ads", ".social-share", ".newsletter-signup",
-                ".breadcrumb", ".breadcrumbs", "nav[aria-label='Breadcrumb']",
-                ".meta-navigation", ".utility-nav",
-                ".slick-prev", ".slick-next", ".slider-nav", ".carousel-control",
-                ".translate-banner", ".google-translate-container", 
-                ".share-page", ".social-share", ".news-item__share", ".sharing-bar",
-                ".social-media-links", ".social-links", ".social-menu",
-                "button", ".btn", ".contact-bar"
+                "script",
+                "style",
+                "nav",
+                "footer",
+                "header",
+                "aside",
+                ".sidebar",
+                ".navigation",
+                ".menu",
+                ".footer",
+                ".header",
+                ".cookie-banner",
+                ".ads",
+                ".social-share",
+                ".newsletter-signup",
+                ".breadcrumb",
+                ".breadcrumbs",
+                "nav[aria-label='Breadcrumb']",
+                ".meta-navigation",
+                ".utility-nav",
+                ".slick-prev",
+                ".slick-next",
+                ".slider-nav",
+                ".carousel-control",
+                ".translate-banner",
+                ".google-translate-container",
+                ".share-page",
+                ".social-share",
+                ".news-item__share",
+                ".sharing-bar",
+                ".social-media-links",
+                ".social-links",
+                ".social-menu",
+                "button",
+                ".btn",
+                ".contact-bar",
             ]
             for selector in noise_selectors:
                 elements = soup.select(selector) if selector.startswith(".") else soup.find_all(selector)
                 for element in elements:
                     element.decompose()
-            
+
             # Extract main content area (heuristic)
             # Try specific selectors for known important sites
             main_content = (
-                soup.find("article") or 
-                soup.find("main") or 
-                soup.find(id="main-content") or 
-                soup.find(class_="main-content") or
-                soup.find(id="content") or
-                soup.find(class_="content") or
-                soup.find("body")
+                soup.find("article")
+                or soup.find("main")
+                or soup.find(id="main-content")
+                or soup.find(class_="main-content")
+                or soup.find(id="content")
+                or soup.find(class_="content")
+                or soup.find("body")
             )
-            
+
             if not main_content:
                 logger.warning(f"Could not find main content in {url}")
                 main_content = soup
-            
+
             # Convert to Markdown
             markdown_text = md(str(main_content), heading_style="atx")
-            
+
             # Clean up
             markdown_text = normalize_whitespace(markdown_text)
-            
+
             logger.debug(f"Converted {url} to Markdown ({len(markdown_text)} chars)")
             return markdown_text
-            
+
         except Exception as e:
             logger.error(f"HTML parsing failed for {url}: {e}")
             return ""
@@ -249,22 +270,22 @@ class WebCrawler:
         """Extract metadata from HTML (title, og:tags, etc.)."""
         try:
             soup = BeautifulSoup(html_content, "lxml")
-            
+
             # Extract title
             title_tag = soup.find("title")
             title = title_tag.get_text() if title_tag else url
-            
+
             # Extract open graph properties
             og_description = None
             og_tag = soup.find("meta", property="og:description")
             if og_tag:
                 og_description = og_tag.get("content")
-            
+
             # Fallback to meta description
             if not og_description:
                 desc_tag = soup.find("meta", attrs={"name": "description"})
                 og_description = desc_tag.get("content") if desc_tag else None
-            
+
             # Extract published/modified dates
             published_date = None
             date_tag = soup.find("meta", attrs={"property": "article:published_time"})
@@ -273,7 +294,7 @@ class WebCrawler:
                     published_date = datetime.fromisoformat(date_tag.get("content"))
                 except:
                     pass
-            
+
             return {
                 "title": title,
                 "description": og_description,
@@ -287,7 +308,7 @@ class WebCrawler:
     async def crawl_document(self, url: str) -> Optional[Dict[str, Any]]:
         """
         Crawl a single document.
-        
+
         Returns:
             Document dict with html, markdown, metadata, or None if failed
         """
@@ -296,17 +317,17 @@ class WebCrawler:
             html_content = await self.fetch_url(url)
             if not html_content:
                 return None
-            
+
             # Extract metadata
             metadata = self.extract_metadata(html_content, url)
-            
+
             # Convert to Markdown
             markdown = self.parse_html_to_markdown(html_content, url)
-            
+
             if not markdown:
                 logger.warning(f"No markdown content extracted from {url}")
                 return None
-            
+
             return {
                 "url": url,
                 "html": html_content,
@@ -314,7 +335,7 @@ class WebCrawler:
                 "metadata": metadata,
                 "fetched_at": datetime.now(timezone.utc).isoformat(),
             }
-            
+
         except Exception as e:
             logger.error(f"Document crawl failed for {url}: {e}")
             return None
@@ -358,10 +379,7 @@ class WebCrawler:
                         "visa_types": strategy.default_visa_types,
                     }
 
-        logger.info(
-            f"Discovery complete. Crawling {len(all_urls)} URLs across "
-            f"{len(results)} domains"
-        )
+        logger.info(f"Discovery complete. Crawling {len(all_urls)} URLs across " f"{len(results)} domains")
 
         # Crawl all discovered URLs with metadata enrichment
         crawled_docs = []

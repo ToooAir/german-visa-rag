@@ -7,28 +7,28 @@ from typing import List
 def normalize_whitespace(text: str) -> str:
     """Normalize whitespace: collapse multiple spaces but preserve newlines."""
     # Collapse 3 or more newlines to 2 newlines
-    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
     # Replace multiple spaces with a single space (excluding newlines)
-    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r"[ \t]+", " ", text)
     return text.strip()
 
 
 def clean_markdown(text: str) -> str:
     """Clean markdown text for processing."""
     # Remove HTML comments
-    text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
     # Remove inline HTML tags
-    text = re.sub(r'<[^>]+>', '', text)
+    text = re.sub(r"<[^>]+>", "", text)
     # Normalize markdown headers
-    text = re.sub(r'^(\#{2,})\s+', r'\1 ', text, flags=re.MULTILINE)
+    text = re.sub(r"^(\#{2,})\s+", r"\1 ", text, flags=re.MULTILINE)
     return normalize_whitespace(text)
 
 
 def extract_section_title(markdown_text: str, start_pos: int) -> str:
     """Extract the current section title from markdown."""
-    lines = markdown_text[:start_pos].split('\n')
+    lines = markdown_text[:start_pos].split("\n")
     for line in reversed(lines):
-        if re.match(r'^#+\s+', line):
+        if re.match(r"^#+\s+", line):
             return line.strip()
     return "General"
 
@@ -37,4 +37,4 @@ def truncate_text(text: str, max_length: int, suffix: str = "...") -> str:
     """Truncate text to max length."""
     if len(text) <= max_length:
         return text
-    return text[:max_length - len(suffix)] + suffix
+    return text[: max_length - len(suffix)] + suffix

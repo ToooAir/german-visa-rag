@@ -9,7 +9,7 @@ from src.llm.ollama_client import OllamaClient
 
 class LLMFactory:
     """Factory to manage LLM instances and fallback strategies."""
-    
+
     _instance = None
 
     @classmethod
@@ -21,27 +21,19 @@ class LLMFactory:
         if settings.openai_api_key and settings.openai_api_key != "sk-...your-key-here...":
             logger.info(f"Initializing primary LLM: OpenAI ({settings.openai_model})")
             cls._instance = OpenAIClient(
-                api_key=settings.openai_api_key,
-                model=settings.openai_model,
-                base_url=settings.openai_api_base
+                api_key=settings.openai_api_key, model=settings.openai_model, base_url=settings.openai_api_base
             )
-            
+
         # 雲端 Key 沒設定，且開啟了本地選項，則退避到 Ollama
         elif settings.use_ollama:
             logger.warning("OpenAI API Key not found or valid. Falling back to local Ollama!")
-            cls._instance = OllamaClient(
-                base_url=settings.ollama_base_url,
-                model=settings.ollama_model
-            )
-            
+            cls._instance = OllamaClient(base_url=settings.ollama_base_url, model=settings.ollama_model)
+
         else:
             # 如果都沒設定，還是預設給 OpenAI，讓它在實際呼叫時報錯
             logger.warning("No valid LLM configuration found. Defaulting to OpenAI (will likely fail on call).")
-            cls._instance = OpenAIClient(
-                api_key=settings.openai_api_key,
-                model=settings.openai_model
-            )
-            
+            cls._instance = OpenAIClient(api_key=settings.openai_api_key, model=settings.openai_model)
+
         return cls._instance
 
 

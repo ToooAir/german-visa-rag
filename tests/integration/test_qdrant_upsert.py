@@ -4,6 +4,7 @@ import pytest
 from src.models.chunk import Chunk, ChunkMetadata, AuthorityLevel, VisaType
 from src.models.chunk import QdrantPayload
 
+
 def test_qdrant_payload_conversion():
     """Ensure internal Chunk model correctly converts to Qdrant Payload."""
     chunk = Chunk(
@@ -14,14 +15,14 @@ def test_qdrant_payload_conversion():
             authority_level=AuthorityLevel.OFFICIAL,
             visa_types=[VisaType.CHANCENKARTE],
             text_hash="abc123hash",
-            is_parent=False
+            is_parent=False,
         ),
-        text="Sample text for Qdrant."
+        text="Sample text for Qdrant.",
     )
-    
+
     payload = QdrantPayload.from_chunk(chunk)
     payload_dict = payload.to_dict()
-    
+
     assert payload_dict["chunk_id"] == "test_123"
     assert payload_dict["authority_level"] == "official"
     assert payload_dict["visa_types"] == ["chancenkarte"]

@@ -15,9 +15,10 @@ from src.logger import logger
 
 class RerankerType(str, Enum):
     """Supported reranker backends."""
-    MOCK  = "mock"
+
+    MOCK = "mock"
     COHERE = "cohere"
-    JINA  = "jina"
+    JINA = "jina"
 
 
 class Reranker(ABC):
@@ -72,9 +73,7 @@ class CohereReranker(Reranker):
         self.client = httpx.AsyncClient(timeout=30.0)
 
     @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=5))
-    async def _call_api(
-        self, query: str, texts: list[str], top_k: int
-    ) -> list[dict[str, Any]]:
+    async def _call_api(self, query: str, texts: list[str], top_k: int) -> list[dict[str, Any]]:
         """Internal HTTP call — retry lives here, not in rerank()."""
         response = await self.client.post(
             f"{self.base_url}/rerank",
@@ -144,9 +143,7 @@ class JinaReranker(Reranker):
         self.client = httpx.AsyncClient(timeout=30.0)
 
     @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=5))
-    async def _call_api(
-        self, query: str, texts: list[str], top_k: int
-    ) -> list[dict[str, Any]]:
+    async def _call_api(self, query: str, texts: list[str], top_k: int) -> list[dict[str, Any]]:
         """Internal HTTP call — retry lives here, not in rerank()."""
         response = await self.client.post(
             f"{self.base_url}/rerank",

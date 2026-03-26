@@ -15,13 +15,16 @@ from src.vector_db.qdrant_client_wrapper import get_qdrant_client, QdrantWrapper
 from src.vector_db.embedder import embedder
 from src.models.chunk import AuthorityLevel, VisaType
 
-
 # Maps each minimum authority level to the set of accepted levels in Qdrant filter.
 # Follows a hierarchical inclusion pattern: lower minimum → more levels accepted.
 _AUTHORITY_HIERARCHY: dict[AuthorityLevel, list[str]] = {
-    AuthorityLevel.OFFICIAL:      [AuthorityLevel.OFFICIAL.value],
+    AuthorityLevel.OFFICIAL: [AuthorityLevel.OFFICIAL.value],
     AuthorityLevel.SEMI_OFFICIAL: [AuthorityLevel.OFFICIAL.value, AuthorityLevel.SEMI_OFFICIAL.value],
-    AuthorityLevel.THIRD_PARTY:   [AuthorityLevel.OFFICIAL.value, AuthorityLevel.SEMI_OFFICIAL.value, AuthorityLevel.THIRD_PARTY.value],
+    AuthorityLevel.THIRD_PARTY: [
+        AuthorityLevel.OFFICIAL.value,
+        AuthorityLevel.SEMI_OFFICIAL.value,
+        AuthorityLevel.THIRD_PARTY.value,
+    ],
 }
 
 
@@ -38,9 +41,9 @@ class HybridRetriever:
 
     def __init__(self, qdrant_client: Optional[QdrantWrapper] = None):
         self.qdrant = qdrant_client or get_qdrant_client()
-        self.top_k_hybrid  = settings.retrieval_top_k_hybrid
+        self.top_k_hybrid = settings.retrieval_top_k_hybrid
         self.top_k_reranked = settings.retrieval_top_k_reranked
-        self.dense_weight  = settings.retrieval_dense_weight
+        self.dense_weight = settings.retrieval_dense_weight
         self.sparse_weight = settings.retrieval_sparse_weight
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -81,15 +84,11 @@ class HybridRetriever:
                 must_filters.append(
                     models.FieldCondition(
                         key="visa_types",
-                        match=models.MatchAny(
-                            any=[v.value if hasattr(v, "value") else v for v in visa_types]
-                        ),
+                        match=models.MatchAny(any=[v.value if hasattr(v, "value") else v for v in visa_types]),
                     )
                 )
 
-            allowed_levels = _AUTHORITY_HIERARCHY.get(
-                min_authority, [AuthorityLevel.OFFICIAL.value]
-            )
+            allowed_levels = _AUTHORITY_HIERARCHY.get(min_authority, [AuthorityLevel.OFFICIAL.value])
             must_filters.append(
                 models.FieldCondition(
                     key="authority_level",
@@ -137,32 +136,34 @@ class HybridRetriever:
                 # Authority boost
                 authority_level = payload.get("authority_level", "third_party")
                 authority_boost = {
-                    "official":      settings.rag_authority_boost_official,
+                    "official": settings.rag_authority_boost_official,
                     "semi_official": settings.rag_authority_boost_semi,
-                    "third_party":   settings.rag_authority_boost_third_party,
+                    "third_party": settings.rag_authority_boost_third_party,
                 }.get(authority_level, settings.rag_authority_boost_third_party)
 
                 adjusted_score = result["score"] * recency_penalty * authority_boost
 
-                enriched_results.append({
-                    "id":             result["id"],
-                    "original_score": result["score"],
-                    "adjusted_score": adjusted_score,
-                    "metadata": {
-                        "chunk_id":      payload.get("chunk_id"),
-                        "parent_doc_id": payload.get("parent_doc_id"),
-                        "source_url":    payload.get("source_url"),
-                        "source_title":  payload.get("source_title"),
-                        "authority_level": authority_level,
-                        "visa_types":    payload.get("visa_types", []),
-                        "published_at":  payload.get("published_at"),
-                        "fetched_at":    payload.get("fetched_at"),
-                        "section_header": payload.get("section_header"),
-                        "is_parent":     payload.get("is_parent", False),
-                        "language":      payload.get("language", "de"),
-                    },
-                    "text": payload.get("text", ""),
-                })
+                enriched_results.append(
+                    {
+                        "id": result["id"],
+                        "original_score": result["score"],
+                        "adjusted_score": adjusted_score,
+                        "metadata": {
+                            "chunk_id": payload.get("chunk_id"),
+                            "parent_doc_id": payload.get("parent_doc_id"),
+                            "source_url": payload.get("source_url"),
+                            "source_title": payload.get("source_title"),
+                            "authority_level": authority_level,
+                            "visa_types": payload.get("visa_types", []),
+                            "published_at": payload.get("published_at"),
+                            "fetched_at": payload.get("fetched_at"),
+                            "section_header": payload.get("section_header"),
+                            "is_parent": payload.get("is_parent", False),
+                            "language": payload.get("language", "de"),
+                        },
+                        "text": payload.get("text", ""),
+                    }
+                )
 
             enriched_results.sort(key=lambda x: x["adjusted_score"], reverse=True)
 

@@ -13,7 +13,6 @@ from urllib.parse import quote
 from src.config import settings
 from src.logger import logger
 
-
 _MISSING = object()
 _NO_CONTEXT_SENTINEL = "[[NO_CONTEXT]]"
 """
@@ -33,6 +32,7 @@ DEFAULT_TOP_K: int = 5
 @dataclass(frozen=True)
 class PromptRequest:
     """Immutable parameter object for system prompt building."""
+
     context: str
     question: str
     language: Optional[str] = None
@@ -143,24 +143,23 @@ Strictly follow this format:
 @dataclass
 class PromptBuilder:
     """Build and validate prompts for RAG responses."""
+
     default_language: str = "zh"
     official_domains: ABCSequence[str] = field(default_factory=lambda: DEFAULT_OFFICIAL_DOMAINS)
     max_content_chars: int = 2000
     max_question_chars: int = 1000
 
-    ALLOWED_VISA_TYPES: ClassVar[frozenset[str]] = frozenset({
-        "chancenkarte", "blue_card", "skilled_worker", "student"
-    })
+    ALLOWED_VISA_TYPES: ClassVar[frozenset[str]] = frozenset({"chancenkarte", "blue_card", "skilled_worker", "student"})
     VALID_STATUSES: ClassVar[frozenset[str]] = frozenset({"required", "warning"})
     AUTHORITY_BADGES: ClassVar[dict[str, str]] = {
-        "official":      "🔴 [OFFICIAL]",
+        "official": "🔴 [OFFICIAL]",
         "semi_official": "🟡 [SEMI-OFFICIAL]",
-        "third_party":   "⚪ [THIRD-PARTY]",
+        "third_party": "⚪ [THIRD-PARTY]",
     }
     LANG_MAP: ClassVar[dict[str, str]] = {
-        "en":    "English",
-        "de":    "German",
-        "zh":    "Traditional Chinese",
+        "en": "English",
+        "de": "German",
+        "zh": "Traditional Chinese",
         "zh-TW": "Traditional Chinese",
     }
 
@@ -174,8 +173,7 @@ class PromptBuilder:
             raise ValueError("default_language cannot be empty")
         if not isinstance(self.official_domains, ABCSequence) or isinstance(self.official_domains, str):
             raise TypeError(
-                f"official_domains must be a Sequence[str] (e.g. list, tuple), "
-                f"got {type(self.official_domains)}"
+                f"official_domains must be a Sequence[str] (e.g. list, tuple), " f"got {type(self.official_domains)}"
             )
 
     # ─── Private helpers ────────────────────────────────────────────────────
@@ -190,7 +188,7 @@ class PromptBuilder:
         """Strip characters that break REQ/MILESTONE tag structure."""
         if not value:
             return ""
-        return re.sub(r'[\[\]:\n\r]', '', str(value)).strip()[:64]
+        return re.sub(r"[\[\]:\n\r]", "", str(value)).strip()[:64]
 
     @staticmethod
     def _sanitize_question(question: str, max_length: int) -> str:
@@ -202,9 +200,9 @@ class PromptBuilder:
         """
         if not question:
             return ""
-        sanitized = re.sub(r'\x00', '', str(question))
-        sanitized = re.sub(r'\n{3,}', '\n\n', sanitized).strip()
-        sanitized = sanitized.replace('<', '&lt;').replace('>', '&gt;')
+        sanitized = re.sub(r"\x00", "", str(question))
+        sanitized = re.sub(r"\n{3,}", "\n\n", sanitized).strip()
+        sanitized = sanitized.replace("<", "&lt;").replace(">", "&gt;")
         return sanitized[:max_length]
 
     @staticmethod
@@ -291,7 +289,8 @@ class PromptBuilder:
                 if not s_id or not s_val:
                     logger.warning(
                         "Requirement skipped after sanitization: id=%r, value=%r",
-                        req_id, r.get("value"),
+                        req_id,
+                        r.get("value"),
                     )
                     continue
 
@@ -305,9 +304,7 @@ class PromptBuilder:
                         display = f"{key} (+{pts} pts)"
                     else:
                         display = s_val
-                    valid_reqs.append(
-                        f"- ID={s_id}: {label} = {display} (status: {r.get('status')})"
-                    )
+                    valid_reqs.append(f"- ID={s_id}: {label} = {display} (status: {r.get('status')})")
                 else:
                     valid_reqs.append(f"[REQ:{s_id}:{s_val}:{r.get('status')}]")
 
@@ -360,12 +357,10 @@ class PromptBuilder:
             # Support both old-style (source_url/section_header/text)
             # and new-style (source/page_title/content) metadata keys
             raw_source = metadata.get("source_url") or metadata.get("source", "Unknown")
-            source = re.sub(r'[\n\r]', ' ', raw_source).strip()
+            source = re.sub(r"[\n\r]", " ", raw_source).strip()
 
-            raw_title = (
-                metadata.get("section_header") or metadata.get("page_title", "General Information")
-            )
-            page_title = re.sub(r'[\n\r<>]', ' ', raw_title).strip()[:128]
+            raw_title = metadata.get("section_header") or metadata.get("page_title", "General Information")
+            page_title = re.sub(r"[\n\r<>]", " ", raw_title).strip()[:128]
 
             # Three-tier authority badge; falls back to domain-based detection
             authority = metadata.get("authority_level", "")
@@ -380,7 +375,7 @@ class PromptBuilder:
                 logger.warning("Skipping document with empty content (source: %s)", source)
                 continue
 
-            content = raw_content[:self.max_content_chars]
+            content = raw_content[: self.max_content_chars]
             if len(raw_content) > self.max_content_chars:
                 content += "\n[... content truncated ...]"
 
@@ -399,9 +394,7 @@ class PromptBuilder:
             )
 
         if not context_parts:
-            logger.warning(
-                "All %d retrieved documents were skipped due to empty content.", len(docs)
-            )
+            logger.warning("All %d retrieved documents were skipped due to empty content.", len(docs))
             return _NO_CONTEXT_SENTINEL
 
         return "\n\n".join(context_parts)
@@ -418,6 +411,7 @@ def get_prompt_builder() -> PromptBuilder:
       - max_question_chars: int
       - default_language: str
     """
+
     def _get_setting(attr: str, default: Any) -> Any:
         val = getattr(settings, attr, _MISSING)
         if val is _MISSING:

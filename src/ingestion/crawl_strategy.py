@@ -111,29 +111,39 @@ MAKE_IT_IN_GERMANY_STRATEGY = DomainCrawlStrategy(
         r"/privacy",
         r"/print$",
         # ── Confirmed noise from 400-sample analysis ──
-        r"/working-in-germany/job-listings/job/",   # individual job postings (not regulations)
-        r"/service/newsletter",                      # newsletter archives (en)
-        r"/service/kurz-newsletter",                 # short newsletter (en)
-        r"/de/newsletter-",                          # newsletter archives (de)
+        r"/working-in-germany/job-listings/job/",  # individual job postings (not regulations)
+        r"/service/newsletter",  # newsletter archives (en)
+        r"/service/kurz-newsletter",  # short newsletter (en)
+        r"/de/newsletter-",  # newsletter archives (de)
         r"/de/service/Newsletter",
-        r"/service/glossar",                         # thin glossary entries (de)
-        r"/service/glossary",                        # thin glossary entries (en)
-        r"/service/advisory-contact-services/",     # worldwide contact list
-        r"/footer-meta/",                            # privacy policy, imprint, etc.
-        r"/living-in-germany/discover-germany/",    # culture/politics (not visa law)
-        r"/living-in-germany/housing-mobility/",    # driving licence, housing
-        r"/living-in-germany/learn-german/",         # german classes
-        r"/living-in-germany/family-life/",          # childcare, schools — not visa law
+        r"/service/glossar",  # thin glossary entries (de)
+        r"/service/glossary",  # thin glossary entries (en)
+        r"/service/advisory-contact-services/",  # worldwide contact list
+        r"/footer-meta/",  # privacy policy, imprint, etc.
+        r"/living-in-germany/discover-germany/",  # culture/politics (not visa law)
+        r"/living-in-germany/housing-mobility/",  # driving licence, housing
+        r"/living-in-germany/learn-german/",  # german classes
+        r"/living-in-germany/family-life/",  # childcare, schools — not visa law
         r"/living-in-germany/family-reunification/parental-leave",
-        r"/de/unternehmen/integrieren/",             # employer integration guides
-        r"/index\.html$",                            # generic entry pages
+        r"/de/unternehmen/integrieren/",  # employer integration guides
+        r"/index\.html$",  # generic entry pages
         r"\.(pdf|jpg|png|gif|svg|css|js)$",
     ],
     relevance_keywords=[
-        "visa", "residence", "chancenkarte", "opportunity-card",
-        "blue-card", "work-permit", "skilled", "immigration",
-        "application", "requirements", "procedure",
-        "visum", "aufenthalt", "fachkraft",
+        "visa",
+        "residence",
+        "chancenkarte",
+        "opportunity-card",
+        "blue-card",
+        "work-permit",
+        "skilled",
+        "immigration",
+        "application",
+        "requirements",
+        "procedure",
+        "visum",
+        "aufenthalt",
+        "fachkraft",
     ],
     language_prefixes=["/en/", "/de/"],
     use_sitemap=True,
@@ -147,7 +157,7 @@ CHANCENKARTE_COM_STRATEGY = DomainCrawlStrategy(
         "/en/news/",
         "/en/calculator/",
     ],
-    authority_level="third_party",   # commercial site, not government
+    authority_level="third_party",  # commercial site, not government
     default_visa_types=["chancenkarte"],
     max_depth=3,
     max_pages=100,
@@ -162,15 +172,21 @@ CHANCENKARTE_COM_STRATEGY = DomainCrawlStrategy(
         r"/privacy-policy",
         r"/cookie-policy",
         r"/imprint",
-        r"/candidates",   # B2B marketing
-        r"/employers",    # B2B marketing
+        r"/candidates",  # B2B marketing
+        r"/employers",  # B2B marketing
         r"/offers/jobs",  # job board noise
         r"/index\.html$",
         r"\.(pdf|jpg|png|gif|svg|css|js)$",
     ],
     relevance_keywords=[
-        "chancenkarte", "opportunity-card", "guide", "requirement",
-        "point", "calculator", "recognition", "application",
+        "chancenkarte",
+        "opportunity-card",
+        "guide",
+        "requirement",
+        "point",
+        "calculator",
+        "recognition",
+        "application",
     ],
     language_prefixes=["/en/"],
     use_sitemap=True,
@@ -196,14 +212,18 @@ GERMANY_VISA_STRATEGY = DomainCrawlStrategy(
     blocked_path_patterns=[
         r"/blog/",
         r"/contact",
-        r"/out/",           # affiliate/external redirects
+        r"/out/",  # affiliate/external redirects
         r"/privacy-policy",
         r"/terms-of-service",
         r"/index\.(php|html)$",
         r"\.(pdf|jpg|png|gif|svg|css|js)$",
     ],
     relevance_keywords=[
-        "visa", "work", "residence", "blue-card", "chancenkarte",
+        "visa",
+        "work",
+        "residence",
+        "blue-card",
+        "chancenkarte",
     ],
     language_prefixes=[],  # no language prefix structure
     use_sitemap=True,
@@ -233,14 +253,22 @@ BAMF_STRATEGY = DomainCrawlStrategy(
         r"/Veranstaltungen/",
         r"/SharedDocs/Downloads/",
         r"/SiteGlobals/",
-        r"/data-protection", # GDPR noise
-        r"-node$",           # internal navigation/index nodes
+        r"/data-protection",  # GDPR noise
+        r"-node$",  # internal navigation/index nodes
         r"\.(pdf|jpg|png|gif|svg|css|js)$",
     ],
     relevance_keywords=[
-        "migration", "aufenthalt", "drittstaaten", "fachkraefte",
-        "blaue-karte", "bluecard", "chancenkarte", "visum",
-        "skilled", "immigration", "residence",
+        "migration",
+        "aufenthalt",
+        "drittstaaten",
+        "fachkraefte",
+        "blaue-karte",
+        "bluecard",
+        "chancenkarte",
+        "visum",
+        "skilled",
+        "immigration",
+        "residence",
     ],
     language_prefixes=["/EN/", "/DE/"],
     use_sitemap=True,
@@ -264,15 +292,23 @@ BA_STRATEGY = DomainCrawlStrategy(
         r"/web/content/EN/",
     ],
     blocked_path_patterns=[
-        r"/en/press/",                       # press releases
-        r"/de/presse/",                      # press releases (de)
-        r"/Buergerinnen/",                   # citizen benefit (irrelevant)
-        r"/Vordrucke/",                      # forms
+        r"/en/press/",  # press releases
+        r"/de/presse/",  # press releases (de)
+        r"/Buergerinnen/",  # citizen benefit (irrelevant)
+        r"/Vordrucke/",  # forms
         r"\.(pdf|jpg|png|gif|svg|css|js)$",
     ],
     relevance_keywords=[
-        "skilled", "worker", "immigration", "qualified", "professional",
-        "zustimmung", "employment", "labour", "market", "shortage",
+        "skilled",
+        "worker",
+        "immigration",
+        "qualified",
+        "professional",
+        "zustimmung",
+        "employment",
+        "labour",
+        "market",
+        "shortage",
     ],
     language_prefixes=["/en/", "/web/content/EN/"],
     use_sitemap=True,
@@ -298,29 +334,37 @@ KMK_STRATEGY = DomainCrawlStrategy(
     ],
     blocked_path_patterns=[
         r"/presse/",
-        r"/aktuell/",            # news — time-sensitive, low RAG value
+        r"/aktuell/",  # news — time-sensitive, low RAG value
         r"/dokumentation/",
         # Confirmed noise from chunk quality analysis
-        r"/en/aktuelles/",                        # PISA news, press archive
-        r"/en/wissenschaftsministerkonferenz/",   # science ministry (unrelated to visa)
-        r"/en/bildungsministerkonferenz/",         # K-12 education ministry (not immigration)
-        r"/en/kultusministerkonferenz/",           # teacher exchange, school topics
-        r"/en/kulturministerkonferenz/",           # culture topics (UNESCO, etc.)
-        r"/en/service/servicebereich-schule",     # K-12 school services
-        r"/en/downloads-dokumente/statistik/",    # statistics archives
+        r"/en/aktuelles/",  # PISA news, press archive
+        r"/en/wissenschaftsministerkonferenz/",  # science ministry (unrelated to visa)
+        r"/en/bildungsministerkonferenz/",  # K-12 education ministry (not immigration)
+        r"/en/kultusministerkonferenz/",  # teacher exchange, school topics
+        r"/en/kulturministerkonferenz/",  # culture topics (UNESCO, etc.)
+        r"/en/service/servicebereich-schule",  # K-12 school services
+        r"/en/downloads-dokumente/statistik/",  # statistics archives
         r"/en/downloads-dokumente/beschluesse-und-veroeffentlichungen/bildung-/-schule/",
         r"/en/downloads-dokumente/beschluesse-und-veroeffentlichungen/kunst-",
         r"/en/downloads-dokumente/beschluesse-und-veroeffentlichungen/internationales",
-        r"downloadbereich-rahmenlehrplaene",      # Huge page (40k tokens) — Table of contents
-        r"downloads-berufsfachschulen",           # Low-value giant list
-        r"/en/inhalt\.html",                      # Generic site map
+        r"downloadbereich-rahmenlehrplaene",  # Huge page (40k tokens) — Table of contents
+        r"downloads-berufsfachschulen",  # Low-value giant list
+        r"/en/inhalt\.html",  # Generic site map
         # NOTE: /zab/ and /recognition/ paths are explicitly allowed above — not affected
         r"\.(pdf|jpg|png|gif|svg|css|js)$",
     ],
     relevance_keywords=[
-        "recognition", "qualification", "foreign", "degree",
-        "comparability", "statement", "credential", "anabin",
-        "university", "higher-education", "bilateral",
+        "recognition",
+        "qualification",
+        "foreign",
+        "degree",
+        "comparability",
+        "statement",
+        "credential",
+        "anabin",
+        "university",
+        "higher-education",
+        "bilateral",
     ],
     language_prefixes=["/en/", "/zab/en/"],
     use_sitemap=True,
@@ -330,6 +374,7 @@ KMK_STRATEGY = DomainCrawlStrategy(
 # ============================================
 # Strategy Registry
 # ============================================
+
 
 class StrategyRegistry:
     """Registry for domain-specific crawl strategies."""

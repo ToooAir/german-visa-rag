@@ -16,13 +16,13 @@ class APIKeyAuth:
     ) -> str:
         """
         Verify API key from header.
-        
+
         Args:
             x_api_key: API key from X-API-Key header
-            
+
         Returns:
             API key if valid
-            
+
         Raises:
             HTTPException if invalid
         """
@@ -35,14 +35,14 @@ class APIKeyAuth:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Missing API key in X-API-Key header",
             )
-        
+
         if x_api_key != settings.api_key:
             logger.warning(f"Invalid API key attempt: {x_api_key[:10]}...")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Invalid API key",
             )
-        
+
         return x_api_key
 
 

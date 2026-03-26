@@ -11,10 +11,10 @@ from src.storage.sqlite_state_store import SQLiteStateStore
 from src.ingestion.url_discoverer import URLDiscoverer, DiscoveryResult
 from src.ingestion.crawl_strategy import DomainCrawlStrategy
 
-
 # ============================================
 # SQLite Discovery Cache Tests
 # ============================================
+
 
 class TestDiscoveryCacheStore:
     """Test SQLite-backed discovery URL cache."""
@@ -72,12 +72,8 @@ class TestDiscoveryCacheStore:
         # Manually backdate the discovered_at timestamp
         with store._get_connection() as conn:
             cursor = conn.cursor()
-            old_time = (datetime.now(timezone.utc) - timedelta(hours=25)).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-            cursor.execute(
-                "UPDATE discovered_urls SET discovered_at = ?", (old_time,)
-            )
+            old_time = (datetime.now(timezone.utc) - timedelta(hours=25)).strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("UPDATE discovered_urls SET discovered_at = ?", (old_time,))
             conn.commit()
 
         # Should be stale now
@@ -144,6 +140,7 @@ class TestDiscoveryCacheStore:
 # URLDiscoverer Cache Integration Tests
 # ============================================
 
+
 class TestURLDiscovererCache:
     """Test that URLDiscoverer uses cache correctly."""
 
@@ -184,14 +181,10 @@ class TestURLDiscovererCache:
         discoverer = URLDiscoverer(client=AsyncMock(), state_store=MagicMock())
         discoverer._get_cached_result = MagicMock(return_value=None)
         discoverer._save_to_cache = MagicMock()
-        discoverer.sitemap_parser.discover_from_sitemap = AsyncMock(
-            return_value={"https://test.com/fresh"}
-        )
+        discoverer.sitemap_parser.discover_from_sitemap = AsyncMock(return_value={"https://test.com/fresh"})
         discoverer._bfs_discover = AsyncMock(return_value=(set(), 0))
 
-        result = await discoverer.discover_domain(
-            mock_strategy, force_refresh=True
-        )
+        result = await discoverer.discover_domain(mock_strategy, force_refresh=True)
 
         assert result.from_cache is False
         # _get_cached_result should NOT have been called
@@ -207,9 +200,7 @@ class TestURLDiscovererCache:
         discoverer = URLDiscoverer(client=AsyncMock(), state_store=MagicMock())
         discoverer._get_cached_result = MagicMock(return_value=None)
         discoverer._save_to_cache = MagicMock()
-        discoverer.sitemap_parser.discover_from_sitemap = AsyncMock(
-            return_value={"https://test.com/new-page"}
-        )
+        discoverer.sitemap_parser.discover_from_sitemap = AsyncMock(return_value={"https://test.com/new-page"})
         discoverer._bfs_discover = AsyncMock(return_value=(set(), 0))
 
         result = await discoverer.discover_domain(mock_strategy)
@@ -218,4 +209,3 @@ class TestURLDiscovererCache:
         assert "https://test.com/new-page" in result.discovered_urls
         # Should save to cache after discovery
         discoverer._save_to_cache.assert_called_once()
-

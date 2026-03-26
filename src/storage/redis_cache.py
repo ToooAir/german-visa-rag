@@ -26,13 +26,13 @@ class QueryCache:
         """Retrieve cached response for a query."""
         if not self.enabled or not self.redis:
             return None
-            
+
         try:
             cached = await self.redis.get(self._hash_query(query))
             if cached:
                 logger.info(f"Redis Cache HIT for query: {query[:30]}...")
                 return json.loads(cached)
-            
+
             logger.debug(f"Redis Cache MISS for query: {query[:30]}...")
             return None
         except Exception as e:
@@ -43,13 +43,9 @@ class QueryCache:
         """Save response to cache."""
         if not self.enabled or not self.redis:
             return
-            
+
         try:
-            await self.redis.setex(
-                self._hash_query(query),
-                self.ttl,
-                json.dumps(response, ensure_ascii=False)
-            )
+            await self.redis.setex(self._hash_query(query), self.ttl, json.dumps(response, ensure_ascii=False))
             logger.debug("Query cached successfully to Redis")
         except Exception as e:
             logger.warning(f"Redis set failed: {e}")

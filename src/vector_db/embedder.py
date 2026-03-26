@@ -60,9 +60,9 @@ class OpenAIEmbedder(EmbedderBase):
     """OpenAI Embedding Service using text-embedding-3-small."""
 
     def __init__(
-        self, 
-        api_key: str, 
-        model: str = "text-embedding-3-small", 
+        self,
+        api_key: str,
+        model: str = "text-embedding-3-small",
         base_url: Optional[str] = None,
         is_azure: bool = False,
         azure_endpoint: Optional[str] = None,
@@ -83,6 +83,7 @@ class OpenAIEmbedder(EmbedderBase):
         if self.client is None:
             if self.is_azure:
                 from openai import AsyncAzureOpenAI
+
                 self.client = AsyncAzureOpenAI(
                     api_key=self.api_key,
                     azure_endpoint=self.azure_endpoint,
@@ -91,10 +92,9 @@ class OpenAIEmbedder(EmbedderBase):
                 )
             else:
                 from openai import AsyncOpenAI
+
                 self.client = AsyncOpenAI(
-                    api_key=self.api_key, 
-                    base_url=self.base_url,
-                    timeout=settings.api_timeout_seconds
+                    api_key=self.api_key, base_url=self.base_url, timeout=settings.api_timeout_seconds
                 )
         return self.client
 
@@ -103,41 +103,42 @@ class OpenAIEmbedder(EmbedderBase):
         """
         Embed multiple texts with OpenAI API with retry logic and automatic batching.
         OpenAI has a total token limit per request (8192), so we split large lists.
-        
+
         Args:
             texts: List of strings to embed
-            
+
         Returns:
             List of embedding vectors (1536-dimensional)
         """
         if not texts:
             return []
 
-        # Batch size of 10 is extremely conservative. 
+        # Batch size of 10 is extremely conservative.
         # Even with long context prefixes and dense text, this ensures we stay under 8192.
         BATCH_SIZE = 10
         all_embeddings = []
-        
+
         client = await self._get_client()
 
         for i in range(0, len(texts), BATCH_SIZE):
             batch = texts[i : i + BATCH_SIZE]
             batch_chars = sum(len(t) for t in batch)
             logger.debug(f"OpenAI embedding batch {i//BATCH_SIZE}: {len(batch)} items, ~{batch_chars} chars")
-            
+
             try:
                 response = await client.embeddings.create(
                     input=batch,
                     model=self.model,
                 )
-                
+
                 # Sort by index to maintain order within batch
                 batch_embeddings = sorted(response.data, key=lambda x: x.index)
                 all_embeddings.extend([emb.embedding for emb in batch_embeddings])
-                
+
             except Exception as e:
                 # Detect rate limit errors
                 import openai
+
                 if isinstance(e, openai.RateLimitError):
                     headers = getattr(e, "response", None).headers if hasattr(e, "response") else {}
                     raise QuotaExhaustedError(
@@ -146,7 +147,7 @@ class OpenAIEmbedder(EmbedderBase):
                         reset_tokens=headers.get("x-ratelimit-reset-tokens"),
                         message=f"Provider: {'Azure' if self.is_azure else 'OpenAI'}",
                     ) from e
-                
+
                 logger.error(f"OpenAI batch embedding failed (batch {i//BATCH_SIZE}): {e}")
                 raise
 
@@ -190,7 +191,7 @@ class OllamaEmbedder(EmbedderBase):
                 response.raise_for_status()
                 data = response.json()
                 embeddings.append(data.get("embedding", []))
-                
+
             except Exception as e:
                 logger.error(f"Ollama embedding failed for text: {e}")
                 raise
@@ -246,7 +247,7 @@ class Embedder:
                 base_url=settings.openai_api_base,
             )
             logger.info("Standard OpenAI embedder initialized")
-        
+
         self.fallback = None
         if settings.use_ollama:
             self.fallback = OllamaEmbedder(
@@ -259,10 +260,10 @@ class Embedder:
         """
         Pre-flight check: verify embedding API is reachable and has quota.
         Sends a single-word embedding request before committing to full ingestion.
-        
+
         Returns:
             True if API is available, False otherwise
-            
+
         Raises:
             QuotaExhaustedError: If the API returns 429
         """
@@ -302,9 +303,7 @@ class Embedder:
 
         except QuotaExhaustedError as qe:
             if _quota_retry >= MAX_QUOTA_RETRIES:
-                logger.error(
-                    f"⛔ Quota exhausted after {MAX_QUOTA_RETRIES} retries. Giving up."
-                )
+                logger.error(f"⛔ Quota exhausted after {MAX_QUOTA_RETRIES} retries. Giving up.")
                 raise
 
             wait_secs = qe.wait_seconds or DEFAULT_WAIT_SECONDS

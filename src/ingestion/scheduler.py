@@ -73,12 +73,14 @@ class IngestionScheduler:
             # Convert to ingestion format
             source_docs = []
             for doc in crawled_docs:
-                source_docs.append({
-                    "url": doc["url"],
-                    "title": doc.get("metadata", {}).get("title", doc["url"]),
-                    "authority_level": doc.get("authority_level", "third_party"),
-                    "visa_types": doc.get("visa_types", ["general"]),
-                })
+                source_docs.append(
+                    {
+                        "url": doc["url"],
+                        "title": doc.get("metadata", {}).get("title", doc["url"]),
+                        "authority_level": doc.get("authority_level", "third_party"),
+                        "visa_types": doc.get("visa_types", ["general"]),
+                    }
+                )
 
             # Also add the extra_urls from config
             source_docs.extend(self.seed_urls)
@@ -109,10 +111,7 @@ class IngestionScheduler:
             )
 
             mode = "discovery" if settings.crawler_discovery_enabled else "legacy"
-            logger.info(
-                f"Ingestion scheduler started",
-                extra={"interval_hours": interval_hours, "mode": mode}
-            )
+            logger.info(f"Ingestion scheduler started", extra={"interval_hours": interval_hours, "mode": mode})
 
             self.scheduler.start()
 

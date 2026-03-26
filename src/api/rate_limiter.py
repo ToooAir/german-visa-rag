@@ -6,6 +6,7 @@ from src.config import settings
 from src.storage.redis_cache import query_cache
 from src.logger import logger
 
+
 class RateLimiter:
     """Simple fixed-window rate limiter using Redis."""
 
@@ -33,9 +34,9 @@ class RateLimiter:
                 await pipe.incr(key)
                 await pipe.expire(key, self.window, nx=True)  # Only set expiry if key is new
                 results = await pipe.execute()
-                
+
             count = results[0]
-            
+
             if count > self.limit:
                 logger.warning(f"Rate limit exceeded for {client_ip}: {count}/{self.limit}")
                 raise HTTPException(
@@ -43,8 +44,8 @@ class RateLimiter:
                     detail={
                         "error": "rate_limit_exceeded",
                         "message": f"Too many requests. Limit is {self.limit} per minute.",
-                        "retry_after": self.window
-                    }
+                        "retry_after": self.window,
+                    },
                 )
         except HTTPException:
             raise
@@ -52,5 +53,6 @@ class RateLimiter:
             logger.error(f"Rate limiter error: {e}")
             # Fail open if Redis is down? For now, we allow the request.
             return
+
 
 rate_limiter = RateLimiter()

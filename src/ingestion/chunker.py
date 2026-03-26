@@ -14,19 +14,18 @@ from src.models.chunk import Chunk, ChunkMetadata, VisaType, AuthorityLevel
 from src.utils.hash_utils import compute_canonical_hash
 from src.utils.text_utils import normalize_whitespace
 
-
 # ── Minimum content thresholds ─────────────────────────────────────────────
-MIN_CHILD_LENGTH  = 150   # chars — child chunks shorter than this are dropped
-MIN_PARENT_LENGTH = 100   # chars — parent (section) chunks shorter than this are dropped
+MIN_CHILD_LENGTH = 150  # chars — child chunks shorter than this are dropped
+MIN_PARENT_LENGTH = 100  # chars — parent (section) chunks shorter than this are dropped
 
 # Content before the first H2/H3 header is likely navigation or page-level
 # boilerplate. We apply a stricter length threshold before keeping it.
-MIN_INTRO_LENGTH  = 300   # chars — pre-header content must be at least this long
+MIN_INTRO_LENGTH = 300  # chars — pre-header content must be at least this long
 
 # ── Safety limits (to avoid OpenAI 8192 token limit) ──────────────────────
 # 8192 tokens is roughly 30,000 - 40,000 characters for western languages.
 # We set a safe upper bound of 20,000 chars for any single chunk.
-MAX_CHUNK_LENGTH  = 20000 
+MAX_CHUNK_LENGTH = 20000
 
 
 class ParentChildChunker:
@@ -61,48 +60,52 @@ class ParentChildChunker:
         download/print buttons, and navigation noise.
         """
         # Remove images: ![alt](url)
-        text = re.sub(r'!\[.*?\]\(.*?\)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"!\[.*?\]\(.*?\)", "", text, flags=re.DOTALL | re.IGNORECASE)
 
         # Remove common boilerplate links: [Download|Print...](url)
-        text = re.sub(
-            r'\[(?:Download|Print|View|Overview|Back to).*?\]\(.*?\)',
-            '', text, flags=re.IGNORECASE
-        )
+        text = re.sub(r"\[(?:Download|Print|View|Overview|Back to).*?\]\(.*?\)", "", text, flags=re.IGNORECASE)
 
         # Remove social sharing links (LinkedIn, Twitter/X, Facebook, WhatsApp, etc.)
         text = re.sub(
-            r'\[(?:Teilen auf|Share on|Compartir en|分享到?)[^\]]*\]\([^\)]+\)\s*',
-            '', text, flags=re.IGNORECASE
+            r"\[(?:Teilen auf|Share on|Compartir en|分享到?)[^\]]*\]\([^\)]+\)\s*", "", text, flags=re.IGNORECASE
         )
         text = re.sub(
-            r'\[(?:LinkedIn|Twitter|Facebook|WhatsApp|X \(vorher|Xing)[^\]]*\]\([^\)]+\)\s*',
-            '', text, flags=re.IGNORECASE
+            r"\[(?:LinkedIn|Twitter|Facebook|WhatsApp|X \(vorher|Xing)[^\]]*\]\([^\)]+\)\s*",
+            "",
+            text,
+            flags=re.IGNORECASE,
         )
 
         # Remove markdown table rows that are pure separator or single-cell noise
         # e.g. "| | | | | |" — pipes with only whitespace between them
-        text = re.sub(r'^\|(?:\s*\|)+\s*$', '', text, flags=re.MULTILINE)
+        text = re.sub(r"^\|(?:\s*\|)+\s*$", "", text, flags=re.MULTILINE)
 
         # Remove UI specific text fragments, symbols and metadata
         ui_noise_patterns = [
-            r'Previous slide', r'Next slide', r'Slide \d+ of \d+',
-            r'\[closed envelope E-Mail\]\(.*?\)', r'\[Hotline\]\(.*?\)', r'\[FAQ\]\(.*?\)',
-            r'<desc>.*?</desc>',                     # SVG description labels
-            r'©\s*.*?(?:\.com|\d{4})',               # Copyright credits
-            r'[✔©✅ℹ️⚠️✅❌📊📄🔗📂📜📌📏\-]',     # UI symbols
-            r'^.*?\]\(/en/working-in-germany/job-listings\?tx_solr.*$',  # job search leaks
-            r'Translate it via your browser\.',
-            r'Google Translate is a third-party provider\.',
-            r'Find points of contact all over the world',
-            r'\* \[Living in Germany\]\(.*?\) \* \[Housing & mobility\]\(.*?\)',  # Breadcrumbs
-            r'\[WhatsApp\]\(WhatsApp:.*?\) \[Facebook\]\(http:.*?\) \[X\]\(https:.*?\)',
-            r'\[Show more\]\(.*?\)', r'\[Share page\]\(.*?\)', r'\* ### Share page',
-            r'(?:^|\s)\]\(https?://[^\s\)]+\)',      # Trailing broken link fragments
-            r'^\*?\d{2}\.\d{2}\.\d{4}\*?$',         # Standalone date-only lines
-            r'^\*?Pressemitteilung\*?$',             # Standalone Press Release tags
+            r"Previous slide",
+            r"Next slide",
+            r"Slide \d+ of \d+",
+            r"\[closed envelope E-Mail\]\(.*?\)",
+            r"\[Hotline\]\(.*?\)",
+            r"\[FAQ\]\(.*?\)",
+            r"<desc>.*?</desc>",  # SVG description labels
+            r"©\s*.*?(?:\.com|\d{4})",  # Copyright credits
+            r"[✔©✅ℹ️⚠️✅❌📊📄🔗📂📜📌📏\-]",  # UI symbols
+            r"^.*?\]\(/en/working-in-germany/job-listings\?tx_solr.*$",  # job search leaks
+            r"Translate it via your browser\.",
+            r"Google Translate is a third-party provider\.",
+            r"Find points of contact all over the world",
+            r"\* \[Living in Germany\]\(.*?\) \* \[Housing & mobility\]\(.*?\)",  # Breadcrumbs
+            r"\[WhatsApp\]\(WhatsApp:.*?\) \[Facebook\]\(http:.*?\) \[X\]\(https:.*?\)",
+            r"\[Show more\]\(.*?\)",
+            r"\[Share page\]\(.*?\)",
+            r"\* ### Share page",
+            r"(?:^|\s)\]\(https?://[^\s\)]+\)",  # Trailing broken link fragments
+            r"^\*?\d{2}\.\d{2}\.\d{4}\*?$",  # Standalone date-only lines
+            r"^\*?Pressemitteilung\*?$",  # Standalone Press Release tags
         ]
         for pattern in ui_noise_patterns:
-            text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.MULTILINE)
+            text = re.sub(pattern, "", text, flags=re.IGNORECASE | re.MULTILINE)
 
         # Remove empty lines and normalize whitespace
         text = normalize_whitespace(text)
@@ -123,7 +126,7 @@ class ParentChildChunker:
 
         lines = markdown_text.split("\n")
         sections = []
-        current_header = None          # None = we haven't hit any header yet
+        current_header = None  # None = we haven't hit any header yet
         current_content: List[str] = []
 
         for line in lines:
@@ -194,21 +197,21 @@ class ParentChildChunker:
             # If paragraph itself is too large, split by sentences
             if len(para) > max_size:
                 # 1. Try splitting by sentence punctuation first
-                para_sentences = re.split(r'([.!?](?:\s+|$))', para)
+                para_sentences = re.split(r"([.!?](?:\s+|$))", para)
                 segments = []
                 for i in range(0, len(para_sentences) - 1, 2):
                     segments.append(para_sentences[i] + para_sentences[i + 1])
                 if len(para_sentences) % 2 == 1:
                     segments.append(para_sentences[-1])
 
-                # 2. Hard Fallback: If any segment is still too large (no punctuation), 
+                # 2. Hard Fallback: If any segment is still too large (no punctuation),
                 # split by character length
                 final_segments = []
                 for seg in segments:
                     if len(seg) > max_size:
                         # Force split into max_size chunks
                         for j in range(0, len(seg), max_size):
-                            final_segments.append(seg[j:j + max_size])
+                            final_segments.append(seg[j : j + max_size])
                     else:
                         final_segments.append(seg)
 
@@ -299,16 +302,13 @@ class ParentChildChunker:
 
             # Safety check: Trim parent if it's monstrously large
             if len(parent_text) > MAX_CHUNK_LENGTH:
-                logger.warning(
-                    f"Trimming oversized parent chunk ({len(parent_text)} chars) for {source_url}"
-                )
+                logger.warning(f"Trimming oversized parent chunk ({len(parent_text)} chars) for {source_url}")
                 parent_text = parent_text[:MAX_CHUNK_LENGTH] + "... [Truncated]"
 
             # Drop trivially short parent sections (nav links, breadcrumbs, etc.)
             if len(parent_text.strip()) < self.min_parent_length:
                 logger.debug(
-                    f"Skipping short parent section '{section_header}' "
-                    f"({len(parent_text)} chars) in {source_url}"
+                    f"Skipping short parent section '{section_header}' " f"({len(parent_text)} chars) in {source_url}"
                 )
                 continue
 
@@ -395,7 +395,7 @@ class ParentChildChunker:
 
     def _extract_urls(self, text: str) -> List[str]:
         """Extract URLs from chunk text."""
-        url_pattern = r'https?://[^\s\)]+'
+        url_pattern = r"https?://[^\s\)]+"
         return list(set(re.findall(url_pattern, text)))
 
 

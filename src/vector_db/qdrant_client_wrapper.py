@@ -1,4 +1,3 @@
-
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 import asyncio
@@ -34,14 +33,14 @@ class QdrantWrapper:
         self.api_key = settings.qdrant_api_key
         self.collection_name = settings.qdrant_collection_name
         self.vector_size = settings.qdrant_vector_size
-        
+
         # Async client (preferred)
         self.client = AsyncQdrantClient(
             url=self.url,
             api_key=self.api_key,
             prefer_grpc=settings.qdrant_prefer_grpc,
         )
-        
+
         # Sync client fallback
         self.sync_client = QdrantClient(
             url=self.url,
@@ -56,14 +55,14 @@ class QdrantWrapper:
             # Check if collection exists
             collections = await self.client.get_collections()
             collection_names = [col.name for col in collections.collections]
-            
+
             if self.collection_name in collection_names:
                 logger.info(f"Collection '{self.collection_name}' already exists")
                 return
-            
+
             # Create collection with hybrid search setup
             logger.info(f"Creating collection '{self.collection_name}'")
-            
+
             await self.client.create_collection(
                 collection_name=self.collection_name,
                 vectors_config=VectorParams(
@@ -79,9 +78,9 @@ class QdrantWrapper:
                     }
                 },
             )
-            
+
             logger.info(f"Collection '{self.collection_name}' created successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to ensure collection exists: {e}")
             raise
@@ -93,7 +92,7 @@ class QdrantWrapper:
     ) -> None:
         """
         Upsert points into Qdrant collection.
-        
+
         Args:
             points: List of PointStruct objects
             wait: Wait for operation to complete
@@ -104,15 +103,15 @@ class QdrantWrapper:
                 return
 
             logger.debug(f"Upserting {len(points)} points to Qdrant")
-            
+
             await self.client.upsert(
                 collection_name=self.collection_name,
                 points=points,
                 wait=wait,
             )
-            
+
             logger.info(f"Successfully upserted {len(points)} points")
-            
+
         except Exception as e:
             logger.error(f"Upsert failed: {e}", extra={"points_count": len(points)})
             raise
@@ -152,6 +151,7 @@ class QdrantWrapper:
             sparse_vec: Optional[SparseVector] = None
             if settings.enable_sparse_search:
                 from src.vector_db.sparse_encoder import get_sparse_encoder
+
                 encoder = get_sparse_encoder(vocab_size=settings.sparse_vocab_size)
                 sparse_vec = encoder.encode(query_text)
                 if not sparse_vec.indices:
@@ -187,9 +187,7 @@ class QdrantWrapper:
                     with_payload=True,
                     limit=top_k,
                 )
-                logger.debug(
-                    f"Hybrid RRF search: dense + sparse legs, top_k={top_k}"
-                )
+                logger.debug(f"Hybrid RRF search: dense + sparse legs, top_k={top_k}")
             else:
                 # Dense-only fallback (sparse disabled or empty vector)
                 search_result = await self.client.query_points(
@@ -199,9 +197,7 @@ class QdrantWrapper:
                     with_payload=True,
                     limit=top_k,
                 )
-                logger.debug(
-                    f"Dense-only fallback search (sparse disabled or empty), top_k={top_k}"
-                )
+                logger.debug(f"Dense-only fallback search (sparse disabled or empty), top_k={top_k}")
 
             # --- Format results ---
             ranked = [
@@ -257,7 +253,7 @@ class QdrantWrapper:
                             "last_fetched": payload.get("fetched_at"),
                             "visa_types": payload.get("visa_types", []),
                         }
-                    
+
                 points_scanned += len(points)
                 offset = next_offset
                 if not offset:
@@ -268,7 +264,7 @@ class QdrantWrapper:
             # Simple sorting: official first
             authority_rank = {"official": 0, "semi_official": 1, "third_party": 2}
             result.sort(key=lambda x: (authority_rank.get(x["authority_level"], 3), x["title"]))
-            
+
             logger.info(f"Retrieved {len(result)} unique sources from Qdrant")
             return result
 
@@ -284,36 +280,33 @@ class QdrantWrapper:
     ) -> Filter:
         """
         Build composite filter for authority level, visa types, and recency.
-        
+
         Args:
             min_authority_level: Minimum authority level (prioritize official)
             visa_types: List of relevant visa types to filter
             max_days_old: Only return documents fetched within this many days
-            
+
         Returns:
             Qdrant Filter object
         """
         conditions = []
-        
+
         # Authority level filter (prioritize official sources)
         authority_mapping = {
             AuthorityLevel.OFFICIAL: ["official"],
             AuthorityLevel.SEMI_OFFICIAL: ["official", "semi_official"],
             AuthorityLevel.THIRD_PARTY: ["official", "semi_official", "third_party"],
         }
-        
-        authority_values = authority_mapping.get(
-            min_authority_level,
-            ["official", "semi_official", "third_party"]
-        )
-        
+
+        authority_values = authority_mapping.get(min_authority_level, ["official", "semi_official", "third_party"])
+
         conditions.append(
             FieldCondition(
                 key="authority_level",
                 match=MatchValue(value=authority_values),
             )
         )
-        
+
         # Visa type filter
         if visa_types:
             conditions.append(
@@ -322,13 +315,13 @@ class QdrantWrapper:
                     match=MatchValue(value=visa_types),
                 )
             )
-        
+
         # Recency filter (documents fetched within max_days_old)
         if max_days_old:
-            cutoff_date = (datetime.now(timezone.utc).timestamp() - max_days_old * 86400)
+            cutoff_date = datetime.now(timezone.utc).timestamp() - max_days_old * 86400
             # Note: Qdrant doesn't have native datetime filtering in v0.x
             # This would need custom filtering logic
-        
+
         # Combine conditions with OR logic
         if len(conditions) == 1:
             return conditions[0]
@@ -367,9 +360,7 @@ class QdrantWrapper:
     async def count_points(self) -> int:
         """Get total number of points in collection."""
         try:
-            collection = await self.client.get_collection(
-                collection_name=self.collection_name
-            )
+            collection = await self.client.get_collection(collection_name=self.collection_name)
             return collection.points_count
         except Exception as e:
             logger.error(f"Failed to count points: {e}")

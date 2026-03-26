@@ -30,37 +30,38 @@ def async_retry(
 
 class CircuitBreaker:
     """Simple circuit breaker for API calls."""
-    
+
     def __init__(self, failure_threshold: int = 5, timeout: int = 60):
         self.failure_threshold = failure_threshold
         self.timeout = timeout
         self.failures = 0
         self.last_failure_time = None
         self.is_open = False
-    
+
     def record_success(self):
         """Record successful call."""
         self.failures = 0
         self.is_open = False
-    
+
     def record_failure(self):
         """Record failed call."""
         self.failures += 1
         if self.failures >= self.failure_threshold:
             self.is_open = True
             logger.warning(f"Circuit breaker opened after {self.failures} failures")
-    
+
     def is_available(self) -> bool:
         """Check if circuit is available."""
         if not self.is_open:
             return True
-        
+
         # Check timeout
         import time
+
         if time.time() - self.last_failure_time > self.timeout:
             self.is_open = False
             self.failures = 0
             logger.info("Circuit breaker reset")
             return True
-        
+
         return False

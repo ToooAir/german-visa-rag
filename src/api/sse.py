@@ -12,11 +12,11 @@ class SSEFormatter:
     def format_event(event: str, data: dict) -> str:
         """
         Format event as SSE.
-        
+
         Args:
             event: Event type
             data: Event data dict
-            
+
         Returns:
             SSE-formatted string
         """
@@ -33,7 +33,7 @@ class SSEFormatter:
     ) -> AsyncIterator[str]:
         """
         Convert async generator to SSE format.
-        
+
         The generator should yield JSON strings or [DONE].
         """
         async for item in async_generator:

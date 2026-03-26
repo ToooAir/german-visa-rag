@@ -27,12 +27,10 @@ class Settings(BaseSettings):
     # ============================================
     openai_api_key: str = Field(..., validation_alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_MODEL")
-    openai_api_base: str = Field(
-        default="https://api.openai.com/v1", validation_alias="OPENAI_API_BASE"
-    )
+    openai_api_base: str = Field(default="https://api.openai.com/v1", validation_alias="OPENAI_API_BASE")
     embedding_model: str = Field(default="text-embedding-3-small", validation_alias="EMBEDDING_MODEL")
     embedding_dimension: int = Field(default=1536, validation_alias="EMBEDDING_DIMENSION")
-    
+
     # Azure OpenAI Configuration
     use_azure_openai: bool = Field(default=False, validation_alias="USE_AZURE_OPENAI")
     azure_openai_api_key: Optional[str] = Field(default=None, validation_alias="AZURE_OPENAI_API_KEY")
@@ -40,7 +38,7 @@ class Settings(BaseSettings):
     azure_openai_api_version: str = Field(default="2024-12-01-preview", validation_alias="AZURE_OPENAI_API_VERSION")
     azure_embedding_deployment: Optional[str] = Field(default=None, validation_alias="AZURE_EMBEDDING_DEPLOYMENT")
     azure_llm_deployment: Optional[str] = Field(default=None, validation_alias="AZURE_LLM_DEPLOYMENT")
-    
+
     # Token limits & cost control
     max_query_tokens: int = Field(default=256, validation_alias="MAX_QUERY_TOKENS")
     max_context_tokens: int = Field(default=4000, validation_alias="MAX_CONTEXT_TOKENS")
@@ -59,9 +57,7 @@ class Settings(BaseSettings):
     # ============================================
     qdrant_url: str = Field(default="http://localhost:6333", validation_alias="QDRANT_URL")
     qdrant_api_key: Optional[str] = Field(default=None, validation_alias="QDRANT_API_KEY")
-    qdrant_collection_name: str = Field(
-        default="german-visa-docs", validation_alias="QDRANT_COLLECTION_NAME"
-    )
+    qdrant_collection_name: str = Field(default="german-visa-docs", validation_alias="QDRANT_COLLECTION_NAME")
     qdrant_vector_size: int = Field(default=1536, validation_alias="QDRANT_VECTOR_SIZE")
     qdrant_prefer_grpc: bool = Field(default=False, validation_alias="QDRANT_PREFER_GRPC")
 
@@ -75,9 +71,7 @@ class Settings(BaseSettings):
     # ============================================
     # SQLite State Store
     # ============================================
-    sqlite_db_path: Path = Field(
-        default=Path("./data/state.db"), validation_alias="SQLITE_DB_PATH"
-    )
+    sqlite_db_path: Path = Field(default=Path("./data/state.db"), validation_alias="SQLITE_DB_PATH")
 
     # ============================================
     # API Security
@@ -87,8 +81,7 @@ class Settings(BaseSettings):
     require_api_key: bool = Field(default=True, validation_alias="REQUIRE_API_KEY")
     allowed_hosts: Union[List[str], str] = Field(default=["*"], validation_alias="ALLOWED_HOSTS")
     allowed_origins: Union[List[str], str] = Field(
-        default=["http://localhost:3000", "http://localhost:5173"], 
-        validation_alias="ALLOWED_ORIGINS"
+        default=["http://localhost:3000", "http://localhost:5173"], validation_alias="ALLOWED_ORIGINS"
     )
 
     # ============================================
@@ -100,9 +93,7 @@ class Settings(BaseSettings):
     # ============================================
     # Ingestion Pipeline
     # ============================================
-    ingestion_schedule_interval_hours: int = Field(
-        default=24, validation_alias="INGESTION_SCHEDULE_INTERVAL_HOURS"
-    )
+    ingestion_schedule_interval_hours: int = Field(default=24, validation_alias="INGESTION_SCHEDULE_INTERVAL_HOURS")
     crawler_rate_limit_requests_per_second: float = Field(
         default=2.0, validation_alias="CRAWLER_RATE_LIMIT_REQUESTS_PER_SECOND"
     )
@@ -117,7 +108,7 @@ class Settings(BaseSettings):
     crawler_respect_robots_txt: bool = Field(default=True, validation_alias="CRAWLER_RESPECT_ROBOTS_TXT")
     crawler_discovery_enabled: bool = Field(default=True, validation_alias="CRAWLER_DISCOVERY_ENABLED")
     discovery_cache_ttl_hours: int = Field(default=168, validation_alias="DISCOVERY_CACHE_TTL_HOURS")
-    
+
     # Internal APScheduler (Disable in cloud environments, use external Cron instead)
     enable_internal_scheduler: bool = Field(default=False, validation_alias="ENABLE_INTERNAL_SCHEDULER")
 
@@ -147,9 +138,7 @@ class Settings(BaseSettings):
     # ============================================
     # Reranker Configuration
     # ============================================
-    reranker_api_type: Literal["mock", "cohere", "jina"] = Field(
-        default="mock", validation_alias="RERANKER_API_TYPE"
-    )
+    reranker_api_type: Literal["mock", "cohere", "jina"] = Field(default="mock", validation_alias="RERANKER_API_TYPE")
     reranker_api_key: Optional[str] = Field(default=None, validation_alias="RERANKER_API_KEY")
     reranker_model_name: str = Field(default="rerank-english-v2.0", validation_alias="RERANKER_MODEL_NAME")
 

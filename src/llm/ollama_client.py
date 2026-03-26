@@ -30,7 +30,7 @@ class OllamaClient:
         """Call Ollama and return complete response."""
         try:
             logger.debug(f"Calling Ollama {self.model}")
-            
+
             response = await self.client.post(
                 f"{self.base_url}/api/chat",
                 json={
@@ -43,11 +43,11 @@ class OllamaClient:
                     },
                 },
             )
-            
+
             response.raise_for_status()
             data = response.json()
             return data.get("message", {}).get("content", "")
-            
+
         except Exception as e:
             logger.error(f"Ollama call failed: {e}")
             raise
@@ -72,12 +72,13 @@ class OllamaClient:
                     },
                 },
             )
-            
+
             response.raise_for_status()
-            
+
             async for line in response.aiter_lines():
                 if line:
                     import json
+
                     try:
                         chunk = json.loads(line)
                         content = chunk.get("message", {}).get("content", "")
@@ -85,7 +86,7 @@ class OllamaClient:
                             yield content
                     except json.JSONDecodeError:
                         pass
-                        
+
         except Exception as e:
             logger.error(f"Ollama streaming failed: {e}")
             raise

@@ -29,7 +29,7 @@ class SQLiteStateStore:
         """Initialize database schema."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            
+
             # Table: tracked_documents (source documents)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS tracked_documents (
@@ -50,7 +50,7 @@ class SQLiteStateStore:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            
+
             # Table: chunks (deduplicated chunks)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS chunks (
@@ -69,7 +69,7 @@ class SQLiteStateStore:
                     FOREIGN KEY (parent_doc_id) REFERENCES tracked_documents(id)
                 )
             """)
-            
+
             # Table: ingestion_runs (audit trail)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS ingestion_runs (
@@ -87,7 +87,7 @@ class SQLiteStateStore:
                     triggered_by TEXT DEFAULT 'manual'  -- manual, scheduler
                 )
             """)
-            
+
             # Table: discovered_urls (URL discovery cache)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS discovered_urls (
@@ -110,7 +110,7 @@ class SQLiteStateStore:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_chunk_status ON chunks(status)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_doc_status ON tracked_documents(status)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_discovered_domain ON discovered_urls(domain)")
-            
+
             conn.commit()
             logger.info(f"SQLite state store initialized at {self.db_path}")
 
@@ -133,40 +133,40 @@ class SQLiteStateStore:
     ) -> str:
         """
         Register a source document for tracking.
-        
+
         Args:
             source_url: URL of the document
             title: Document title
             authority_level: Authority classification
             visa_types: List of visa categories
-            
+
         Returns:
             Document ID for tracking
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            
+
             try:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO tracked_documents
                     (source_url, document_title, authority_level, visa_types, status)
                     VALUES (?, ?, ?, ?, ?)
-                """, (
-                    source_url,
-                    title,
-                    authority_level,
-                    str(visa_types or []),
-                    "pending",
-                ))
+                """,
+                    (
+                        source_url,
+                        title,
+                        authority_level,
+                        str(visa_types or []),
+                        "pending",
+                    ),
+                )
                 conn.commit()
                 return str(cursor.lastrowid)
-                
+
             except sqlite3.IntegrityError:
                 # Document already tracked, return existing ID
-                cursor.execute(
-                    "SELECT id FROM tracked_documents WHERE source_url = ?",
-                    (source_url,)
-                )
+                cursor.execute("SELECT id FROM tracked_documents WHERE source_url = ?", (source_url,))
                 result = cursor.fetchone()
                 return str(result[0]) if result else None
 
@@ -174,49 +174,55 @@ class SQLiteStateStore:
         """Mark document as currently being processed."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE tracked_documents
                 SET status = 'processing', updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            """, (doc_id,))
+            """,
+                (doc_id,),
+            )
             conn.commit()
 
     def mark_document_ingested(self, doc_id: str, content_hash: str):
         """Mark document as successfully ingested."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE tracked_documents
                 SET status = 'ingested', 
                     content_hash = ?,
                     last_fetched_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            """, (content_hash, doc_id))
+            """,
+                (content_hash, doc_id),
+            )
             conn.commit()
 
     def mark_document_failed(self, doc_id: str, error_message: str):
         """Mark document as failed ingestion."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE tracked_documents
                 SET status = 'failed',
                     error_message = ?,
                     retry_count = retry_count + 1,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            """, (error_message, doc_id))
+            """,
+                (error_message, doc_id),
+            )
             conn.commit()
 
     def get_document_metadata(self, source_url: str) -> Optional[Dict[str, Any]]:
         """Get document status and content hash."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id, status, content_hash FROM tracked_documents WHERE source_url = ?",
-                (source_url,)
-            )
+            cursor.execute("SELECT id, status, content_hash FROM tracked_documents WHERE source_url = ?", (source_url,))
             row = cursor.fetchone()
             return dict(row) if row else None
 
@@ -224,10 +230,7 @@ class SQLiteStateStore:
         """Check if chunk (by hash) already exists."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT 1 FROM chunks WHERE text_hash = ? AND status = 'active'",
-                (text_hash,)
-            )
+            cursor.execute("SELECT 1 FROM chunks WHERE text_hash = ? AND status = 'active'", (text_hash,))
             return cursor.fetchone() is not None
 
     def register_chunk(
@@ -243,30 +246,33 @@ class SQLiteStateStore:
     ) -> int:
         """
         Register a chunk for tracking.
-        
+
         Returns:
             Chunk row ID
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            
+
             try:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT OR IGNORE INTO chunks
                     (chunk_id, parent_doc_id, source_url, text_hash, text_length, 
                      is_parent, section_header, language, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    chunk_id,
-                    parent_doc_id,
-                    source_url,
-                    text_hash,
-                    len(text),
-                    int(is_parent),
-                    section_header,
-                    language,
-                    "active",
-                ))
+                """,
+                    (
+                        chunk_id,
+                        parent_doc_id,
+                        source_url,
+                        text_hash,
+                        len(text),
+                        int(is_parent),
+                        section_header,
+                        language,
+                        "active",
+                    ),
+                )
                 conn.commit()
                 return cursor.lastrowid
             except Exception as e:
@@ -277,11 +283,14 @@ class SQLiteStateStore:
         """Link chunk to its Qdrant point ID."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE chunks
                 SET qdrant_point_id = ?
                 WHERE chunk_id = ?
-            """, (qdrant_point_id, chunk_id))
+            """,
+                (qdrant_point_id, chunk_id),
+            )
             conn.commit()
 
     def delete_document_chunks(self, doc_id: str):
@@ -296,10 +305,13 @@ class SQLiteStateStore:
         """Create new ingestion run record."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO ingestion_runs (run_id, triggered_by)
                 VALUES (?, ?)
-            """, (run_id, triggered_by))
+            """,
+                (run_id, triggered_by),
+            )
             conn.commit()
             return run_id
 
@@ -316,7 +328,8 @@ class SQLiteStateStore:
         """Finalize ingestion run with summary."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE ingestion_runs
                 SET status = 'completed',
                     end_time = CURRENT_TIMESTAMP,
@@ -327,29 +340,34 @@ class SQLiteStateStore:
                     total_tokens = ?,
                     error_details = ?
                 WHERE run_id = ?
-            """, (
-                documents_processed,
-                chunks_ingested,
-                chunks_skipped,
-                error_count,
-                total_tokens,
-                error_details,
-                run_id,
-            ))
+            """,
+                (
+                    documents_processed,
+                    chunks_ingested,
+                    chunks_skipped,
+                    error_count,
+                    total_tokens,
+                    error_details,
+                    run_id,
+                ),
+            )
             conn.commit()
 
     def get_pending_documents(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Get documents pending ingestion."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM tracked_documents
                 WHERE status IN ('pending', 'failed')
                 AND retry_count < 3
                 ORDER BY updated_at ASC
                 LIMIT ?
-            """, (limit,))
-            
+            """,
+                (limit,),
+            )
+
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
 
@@ -357,16 +375,16 @@ class SQLiteStateStore:
         """Get ingestion statistics."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            
+
             cursor.execute("SELECT COUNT(*) FROM tracked_documents WHERE status = 'ingested'")
             ingested_docs = cursor.fetchone()[0]
-            
+
             cursor.execute("SELECT COUNT(*) FROM chunks WHERE status = 'active'")
             active_chunks = cursor.fetchone()[0]
-            
+
             cursor.execute("SELECT COUNT(*) FROM ingestion_runs")
             total_runs = cursor.fetchone()[0]
-            
+
             cursor.execute("""
                 SELECT SUM(chunks_ingested), SUM(total_tokens)
                 FROM ingestion_runs WHERE status = 'completed'
@@ -374,7 +392,7 @@ class SQLiteStateStore:
             row = cursor.fetchone()
             total_chunks_ingested = row[0] or 0
             total_tokens = row[1] or 0
-            
+
             cursor.execute("SELECT COUNT(DISTINCT domain) FROM discovered_urls")
             cached_domains = cursor.fetchone()[0]
 
@@ -411,24 +429,25 @@ class SQLiteStateStore:
             cursor.execute("DELETE FROM discovered_urls WHERE domain = ?", (domain,))
 
             for entry in urls_with_metadata:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO discovered_urls
                     (domain, url, authority_level, visa_types, relevance_score,
                      from_sitemap, from_crawling)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    domain,
-                    entry["url"],
-                    entry.get("authority_level", "third_party"),
-                    json.dumps(entry.get("visa_types", ["general"])),
-                    entry.get("relevance_score", 0.5),
-                    int(entry.get("from_sitemap", False)),
-                    int(entry.get("from_crawling", False)),
-                ))
+                """,
+                    (
+                        domain,
+                        entry["url"],
+                        entry.get("authority_level", "third_party"),
+                        json.dumps(entry.get("visa_types", ["general"])),
+                        entry.get("relevance_score", 0.5),
+                        int(entry.get("from_sitemap", False)),
+                        int(entry.get("from_crawling", False)),
+                    ),
+                )
             conn.commit()
-            logger.info(
-                f"Cached {len(urls_with_metadata)} discovered URLs for {domain}"
-            )
+            logger.info(f"Cached {len(urls_with_metadata)} discovered URLs for {domain}")
 
     def get_cached_discovery(
         self,
@@ -447,14 +466,17 @@ class SQLiteStateStore:
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT url, authority_level, visa_types, relevance_score,
                        from_sitemap, from_crawling, discovered_at
                 FROM discovered_urls
                 WHERE domain = ?
                   AND discovered_at > datetime('now', ?)
                 ORDER BY relevance_score DESC
-            """, (domain, f"-{max_age_hours} hours"))
+            """,
+                (domain, f"-{max_age_hours} hours"),
+            )
 
             rows = cursor.fetchall()
             if not rows:
@@ -462,15 +484,17 @@ class SQLiteStateStore:
 
             results = []
             for row in rows:
-                results.append({
-                    "url": row["url"],
-                    "authority_level": row["authority_level"],
-                    "visa_types": json.loads(row["visa_types"]) if row["visa_types"] else ["general"],
-                    "relevance_score": row["relevance_score"],
-                    "from_sitemap": bool(row["from_sitemap"]),
-                    "from_crawling": bool(row["from_crawling"]),
-                    "discovered_at": row["discovered_at"],
-                })
+                results.append(
+                    {
+                        "url": row["url"],
+                        "authority_level": row["authority_level"],
+                        "visa_types": json.loads(row["visa_types"]) if row["visa_types"] else ["general"],
+                        "relevance_score": row["relevance_score"],
+                        "from_sitemap": bool(row["from_sitemap"]),
+                        "from_crawling": bool(row["from_crawling"]),
+                        "discovered_at": row["discovered_at"],
+                    }
+                )
             return results
 
     def clear_discovery_cache(self, domain: Optional[str] = None):
@@ -501,4 +525,3 @@ def get_state_store() -> SQLiteStateStore:
     if _state_store is None:
         _state_store = SQLiteStateStore()
     return _state_store
-

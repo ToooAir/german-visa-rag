@@ -24,10 +24,10 @@ export const translations = {
     light: 'Light Mode',
     system: 'System Default',
 
-    // Chat
-    welcome: 'Hello! I am **VisaFlow DE**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.',
+    personaName: 'Visa Assistant',
+    welcome: 'Hello! I am your **Visa Assistant**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.',
     chatHeader: 'Chat',
-    askPlaceholder: 'Ask VisaFlow DE...',
+    askPlaceholder: 'Ask Visa Assistant...',
     showcaseExamples: 'Showcase Examples',
     you: 'You',
     disclaimer: 'This response is based on public information and for reference only; it does not constitute legal advice. Please consult official sources or professionals for critical decisions.',
@@ -211,10 +211,10 @@ export const translations = {
     light: 'Heller Modus',
     system: 'Systemstandard',
 
-    // Chat
-    welcome: 'Hallo! Ich bin **VisaFlow DE**. Ich kann Ihnen helfen, deutsche Visumbestimmungen, die *Chancenkarte* und offizielle Anforderungen zu verstehen.',
+    personaName: 'Visum-Assistent',
+    welcome: 'Hallo! Ich bin Ihr **Visum-Assistent**. Ich kann Ihnen helfen, deutsche Visumbestimmungen, die *Chancenkarte* und offizielle Anforderungen zu verstehen.',
     chatHeader: 'Chat',
-    askPlaceholder: 'Fragen Sie VisaFlow DE...',
+    askPlaceholder: 'Fragen Sie den Visum-Assistenten...',
     showcaseExamples: 'Beispiele ansehen',
     you: 'Sie',
     disclaimer: 'Diese Antwort basiert auf öffentlichen Informationen und dient nur zu Referenzzwecken; sie stellt keine Rechtsberatung dar. Bitte konsultieren Sie offizielle Quellen für wichtige Entscheidungen.',
@@ -398,10 +398,10 @@ export const translations = {
     light: '淺色模式',
     system: '系統預設',
 
-    // Chat
-    welcome: '您好！我是 **VisaFlow DE**。我可以協助您了解德國簽證法規、*機會卡 (Chancenkarte)* 以及官方要求。',
+    personaName: '簽證小助手',
+    welcome: '您好！我是您的 **簽證小助手**。我可以協助您了解德國簽證法規、*機會卡 (Chancenkarte)* 以及官方要求。',
     chatHeader: '聊天',
-    askPlaceholder: '詢問 VisaFlow DE...',
+    askPlaceholder: '詢問簽證小助手...',
     showcaseExamples: '展示範例',
     you: '您',
     disclaimer: '本回答內容僅供參考，不構成法律建議。所有重要簽證決定請務必諮詢官方機構或專業法律人士。',
@@ -564,8 +564,10 @@ export const translations = {
   }
 };
 
+export type Translation = typeof translations.en;
+
 export const useTranslation = () => {
   const language = useSettingsStore((state) => state.language);
-  const t = translations[language as Language] || translations.en;
+  const t = (translations[language as Language] || translations.en) as Translation;
   return { t, language };
 };

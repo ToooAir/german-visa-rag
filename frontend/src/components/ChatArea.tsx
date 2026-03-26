@@ -58,9 +58,6 @@ export function ChatArea({ className = '' }: { className?: string }) {
       <div className="flex items-center justify-between p-4 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-20">
         <div className="flex items-center gap-3 relative">
           <div className="flex flex-col">
-            <h2 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5 ml-1">
-              VisaFlow DE
-            </h2>
             <button
               onClick={() => setIsSelectorOpen(!isSelectorOpen)}
               className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group"
@@ -69,7 +66,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
                 <ActiveIcon size={18} />
               </div>
               <span className="text-lg font-bold text-slate-800 dark:text-slate-100">
-                {activeVisaCategory ? (t as Record<string, any>)[currentMeta.labelKey] : t.chatHeader}
+                {activeVisaCategory ? (t as any)[currentMeta.labelKey] : t.chatHeader}
               </span>
               <ChevronDown size={16} className={`text-slate-400 transition-transform duration-300 ${isSelectorOpen ? 'rotate-180' : ''}`} />
               {isLoading && <Loader2 className="w-4 h-4 animate-spin text-accent ml-1" />}
@@ -113,7 +110,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
                           <div className={`p-1.5 rounded-lg ${isActive ? 'bg-accent/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
                             <Icon size={16} />
                           </div>
-                          <span className="flex-1 text-left text-sm">{(t as Record<string, any>)[meta.labelKey]}</span>
+                          <span className="flex-1 text-left text-sm">{(t as any)[meta.labelKey]}</span>
                           {isActive && <div className="w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_8px_rgba(var(--accent-rgb),0.5)]" />}
                         </button>
                       );
@@ -288,7 +285,7 @@ function ChatMessage({ message }: { message: Message }) {
           <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center text-accent ring-1 ring-accent/30">
             <Sparkles size={18} />
           </div>
-          <span className="font-semibold text-slate-900 dark:text-white text-sm tracking-wide">VisaFlow DE</span>
+          <span className="font-semibold text-slate-900 dark:text-white text-sm tracking-wide">{t.personaName || 'Visa Assistant'}</span>
         </div>
       </div>
 

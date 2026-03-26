@@ -207,14 +207,20 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
 
       const isLangMet = hasLangPoints || requirements.some(r => r.id === '1-2' && r.status === 'required');
       const isQualMet = hasQualPoints || requirements.some(r => r.id === '1-3' && r.status === 'required');
+      const isDirectEligible = requirements.some(r => r.id === '1-3' && r.status === 'required' && r.value !== 'PARTIAL_RECOGNITION');
 
-      let baseProgMet = 0;
-      if (isLangMet) baseProgMet++;
-      if (isQualMet) baseProgMet++;
-
-      const baseProg = Math.round((baseProgMet / 2) * 100);
       const pts = calculatePoints();
-      cards.push({ label: t.criteria.eligibilityPath || 'Eligibility Path', value: `${t.criteria.pathDirect}\n${t.criteria.pathPoints}`, sub: `(${baseProg}% ${t.met} / ${pts} ${t.criteria.pts})` });
+      const pointsGoal = 6;
+      const outcomeProg = isDirectEligible ? 1 : Math.min(pts / pointsGoal, 1);
+
+      // Total progress is (Language Thresh + Qual Thresh + Points/Direct Goal) / 3
+      const overallProg = Math.round((( (isLangMet ? 1 : 0) + (isQualMet ? 1 : 0) + outcomeProg ) / 3) * 100);
+
+      cards.push({
+        label: t.criteria.eligibilityPath || 'Eligibility Path',
+        value: `${t.criteria.pathDirect}\n${t.criteria.pathPoints}`,
+        sub: `(${overallProg}% ${t.met} / ${pts} ${t.criteria.pts})`
+      });
       cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €13,092`, sub: `(${getFinancialSub('1-1')})` });
     } else {
       cards.push({
@@ -396,6 +402,8 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                   if (activeVisaCategory === 'chancenkarte') {
                     const hasLangPoints = requirements.some(r => r.id === '2-1' && r.status === 'required');
                     const hasQualPoints = requirements.some(r => r.id?.match(/^2-[45]/) && r.status === 'required');
+
+                    // A. Forward Inference: Points -> Threshold
                     if (req.id === '1-2' && hasLangPoints && req.status !== 'required') {
                       req.status = 'required';
                       req.value = 'MET';
@@ -403,6 +411,35 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                     if (req.id === '1-3' && hasQualPoints && req.status !== 'required') {
                       req.status = 'required';
                       req.value = 'MET';
+                    }
+
+                    // B. Reverse Inference: Threshold -> Points (Language)
+                    if (req.id === '2-1' && req.status !== 'required') {
+                      const tReq = requirements.find(r => r.id === '1-2' && r.status === 'required');
+                      if (tReq) {
+                        const val = tReq.value.toLowerCase();
+                        const ptsMap: Record<string, number> = { a2: 1, b1: 2, b2: 3, c1: 4, en_c1: 1 };
+                        if (ptsMap[val]) {
+                          req.status = 'required';
+                          req.value = `${tReq.value}|${ptsMap[val]}`;
+                        }
+                      }
+                    }
+
+                    // C. Reverse Inference: Threshold -> Points (Qualification)
+                    if (req.id === '2-4' && req.status !== 'required') {
+                       const tQual = requirements.find(r => r.id === '1-3' && r.status === 'required');
+                       if (tQual && tQual.value === 'PARTIAL_RECOGNITION') {
+                          req.status = 'required';
+                          req.value = 'PARTIAL_RECOGNITION|4';
+                       }
+                    }
+
+                    // D. Milestone-to-Requirement Inference
+                    const isM1Met = checklist.find(i => i.id === '1' && i.status === 'completed');
+                    if (isM1Met && req.id?.startsWith('1-')) {
+                        req.status = 'required';
+                        if (req.value === '-' || !req.value) req.value = 'MET';
                     }
                   }
 

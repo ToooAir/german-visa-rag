@@ -59,7 +59,7 @@ export const useChatStore = create<ChatState>()(
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Hello! I am **VisaFlow DE**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.'
+      content: 'Hello! I am your **Visa Assistant**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.'
     }
   ],
   isLoading: false,
@@ -229,7 +229,7 @@ export const useChatStore = create<ChatState>()(
         body: JSON.stringify({
           query: content,
           visa_type: useChatStore.getState().activeVisaCategory || undefined,
-          language: (window as any).VITE_LANG || 'zh-TW',
+          language: useSettingsStore.getState().language || 'en',
           requirements: useChatStore.getState().requirements?.map(r => ({
             id: r.id,
             label: r.label,
@@ -356,7 +356,7 @@ export const useChatStore = create<ChatState>()(
     const welcomeMsg = get().messages.find(m => m.id === 'welcome') || {
       id: 'welcome',
       role: 'assistant',
-      content: 'Hello! I am **VisaFlow DE**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.'
+      content: 'Hello! I am your **Visa Assistant**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.'
     };
 
     set({

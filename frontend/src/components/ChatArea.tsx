@@ -55,7 +55,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
   return (
     <div className={`flex flex-col h-full bg-white/40 dark:bg-slate-900/40 rounded-2xl relative border border-slate-200/50 dark:border-slate-800/50 shadow-2xl overflow-hidden ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-20">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-20">
         <div className="flex items-center gap-3 relative">
           <div className="flex flex-col">
             <button
@@ -101,11 +101,10 @@ export function ChatArea({ className = '' }: { className?: string }) {
                             setActiveVisaCategory(id);
                             setIsSelectorOpen(false);
                           }}
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
-                            isActive
-                              ? 'bg-accent/10 text-accent font-bold'
-                              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200'
-                          }`}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${isActive
+                            ? 'bg-accent/10 text-accent font-bold'
+                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200'
+                            }`}
                         >
                           <div className={`p-1.5 rounded-lg ${isActive ? 'bg-accent/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
                             <Icon size={16} />
@@ -191,22 +190,26 @@ export function ChatArea({ className = '' }: { className?: string }) {
       {/* Message List */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-3 sm:p-4 flex flex-col gap-5 lg:gap-6 pb-28 lg:pb-24"
+        className="flex-1 overflow-y-auto p-3 sm:p-4 pt-4 flex flex-col gap-5 lg:gap-6"
       >
         <AnimatePresence initial={false}>
           {messages.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />
           ))}
         </AnimatePresence>
+
         {messages.length === 1 && !isLoading && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <QuickStarters onSelect={sendMessage} />
           </motion.div>
         )}
+
+        {/* Physical Spacer for perfect visual symmetry (16-18px gap stability) */}
+        <div className="h-32 shrink-0 pointer-events-none" aria-hidden="true" />
       </div>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 w-full bg-gradient-to-t from-background via-background to-transparent pb-4 lg:pb-6 pt-10 lg:pt-12 z-20">
+      <div className="absolute bottom-0 w-full bg-gradient-to-t from-background via-background to-transparent pb-3.5 lg:pb-5 pt-6 lg:pt-8 z-20">
         <div className="relative glass-panel bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200 dark:border-slate-700 mx-3 sm:mx-4 flex items-center shadow-2xl shadow-black/5 dark:shadow-black/50 overflow-hidden">
           <textarea
             value={input}
@@ -218,9 +221,9 @@ export function ChatArea({ className = '' }: { className?: string }) {
               }
             }}
             placeholder={t.askPlaceholder}
-            className="w-full bg-transparent text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 py-4 pl-4 pr-14 outline-none text-base lg:text-[15px] resize-none overflow-hidden"
+            className="w-full bg-transparent text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 py-5 pl-5 pr-14 outline-none text-base lg:text-base resize-none overflow-hidden"
             rows={1}
-            style={{ minHeight: '56px' }}
+            style={{ minHeight: '64px' }}
           />
           <div className="absolute right-3 flex items-center gap-1">
             <button
@@ -267,7 +270,7 @@ function ChatMessage({ message }: { message: Message }) {
             <MoreVertical size={14} className="cursor-pointer hover:text-slate-600 dark:hover:text-slate-300" />
           </div>
         </div>
-        <div className="text-slate-700 dark:text-slate-300 text-base lg:text-[15px] leading-relaxed whitespace-pre-wrap">
+        <div className="text-slate-700 dark:text-slate-300 text-base lg:text-base leading-relaxed whitespace-pre-wrap">
           {message.content}
         </div>
       </motion.div>
@@ -278,18 +281,18 @@ function ChatMessage({ message }: { message: Message }) {
     <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      className="glass-panel p-5 flex flex-col gap-3 w-full bg-white dark:bg-panel border-l-2 border-l-accent shadow-lg relative"
+      className="glass-panel p-6 flex flex-col gap-4 w-full bg-white dark:bg-panel border-l-4 border-l-accent shadow-lg relative"
     >
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center text-accent ring-1 ring-accent/30">
-            <Sparkles size={18} />
+          <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center text-accent ring-1 ring-accent/30 shadow-inner">
+            <Sparkles size={20} />
           </div>
-          <span className="font-semibold text-slate-900 dark:text-white text-sm tracking-wide">{(t.personaName as string) || 'Visa Assistant'}</span>
+          <span className="font-bold text-slate-900 dark:text-white text-base tracking-wide">{(t.personaName as string) || 'Visa Assistant'}</span>
         </div>
       </div>
 
-      <div className="text-slate-700 dark:text-slate-300 text-base lg:text-[15px] leading-relaxed ml-0 lg:ml-11 flex flex-col gap-4">
+      <div className="text-slate-700 dark:text-slate-300 text-base lg:text-base leading-relaxed ml-0 lg:ml-14 flex flex-col gap-5">
         {/* RAG Traceability Loader */}
         {(isLoading || message.searchQueries) && !message.content && (
           <TraceLoader currentStatus={message.status} searchQueries={message.searchQueries} />
@@ -407,26 +410,27 @@ function QuickStarters({ onSelect }: { onSelect: (q: string) => void }) {
   const starters = [
     { title: t.showcase.pointCalc.title, query: t.showcase.pointCalc.query, icon: <Sparkles size={16} /> },
     { title: t.showcase.blueCardSalary.title, query: t.showcase.blueCardSalary.query, icon: <Database size={16} /> },
-    { title: t.showcase.studentWork.title, query: t.showcase.studentWork.query, icon: <FileSearch size={16} /> }
+    { title: t.showcase.studentWork.title, query: t.showcase.studentWork.query, icon: <FileSearch size={16} /> },
+    { title: t.showcase.skilledWorker.title, query: t.showcase.skilledWorker.query, icon: <Award size={16} /> }
   ];
 
   return (
-    <div className="ml-0 mt-2">
-      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2 lg:ml-0">
-        <Sparkles size={14} className="text-accent" />
+    <div className="ml-0 mt-4">
+      <div className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-5 flex items-center gap-2.5 lg:ml-0">
+        <Sparkles size={16} className="text-accent" />
         {(t.showcaseExamples as string)}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {starters.map((s, i) => (
           <button
             key={i}
             onClick={() => onSelect(s.query)}
-            className="text-left p-3 rounded-xl border border-slate-200/80 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors group"
+            className="text-left p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-all hover:border-accent/30 group shadow-sm hover:shadow-md"
           >
-            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-medium mb-1 group-hover:text-accent transition-colors">
-              {s.icon} <span className="text-sm">{s.title}</span>
+            <div className="flex items-center gap-2.5 text-slate-800 dark:text-slate-200 font-bold mb-1.5 group-hover:text-accent transition-colors">
+              {s.icon} <span className="text-base">{s.title}</span>
             </div>
-            <div className="text-xs text-slate-500 line-clamp-2">"{s.query}"</div>
+            <div className="text-sm text-slate-500 line-clamp-2 leading-snug">"{s.query}"</div>
           </button>
         ))}
       </div>

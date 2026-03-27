@@ -304,11 +304,11 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
   });
 
   return (
-    <div className={`glass-panel flex flex-col gap-6 h-full overflow-y-auto p-4 sm:p-5 custom-scrollbar ${className}`}>
+    <div className={`glass-panel flex flex-col gap-8 h-full overflow-y-auto p-6 lg:p-7 custom-scrollbar ${className}`}>
       {/* Progress Checklist */}
       <div className="relative">
-        <div className="flex items-center justify-between mb-3 lg:mb-4">
-          <h3 className="text-base lg:text-[15px] font-semibold text-slate-800 dark:text-slate-200">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg lg:text-xl font-bold text-slate-800 dark:text-slate-200">
             {titlePrefix} {t.progress}
           </h3>
         </div>

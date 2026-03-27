@@ -22,10 +22,22 @@ function App() {
       if (isDark) {
         root.classList.add('dark');
         root.classList.remove('light');
+        updateThemeColor('#0B1120');
       } else {
         root.classList.add('light');
         root.classList.remove('dark');
+        updateThemeColor('#F8FAFC');
       }
+    };
+
+    const updateThemeColor = (color: string) => {
+      let meta = document.querySelector('meta[name="theme-color"]');
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.setAttribute('name', 'theme-color');
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute('content', color);
     };
 
     applyTheme(theme);

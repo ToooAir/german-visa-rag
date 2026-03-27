@@ -74,7 +74,8 @@ export const translations = {
     showcase: {
       pointCalc: { title: 'Point Calculation', query: 'Am I eligible for the Chancenkarte with 5 years experience and B1 German?' },
       blueCardSalary: { title: 'Blue Card Salary', query: 'What is the new minimum salary for the EU Blue Card in 2026?' },
-      studentWork: { title: 'Student Work Rights', query: 'Can international students work part-time? Explain the latest updates.' }
+      studentWork: { title: 'Student Work Rights', query: 'Can international students work part-time? Explain the latest updates.' },
+      skilledWorker: { title: 'Degree Recognition', query: 'How do I check if my foreign degree is recognized for a German Skilled Worker visa?' }
     },
 
     // Requirements
@@ -263,7 +264,8 @@ export const translations = {
     showcase: {
       pointCalc: { title: 'Punkteberechnung', query: 'Bin ich mit 5 Jahren Erfahrung und B1 Deutsch für die Chancenkarte berechtigt?' },
       blueCardSalary: { title: 'Gehalt Blaue Karte', query: 'Was ist das neue Mindestgehalt für die Blaue Karte EU im Jahr 2026?' },
-      studentWork: { title: 'Arbeitsrechte für Studenten', query: 'Können internationale Studierende Teilzeit arbeiten? Erklären Sie die neuesten Updates.' }
+      studentWork: { title: 'Arbeitsrechte für Studenten', query: 'Können internationale Studierende Teilzeit arbeiten? Erklären Sie die neuesten Updates.' },
+      skilledWorker: { title: 'Anerkennung Abschluss', query: 'Wie prüfe ich, ob mein ausländischer Abschluss für ein Fachkräfte-Visum anerkannt ist?' }
     },
 
     // Requirements
@@ -452,7 +454,8 @@ export const translations = {
     showcase: {
       pointCalc: { title: '積分計算', query: '我有 5 年經驗且德語 B1，符合申請機會卡的資格嗎？' },
       blueCardSalary: { title: '藍卡薪資門檻', query: '2026 年歐盟藍卡的新最低薪資要求是多少？' },
-      studentWork: { title: '學生工作權利', query: '外籍學生可以兼職工作嗎？請解釋最新的規定。' }
+      studentWork: { title: '學生工作權利', query: '外籍學生可以兼職工作嗎？請解釋最新的規定。' },
+      skilledWorker: { title: '學歷認可查詢', query: '我該如何確認我的外國學位是否符合德國專業人才簽證的認可要求？' }
     },
 
     // Requirements

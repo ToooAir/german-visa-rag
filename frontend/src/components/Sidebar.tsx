@@ -7,45 +7,50 @@ export function Sidebar({ className = '', onItemClick }: { className?: string, o
   const { t } = useTranslation();
 
   return (
-    <div className={`glass-panel flex flex-col p-4 h-full overflow-y-auto ${className}`}>
-      <div className="flex items-center gap-3 px-2 mb-8">
-        <div className="p-1.5 bg-accent/15 rounded-xl ring-1 ring-accent/20">
-          <img src="/logo.png" className="w-8 h-8 object-contain" alt="" />
+    <div className={`glass-panel flex flex-col h-full overflow-hidden ${className}`}>
+      {/* Brand & Fixed Nav Section */}
+      <div className="p-4 pb-2 shrink-0">
+        <div className="flex items-center gap-3 px-2 mb-8 mt-2">
+          <div className="p-1.5 bg-accent/15 rounded-xl ring-1 ring-accent/20">
+            <img src="/logo.png" className="w-8 h-8 object-contain" alt="" />
+          </div>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">VisaFlow DE</h1>
         </div>
-        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">VisaFlow DE</h1>
+
+        {/* Main Nav */}
+        <nav className="flex flex-col gap-1 mb-4">
+          <NavItem icon={<Home size={18} />} label={t.home} to="/" end onClick={onItemClick} />
+          <NavItem icon={<FileText size={18} />} label={t.library} to="/documents" onClick={onItemClick} />
+          <NavItem icon={<Settings size={18} />} label={t.settings} to="/settings" onClick={onItemClick} />
+        </nav>
       </div>
 
-      {/* Main Nav */}
-      <nav className="flex flex-col gap-1 mb-8">
-        <NavItem icon={<Home size={18} />} label={t.home} to="/" end onClick={onItemClick} />
-        <NavItem icon={<FileText size={18} />} label={t.library} to="/documents" onClick={onItemClick} />
-        <NavItem icon={<Settings size={18} />} label={t.settings} to="/settings" onClick={onItemClick} />
-      </nav>
+      {/* Scrollable Sources Section */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 pt-0">
+        <div className="mb-8">
+          <h2 className="text-sm lg:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-2 mb-3">{t.recentSources}</h2>
+          <div className="flex flex-col gap-2">
+            {/* Pinned Official Sources */}
+            {useChatStore.getState().pinnedSources.map((s, i) => (
+              <SourceItem key={`pinned-${i}`} title={s.title} url={s.url} official />
+            ))}
 
-      {/* Recent Sources */}
-      <div className="mb-8">
-        <h2 className="text-sm lg:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-2 mb-3">{t.recentSources}</h2>
-        <div className="flex flex-col gap-2">
-          {/* Pinned Official Sources */}
-          {useChatStore.getState().pinnedSources.map((s, i) => (
-            <SourceItem key={`pinned-${i}`} title={s.title} url={s.url} official />
-          ))}
+            {/* Separator if we have recent ones */}
+            {useChatStore.getState().recentSources.length > 0 && (
+              <div className="h-px bg-slate-200 dark:bg-slate-800 my-1 mx-2" />
+            )}
 
-          {/* Separator if we have recent ones */}
-          {useChatStore.getState().recentSources.length > 0 && (
-            <div className="h-px bg-slate-200 dark:bg-slate-800 my-1 mx-2" />
-          )}
-
-          {/* Dynamic Recent Sources */}
-          {useChatStore(state => state.recentSources).slice(0, 3).map((s, i) => (
-            <SourceItem
-              key={`recent-${i}`}
-              title={s.title || (s.url.includes('bamf') ? 'BAMF' : s.url.split('/')[2])}
-              url={s.url}
-              favicon={s.authority === 'official' ? '🏛️' : '📄'}
-              official={s.authority === 'official'}
-            />
-          ))}
+            {/* Dynamic Recent Sources */}
+            {useChatStore(state => state.recentSources).slice(0, 3).map((s, i) => (
+              <SourceItem
+                key={`recent-${i}`}
+                title={s.title || (s.url.includes('bamf') ? 'BAMF' : s.url.split('/')[2])}
+                url={s.url}
+                favicon={s.authority === 'official' ? '🏛️' : '📄'}
+                official={s.authority === 'official'}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

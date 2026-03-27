@@ -69,25 +69,14 @@ export const useChatStore = create<ChatState>()(
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Hello! I am your **Visa Assistant**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.'
+      content: translations.en.welcome
     }
   ],
   isLoading: false,
   activeVisaCategory: 'chancenkarte',
 
-  checklist: [
-    { id: '1', title: 'Eligibility Check', status: 'completed' },
-    { id: '2', title: 'Point Calculation (0/6)', status: 'current', subtitle: 'Current' },
-    { id: '3', title: 'Document Checklist', status: 'pending' },
-    { id: '4', title: 'Embassy Appointment', status: 'pending' },
-    { id: '5', title: 'Approval', status: 'pending' }
-  ],
-  requirements: [
-    { id: '1', label: 'Language', value: '(B1 German)', status: 'required' },
-    { id: '2', label: 'Work Experience', value: '2+ Years', status: 'info' },
-    { id: '3', label: 'Age', value: '< 35/40', status: 'info' },
-    { id: '4', label: 'Qualifications', value: '(degree)', status: 'warning' }
-  ],
+  checklist: [],
+  requirements: [],
 
   pinnedSources: [
     { title: "Federal Ministry (BMI)", url: "https://www.bmi.bund.de", authority: "official" },
@@ -138,7 +127,7 @@ export const useChatStore = create<ChatState>()(
     let checklist: ChecklistItem[] = [];
     let requirements: Requirement[] = [];
 
-    if (cat === 'skilled_worker' || cat === 'skilledWorker') {
+    if (cat === 'skilledWorker') {
       checklist = [
         { id: '1', title: 'Professional Qualifications', status: 'pending' },
         { id: '2', title: 'Full-time Contract', status: 'pending' },
@@ -150,7 +139,7 @@ export const useChatStore = create<ChatState>()(
         { id: '3', label: '45+ Age Clause', value: '-', status: 'info' },
         { id: '4', label: 'Language (Flexible)', value: '-', status: 'info' }
       ];
-    } else if (cat === 'blue_card' || cat === 'blueCard') {
+    } else if (cat === 'blueCard') {
       checklist = [
         { id: '1', title: 'Degree Recognition', status: 'pending' },
         { id: '2', title: 'High Salary Threshold', status: 'pending' },
@@ -161,7 +150,7 @@ export const useChatStore = create<ChatState>()(
         { id: '2', label: 'German Full-time Contract', value: '-', status: 'info' },
         { id: '3', label: 'PR Bonus (Language)', value: '-', status: 'info' }
       ];
-    } else if (cat === 'student_visa' || cat === 'studyVisa') {
+    } else if (cat === 'studyVisa') {
       checklist = [
         { id: '1', title: 'Finance & Language', status: 'pending' },
         { id: '2', title: 'University Admission', status: 'pending' },
@@ -391,10 +380,13 @@ export const useChatStore = create<ChatState>()(
   },
 
   newSession: () => {
-    const welcomeMsg = get().messages.find(m => m.id === 'welcome') || {
+    const settings = useSettingsStore.getState();
+    const t = translations[settings.language as keyof typeof translations] || translations.en;
+
+    const welcomeMsg: Message = {
       id: 'welcome',
       role: 'assistant',
-      content: 'Hello! I am your **Visa Assistant**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.'
+      content: t.welcome
     };
 
     set({

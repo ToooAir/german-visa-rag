@@ -5,6 +5,8 @@ import { HomePage } from './pages/HomePage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { useSettingsStore, Theme } from './stores/settingsStore';
+import { useChatStore } from './stores/chatStore';
+import { translations } from './translations';
 import { ToastProvider } from './components/ToastProvider';
 
 function App() {
@@ -74,6 +76,31 @@ function App() {
     const preventScroll = () => window.scrollTo(0, 0);
     window.addEventListener('scroll', preventScroll);
     return () => window.removeEventListener('scroll', preventScroll);
+  }, []);
+
+  // Initialize Chat State (Symmetry & Selection Fix)
+  useEffect(() => {
+    const { messages, activeVisaCategory, resetProgress, checklist } = useChatStore.getState();
+    const { language } = useSettingsStore.getState();
+    const t = translations[language as keyof typeof translations] || translations.en;
+
+    // 1. Localize welcome message if it's the English default and we are in another language
+    if (
+      messages.length === 1 &&
+      messages[0].id === 'welcome' &&
+      messages[0].content === translations.en.welcome &&
+      language !== 'en'
+    ) {
+      useChatStore.setState((state) => ({
+        messages: [{ ...state.messages[0], content: t.welcome }]
+      }));
+    }
+
+    // 2. Active selection on fresh start
+    // If we have no checklist items, it means resetProgress hasn't been called yet
+    if (checklist.length === 0 && activeVisaCategory) {
+      resetProgress();
+    }
   }, []);
 
   return (

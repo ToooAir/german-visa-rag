@@ -13,9 +13,9 @@ import { useTranslation, Translation } from '../translations';
 // Mapping for visa categories: Store ID -> Display Metadata
 const VISA_METADATA: Record<string, { labelKey: string, icon: React.ElementType }> = {
   chancenkarte: { labelKey: 'chancenkarte', icon: Briefcase },
-  skilled_worker: { labelKey: 'skilledWorker', icon: Award },
-  blue_card: { labelKey: 'blueCard', icon: BadgeCheck },
-  student_visa: { labelKey: 'studyVisa', icon: GraduationCap }
+  skilledWorker: { labelKey: 'skilledWorker', icon: Award },
+  blueCard: { labelKey: 'blueCard', icon: BadgeCheck },
+  studyVisa: { labelKey: 'studyVisa', icon: GraduationCap }
 };
 
 export function ChatArea({ className = '' }: { className?: string }) {

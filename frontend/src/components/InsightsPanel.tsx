@@ -10,12 +10,9 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
   // Map category to translation
   const getCategoryTitle = (cat: string | null) => {
     if (!cat) return '';
-    const key = cat.toLowerCase().replace(/[\s_-]+/g, '');
-    if (key === 'chancenkarte') return t.chancenkarte;
-    if (key === 'skilledworker' || key === 'skilled_worker') return t.skilledWorker;
-    if (key === 'bluecard' || key === 'blue_card') return t.blueCard;
-    if (key === 'studentvisa' || key === 'student_visa' || key === 'studyvisa') return t.studyVisa;
-    return cat;
+    // Use the normalized camelCase keys
+    const title = t[cat as keyof typeof t];
+    return typeof title === 'string' ? title : cat;
   };
 
   const titlePrefix = getCategoryTitle(activeVisaCategory);

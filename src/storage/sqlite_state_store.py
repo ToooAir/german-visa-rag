@@ -29,8 +29,7 @@ class SQLiteStateStore:
             cursor = conn.cursor()
 
             # Table: tracked_documents (source documents)
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS tracked_documents (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     source_url TEXT UNIQUE NOT NULL,
@@ -48,12 +47,10 @@ class SQLiteStateStore:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """
-            )
+            """)
 
             # Table: chunks (deduplicated chunks)
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS chunks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     chunk_id TEXT UNIQUE NOT NULL,
@@ -69,12 +66,10 @@ class SQLiteStateStore:
                     ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (parent_doc_id) REFERENCES tracked_documents(id)
                 )
-            """
-            )
+            """)
 
             # Table: ingestion_runs (audit trail)
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS ingestion_runs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     run_id TEXT UNIQUE NOT NULL,
@@ -89,12 +84,10 @@ class SQLiteStateStore:
                     error_details TEXT,  -- JSON
                     triggered_by TEXT DEFAULT 'manual'  -- manual, scheduler
                 )
-            """
-            )
+            """)
 
             # Table: discovered_urls (URL discovery cache)
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS discovered_urls (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     domain TEXT NOT NULL,
@@ -107,8 +100,7 @@ class SQLiteStateStore:
                     discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(domain, url)
                 )
-            """
-            )
+            """)
 
             # Indices for performance
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_text_hash ON chunks(text_hash)")
@@ -391,12 +383,10 @@ class SQLiteStateStore:
             cursor.execute("SELECT COUNT(*) FROM ingestion_runs")
             total_runs = cursor.fetchone()[0]
 
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT SUM(chunks_ingested), SUM(total_tokens)
                 FROM ingestion_runs WHERE status = 'completed'
-            """
-            )
+            """)
             row = cursor.fetchone()
             total_chunks_ingested = row[0] or 0
             total_tokens = row[1] or 0

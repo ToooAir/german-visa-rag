@@ -189,8 +189,8 @@ class HybridRetriever:
         Batch retrieve for multiple queries concurrently.
         Failed individual queries are replaced with empty lists.
         """
-        results = await asyncio.gather(
+        results: list[Any] = await asyncio.gather(
             *[self.retrieve(q, **kwargs) for q in queries],
             return_exceptions=True,
         )
-        return [r if not isinstance(r, Exception) else [] for r in results]
+        return [r if not isinstance(r, BaseException) else [] for r in results]

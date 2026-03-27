@@ -12,6 +12,7 @@ interface Source {
 
 export function DocumentsPage() {
   const { t, language } = useTranslation();
+  const [visibleCount, setVisibleCount] = useState(20);
   const [sources, setSources] = useState<Source[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +21,6 @@ export function DocumentsPage() {
     const fetchSources = async () => {
       try {
         setIsLoading(true);
-        // Using the same API key logic as chat (assuming it's in env or handled by proxy)
         const response = await fetch('/query/sources', {
           headers: {
             'X-API-Key': import.meta.env.VITE_API_KEY || 'demo-key'
@@ -41,6 +41,28 @@ export function DocumentsPage() {
 
     fetchSources();
   }, []);
+
+  // Intersection Observer for Lazy Loading
+  useEffect(() => {
+    if (isLoading || sources.length <= visibleCount) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          // Add a small delay for a smoother "premium" feel
+          setTimeout(() => {
+            setVisibleCount((prev) => Math.min(prev + 20, sources.length));
+          }, 100);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const sentinel = document.getElementById('load-more-sentinel');
+    if (sentinel) observer.observe(sentinel);
+
+    return () => observer.disconnect();
+  }, [isLoading, sources.length, visibleCount]);
 
   const getAuthorityBadge = (level: string) => {
     switch (level) {
@@ -108,71 +130,80 @@ export function DocumentsPage() {
           <p className="text-slate-300 font-medium">{error}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {sources.map((source, i) => {
-            const hostname = new URL(source.url).hostname.replace('www.', '');
-            return (
-              <a
-                key={i}
-                href={source.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="glass-panel p-5 sm:p-5 flex flex-col justify-between bg-white/5 dark:bg-slate-800/15 hover:bg-white/10 dark:hover:bg-slate-800/25 border border-slate-200/40 dark:border-slate-800/50 hover:border-accent/30 transition-all cursor-pointer group hover:-translate-y-1 relative overflow-hidden min-h-[190px] h-auto min-w-0"
-              >
-                {/* Background Watermark Icon - Smaller & More Subtle */}
-                <div className="absolute -right-2 -bottom-2 opacity-[0.02] dark:opacity-[0.04] group-hover:opacity-[0.06] transition-opacity pointer-events-none transform rotate-12">
-                  <FileText size={80} />
-                </div>
-
-                <div className="relative z-10">
-                  <div className="flex items-start justify-between mb-3.5">
-                    {getAuthorityBadge(source.authority_level)}
-                    <ExternalLink size={14} className="text-slate-500 group-hover:text-accent transition-colors" />
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {sources.slice(0, visibleCount).map((source, i) => {
+              const hostname = new URL(source.url).hostname.replace('www.', '');
+              return (
+                <a
+                  key={i}
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="glass-panel p-5 sm:p-5 flex flex-col justify-between bg-white/5 dark:bg-slate-800/15 hover:bg-white/10 dark:hover:bg-slate-800/25 border border-slate-200/40 dark:border-slate-800/50 hover:border-accent/30 transition-all cursor-pointer group hover:-translate-y-1 relative overflow-hidden min-h-[190px] h-auto min-w-0"
+                >
+                  {/* Background Watermark Icon */}
+                  <div className="absolute -right-2 -bottom-2 opacity-[0.02] dark:opacity-[0.04] group-hover:opacity-[0.06] transition-opacity pointer-events-none transform rotate-12">
+                    <FileText size={80} />
                   </div>
 
-                  <h3 className="text-base sm:text-sm font-bold text-slate-800 dark:text-slate-100 mb-2.5 line-clamp-2 leading-snug group-hover:text-accent transition-colors">
-                    {source.title || 'Untitled Source'}
-                  </h3>
-
-                  <div className="flex items-center gap-2 text-xs sm:text-[10px] text-slate-500 font-medium opacity-80 group-hover:opacity-100 transition-opacity">
-                    <div className="w-4 h-4 rounded-sm overflow-hidden bg-slate-100/50 dark:bg-slate-800/50 flex items-center justify-center">
-                      <img
-                        src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`}
-                        alt=""
-                        className="w-3 h-3 grayscale group-hover:grayscale-0 transition-all"
-                      />
+                  <div className="relative z-10">
+                    <div className="flex items-start justify-between mb-3.5">
+                      {getAuthorityBadge(source.authority_level)}
+                      <ExternalLink size={14} className="text-slate-500 group-hover:text-accent transition-colors" />
                     </div>
-                    <span className="truncate">{hostname}</span>
-                  </div>
-                </div>
 
-                <div className="mt-5 pt-4 border-t border-slate-100/50 dark:border-slate-800/50 flex flex-wrap gap-1.5 items-center justify-between relative z-10">
-                  <div className="flex flex-wrap gap-1">
-                    {source.visa_types.slice(0, 1).map((v, j) => (
-                      <span key={j} className="text-[10px] sm:text-[8px] px-2 py-0.5 rounded bg-accent/5 dark:bg-accent/10 text-accent font-bold border border-accent/10 uppercase tracking-tighter">
-                        {v.replace('_', ' ')}
-                      </span>
-                    ))}
-                    {source.visa_types.length > 1 && (
-                      <span className="text-[10px] sm:text-[8px] px-2 py-0.5 rounded bg-slate-100/50 dark:bg-slate-800/30 text-slate-500 font-bold border border-slate-200/50 dark:border-slate-700/50">
-                        +{source.visa_types.length - 1}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[10px] sm:text-[9px] text-slate-400 dark:text-slate-500 font-mono tracking-tighter">
-                    {formatDate(source.last_fetched)}
-                  </div>
-                </div>
-              </a>
-            );
-          })}
+                    <h3 className="text-base sm:text-sm font-bold text-slate-800 dark:text-slate-100 mb-2.5 line-clamp-2 leading-snug group-hover:text-accent transition-colors">
+                      {source.title || 'Untitled Source'}
+                    </h3>
 
-          {sources.length === 0 && (
-            <div className="col-span-full py-12 text-center text-slate-500 border-2 border-dashed border-slate-800 rounded-xl">
-              No sources found in the knowledge base yet.
+                    <div className="flex items-center gap-2 text-xs sm:text-[10px] text-slate-500 font-medium opacity-80 group-hover:opacity-100 transition-opacity">
+                      <div className="w-4 h-4 rounded-sm overflow-hidden bg-slate-100/50 dark:bg-slate-800/50 flex items-center justify-center">
+                        <img
+                          src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`}
+                          alt=""
+                          className="w-3 h-3 grayscale group-hover:grayscale-0 transition-all"
+                        />
+                      </div>
+                      <span className="truncate">{hostname}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 pt-4 border-t border-slate-100/50 dark:border-slate-800/50 flex flex-wrap gap-1.5 items-center justify-between relative z-10">
+                    <div className="flex flex-wrap gap-1">
+                      {source.visa_types.slice(0, 1).map((v, j) => (
+                        <span key={j} className="text-[10px] sm:text-[8px] px-2 py-0.5 rounded bg-accent/5 dark:bg-accent/10 text-accent font-bold border border-accent/10 uppercase tracking-tighter">
+                          {v.replace('_', ' ')}
+                        </span>
+                      ))}
+                      {source.visa_types.length > 1 && (
+                        <span className="text-[10px] sm:text-[8px] px-2 py-0.5 rounded bg-slate-100/50 dark:bg-slate-800/30 text-slate-500 font-bold border border-slate-200/50 dark:border-slate-700/50">
+                          +{source.visa_types.length - 1}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] sm:text-[9px] text-slate-400 dark:text-slate-500 font-mono tracking-tighter">
+                      {formatDate(source.last_fetched)}
+                    </div>
+                  </div>
+                </a>
+              );
+            })}
+
+            {sources.length === 0 && (
+              <div className="col-span-full py-12 text-center text-slate-500 border-2 border-dashed border-slate-800 rounded-xl">
+                No sources found in the knowledge base yet.
+              </div>
+            )}
+          </div>
+
+          {/* Sentinel for Lazy Loading */}
+          {visibleCount < sources.length && (
+            <div id="load-more-sentinel" className="h-20 flex items-center justify-center mt-8">
+              <Loader2 size={24} className="text-accent animate-spin opacity-50" />
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

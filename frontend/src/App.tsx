@@ -70,14 +70,6 @@ function App() {
     };
   }, [theme]);
 
-  // Global Scroll Reset to prevent programmatic layout shifts
-  useEffect(() => {
-    window.scrollTo(0, 0);
-    const preventScroll = () => window.scrollTo(0, 0);
-    window.addEventListener('scroll', preventScroll);
-    return () => window.removeEventListener('scroll', preventScroll);
-  }, []);
-
   // Initialize Chat State (Symmetry & Selection Fix)
   useEffect(() => {
     const { messages, activeVisaCategory, resetProgress, checklist } = useChatStore.getState();

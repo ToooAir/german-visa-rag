@@ -7,7 +7,7 @@ export function SettingsPage() {
   const { t } = useTranslation();
 
   return (
-    <div className="flex-1 glass-panel p-8 bg-slate-50/40 dark:bg-slate-900/40 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 shadow-2xl overflow-y-auto">
+    <div className="flex-1 glass-panel px-7 pt-[calc(6rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:p-8 bg-slate-50/40 dark:bg-slate-900/40 lg:rounded-2xl rounded-none border-0 lg:border border-slate-200/50 dark:border-slate-800/50 lg:shadow-2xl overflow-y-auto">
       <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-8">{t.settings}</h2>
 
       <div className="max-w-2xl space-y-6">

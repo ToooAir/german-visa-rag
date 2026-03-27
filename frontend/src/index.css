@@ -25,12 +25,19 @@
 
   html, body, #root {
     height: 100%;
+    height: -webkit-fill-available;
     height: 100dvh;
     width: 100%;
     margin: 0;
     padding: 0;
     overflow: hidden;
-    background-color: var(--bg-gradient-start);
+    /* Force initial background to match Dark Mode exactly to prevent white-bar flicker */
+    background-color: #0B1120;
+  }
+
+  /* Specific fix for iOS address bar area */
+  html {
+     background-color: #0B1120;
   }
 
   body {
@@ -40,7 +47,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     /* Prevent accidental bounce overflow on non-scrollable areas */
-    overscroll-behavior-y: none;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
   }
 }
 

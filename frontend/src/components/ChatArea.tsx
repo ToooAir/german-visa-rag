@@ -33,7 +33,9 @@ export function ChatArea({ className = '' }: { className?: string }) {
 
   // Auto-scroll to bottom
   useEffect(() => {
-    if (scrollContainerRef.current) {
+    // Only auto-scroll if there are actual user/assistant messages (length > 1)
+    // This allows the welcome message to be shown at the top initially.
+    if (scrollContainerRef.current && messages.length > 1) {
       scrollContainerRef.current.scrollTo({
         top: scrollContainerRef.current.scrollHeight,
         behavior: 'smooth'
@@ -53,9 +55,9 @@ export function ChatArea({ className = '' }: { className?: string }) {
   const ActiveIcon = currentMeta.icon;
 
   return (
-    <div className={`flex flex-col h-full bg-white/40 dark:bg-slate-900/40 rounded-2xl relative border border-slate-200/50 dark:border-slate-800/50 shadow-2xl overflow-hidden ${className}`}>
+    <div className={`flex flex-col h-full bg-white/40 dark:bg-slate-900/40 lg:rounded-2xl rounded-none relative lg:border border-0 border-slate-200/50 dark:border-slate-800/50 lg:shadow-2xl overflow-hidden ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-20">
+      <div className="flex items-center justify-between px-4 py-3 lg:pt-3 pt-[calc(4.5rem+env(safe-area-inset-top))] border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-20">
         <div className="flex items-center gap-3 relative">
           <div className="flex flex-col">
             <button
@@ -190,7 +192,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
       {/* Message List */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-3 sm:p-4 pt-4 flex flex-col gap-5 lg:gap-6"
+        className="flex-1 overflow-y-auto p-3 sm:p-4 pb-[calc(11.5rem+env(safe-area-inset-bottom))] pt-4 lg:pt-4 flex flex-col gap-5 lg:gap-6 relative"
       >
         <AnimatePresence initial={false}>
           {messages.map((msg) => (
@@ -203,9 +205,6 @@ export function ChatArea({ className = '' }: { className?: string }) {
             <QuickStarters onSelect={sendMessage} />
           </motion.div>
         )}
-
-        {/* Physical Spacer for perfect visual symmetry (16-18px gap stability) */}
-        <div className="h-32 shrink-0 pointer-events-none" aria-hidden="true" />
       </div>
 
       {/* Input Area */}

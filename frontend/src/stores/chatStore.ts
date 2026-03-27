@@ -8,6 +8,9 @@ export interface Source {
   url: string;
   title: string;
   authority: string;
+  authority_level?: 'official' | 'semi_official' | 'third_party';
+  last_fetched?: string;
+  visa_types?: string[];
 }
 
 export interface ChecklistItem {
@@ -42,9 +45,12 @@ interface ChatState {
   requirements: Requirement[];
   recentSources: Source[];
   pinnedSources: Source[];
+  allSources: Source[];
+  isSourcesLoading: boolean;
   setActiveVisaCategory: (cat: string | null) => void;
   setChecklist: (items: ChecklistItem[]) => void;
   setRequirements: (reqs: Requirement[]) => void;
+  fetchSources: () => Promise<void>;
   resetProgress: () => void;
   updateMilestone: (milestoneId: string, status: 'completed' | 'current' | 'pending', autoDetected?: boolean) => void;
   updateRequirement: (id: string, value: string, status: 'required' | 'info' | 'warning') => void;
@@ -90,11 +96,34 @@ export const useChatStore = create<ChatState>()(
     { title: "Consular Portal", url: "https://digital.diplo.de/visa", authority: "official" }
   ],
   recentSources: [],
+  allSources: [],
+  isSourcesLoading: false,
   isSidebarOpen: false,
   isInsightsOpen: false,
 
   setSidebarOpen: (open) => set({ isSidebarOpen: open }),
   setInsightsOpen: (open) => set({ isInsightsOpen: open }),
+
+  fetchSources: async () => {
+    // Cache Check: If data already exists, don't fetch again
+    if (get().allSources.length > 0) return;
+
+    set({ isSourcesLoading: true });
+    try {
+      const response = await fetch('/query/sources', {
+        headers: {
+          'X-API-Key': import.meta.env.VITE_API_KEY || 'demo-key'
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch knowledge base sources');
+      const data = await response.json();
+      set({ allSources: data });
+    } catch (err) {
+      console.error('Error fetching sources:', err);
+    } finally {
+      set({ isSourcesLoading: false });
+    }
+  },
 
   setActiveVisaCategory: (cat) => {
     set({ activeVisaCategory: cat });

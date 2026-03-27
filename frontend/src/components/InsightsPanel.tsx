@@ -304,9 +304,9 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
   });
 
   return (
-    <div className={`flex flex-col gap-7 h-full overflow-y-auto px-2 lg:px-0 custom-scrollbar ${className}`}>
+    <div className={`glass-panel flex flex-col gap-6 h-full overflow-y-auto p-4 sm:p-5 custom-scrollbar ${className}`}>
       {/* Progress Checklist */}
-      <div className="glass-panel p-3.5 sm:p-5 bg-white/50 dark:bg-panel relative shadow-2xl">
+      <div className="relative">
         <div className="flex items-center justify-between mb-3 lg:mb-4">
           <h3 className="text-base lg:text-[15px] font-semibold text-slate-800 dark:text-slate-200">
             {titlePrefix} {t.progress}
@@ -359,7 +359,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       </div>
 
       {/* Requirement Summary */}
-      <div className="glass-panel p-3.5 sm:p-5 bg-white/50 dark:bg-panel shadow-2xl">
+      <div className="mt-2">
         <h3 className="text-base lg:text-[15px] font-semibold text-slate-800 dark:text-slate-200 mb-3 lg:mb-4">{t.reqSummary}</h3>
 
         <div className="space-y-4">

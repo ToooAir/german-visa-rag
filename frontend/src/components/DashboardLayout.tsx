@@ -32,7 +32,7 @@ export function DashboardLayout() {
       />
 
       {/* Main Layout Grid */}
-      <div className="flex w-full h-full p-0 md:p-4 gap-0 md:gap-4 z-10 pt-16 lg:pt-0">
+      <div className="flex w-full h-full p-0 md:p-4 gap-0 md:gap-4 z-10 pt-16 lg:pt-4">
 
         {/* Desktop Sidebar (Persistent) */}
         <Sidebar className="hidden lg:flex lg:w-[18%] lg:min-w-[240px]" />

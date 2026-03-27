@@ -1,57 +1,26 @@
 import { useState, useEffect } from 'react';
-import { FileText, ExternalLink, CheckCircle, Shield, Info, AlertCircle, Loader2 } from 'lucide-react';
+import { FileText, ExternalLink, CheckCircle, Shield, Info, Loader2 } from 'lucide-react';
 import { useTranslation } from '../translations';
-
-interface Source {
-  title: string;
-  url: string;
-  authority_level: 'official' | 'semi_official' | 'third_party';
-  last_fetched: string;
-  visa_types: string[];
-}
+import { useChatStore } from '../stores/chatStore';
 
 export function DocumentsPage() {
   const { t, language } = useTranslation();
+  const { allSources, isSourcesLoading, fetchSources } = useChatStore();
   const [visibleCount, setVisibleCount] = useState(20);
-  const [sources, setSources] = useState<Source[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchSources = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch('/query/sources', {
-          headers: {
-            'X-API-Key': import.meta.env.VITE_API_KEY || 'demo-key'
-          }
-        });
-
-        if (!response.ok) throw new Error('Failed to fetch knowledge base sources');
-
-        const data = await response.json();
-        setSources(data);
-      } catch (err) {
-        console.error('Error fetching sources:', err);
-        setError('Could not load knowledge base sources. Please try again later.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchSources();
-  }, []);
+  }, [fetchSources]);
 
   // Intersection Observer for Lazy Loading
   useEffect(() => {
-    if (isLoading || sources.length <= visibleCount) return;
+    if (isSourcesLoading || allSources.length <= visibleCount) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          // Add a small delay for a smoother "premium" feel
           setTimeout(() => {
-            setVisibleCount((prev) => Math.min(prev + 20, sources.length));
+            setVisibleCount((prev) => Math.min(prev + 20, allSources.length));
           }, 100);
         }
       },
@@ -62,7 +31,7 @@ export function DocumentsPage() {
     if (sentinel) observer.observe(sentinel);
 
     return () => observer.disconnect();
-  }, [isLoading, sources.length, visibleCount]);
+  }, [isSourcesLoading, allSources.length, visibleCount]);
 
   const getAuthorityBadge = (level: string) => {
     switch (level) {
@@ -117,22 +86,15 @@ export function DocumentsPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isSourcesLoading && allSources.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <Loader2 size={40} className="text-accent animate-spin" />
           <p className="text-slate-400">Loading indexed sources...</p>
         </div>
-      ) : error ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
-          <div className="p-4 bg-red-500/10 rounded-full text-red-400">
-            <AlertCircle size={32} />
-          </div>
-          <p className="text-slate-300 font-medium">{error}</p>
-        </div>
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {sources.slice(0, visibleCount).map((source, i) => {
+            {allSources.slice(0, visibleCount).map((source, i) => {
               const hostname = new URL(source.url).hostname.replace('www.', '');
               return (
                 <a
@@ -149,7 +111,7 @@ export function DocumentsPage() {
 
                   <div className="relative z-10">
                     <div className="flex items-start justify-between mb-3.5">
-                      {getAuthorityBadge(source.authority_level)}
+                      {getAuthorityBadge(source.authority_level || 'third_party')}
                       <ExternalLink size={14} className="text-slate-500 group-hover:text-accent transition-colors" />
                     </div>
 
@@ -171,26 +133,26 @@ export function DocumentsPage() {
 
                   <div className="mt-5 pt-4 border-t border-slate-100/50 dark:border-slate-800/50 flex flex-wrap gap-1.5 items-center justify-between relative z-10">
                     <div className="flex flex-wrap gap-1">
-                      {source.visa_types.slice(0, 1).map((v, j) => (
+                      {source.visa_types?.slice(0, 1).map((v, j) => (
                         <span key={j} className="text-[10px] sm:text-[8px] px-2 py-0.5 rounded bg-accent/5 dark:bg-accent/10 text-accent font-bold border border-accent/10 uppercase tracking-tighter">
                           {v.replace('_', ' ')}
                         </span>
                       ))}
-                      {source.visa_types.length > 1 && (
+                      {source.visa_types && source.visa_types.length > 1 && (
                         <span className="text-[10px] sm:text-[8px] px-2 py-0.5 rounded bg-slate-100/50 dark:bg-slate-800/30 text-slate-500 font-bold border border-slate-200/50 dark:border-slate-700/50">
                           +{source.visa_types.length - 1}
                         </span>
                       )}
                     </div>
                     <div className="text-[10px] sm:text-[9px] text-slate-400 dark:text-slate-500 font-mono tracking-tighter">
-                      {formatDate(source.last_fetched)}
+                      {formatDate(source.last_fetched || '')}
                     </div>
                   </div>
                 </a>
               );
             })}
 
-            {sources.length === 0 && (
+            {allSources.length === 0 && !isSourcesLoading && (
               <div className="col-span-full py-12 text-center text-slate-500 border-2 border-dashed border-slate-800 rounded-xl">
                 No sources found in the knowledge base yet.
               </div>
@@ -198,7 +160,7 @@ export function DocumentsPage() {
           </div>
 
           {/* Sentinel for Lazy Loading */}
-          {visibleCount < sources.length && (
+          {visibleCount < allSources.length && (
             <div id="load-more-sentinel" className="h-20 flex items-center justify-center mt-8">
               <Loader2 size={24} className="text-accent animate-spin opacity-50" />
             </div>

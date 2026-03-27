@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # ============================================
     # Environment & Debug
     # ============================================
-    environment: Literal["development", "staging", "production"] = Field(
+    environment: Literal["development", "staging", "production", "test"] = Field(
         default="development", validation_alias="ENVIRONMENT"
     )
     debug: bool = Field(default=False, validation_alias="DEBUG")

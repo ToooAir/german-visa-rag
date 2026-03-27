@@ -304,15 +304,15 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
   });
 
   return (
-    <div className={`flex flex-col gap-4 h-full overflow-y-auto pr-1 custom-scrollbar ${className}`}>
+    <div className={`flex flex-col gap-7 h-full overflow-y-auto px-2 lg:px-0 custom-scrollbar ${className}`}>
       {/* Progress Checklist */}
-      <div className="glass-panel p-5 bg-white/50 dark:bg-panel relative">
-        <div className="flex items-center justify-between mb-4 px-1">
-          <h3 className="text-[15px] font-semibold text-slate-800 dark:text-slate-200">
+      <div className="glass-panel p-3.5 sm:p-5 bg-white/50 dark:bg-panel relative shadow-2xl">
+        <div className="flex items-center justify-between mb-3 lg:mb-4">
+          <h3 className="text-base lg:text-[15px] font-semibold text-slate-800 dark:text-slate-200">
             {titlePrefix} {t.progress}
           </h3>
         </div>
-        <div className="space-y-3">
+        <div className="space-y-4">
           <AnimatePresence mode="popLayout">
             {displayChecklist.map((displayItem, index) => (
               <motion.div
@@ -331,7 +331,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                   ) : <Circle size={18} />}
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className={`text-sm font-medium truncate ${displayItem.status === 'completed' ? 'text-slate-400 line-through' : displayItem.status === 'current' ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500'}`}>
+                  <span className={`text-base lg:text-sm font-medium truncate ${displayItem.status === 'completed' ? 'text-slate-400 line-through' : displayItem.status === 'current' ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500'}`}>
                     {translateChecklistTitle(displayItem.title)}
                   </span>
                   <div className="flex items-center gap-2">
@@ -359,8 +359,8 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       </div>
 
       {/* Requirement Summary */}
-      <div className="glass-panel p-5 bg-white/50 dark:bg-panel">
-        <h3 className="text-[15px] font-semibold text-slate-800 dark:text-slate-200 mb-4 px-1">{t.reqSummary}</h3>
+      <div className="glass-panel p-3.5 sm:p-5 bg-white/50 dark:bg-panel shadow-2xl">
+        <h3 className="text-base lg:text-[15px] font-semibold text-slate-800 dark:text-slate-200 mb-3 lg:mb-4">{t.reqSummary}</h3>
 
         <div className="space-y-4">
           {primaryThresholds.map((threshold, idx) => (
@@ -369,21 +369,21 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.1 }}
-              className="p-3 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/50 dark:border-slate-700/50"
+              className="p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/50 dark:border-slate-700/50"
             >
-              <div className="flex flex-col gap-1">
-                <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{threshold.label}:</div>
-                <div className="space-y-1.5">
+              <div className="flex flex-col gap-2.5">
+                <div className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">{threshold.label}:</div>
+                <div className="space-y-2">
                   {threshold.value.split('\n').filter(Boolean).map((line: string, i: number) => (
                     <div key={i} className="flex items-start gap-2">
                       <div className="w-1 h-1 rounded-full bg-accent/40 mt-2 shrink-0" />
-                      <span className="text-[13px] font-bold text-slate-800 dark:text-slate-100 leading-tight">
+                      <span className="text-sm lg:text-[13px] font-bold text-slate-800 dark:text-slate-100 leading-tight">
                         {line}
                       </span>
                     </div>
                   ))}
                 </div>
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-2 mt-4">
                   <div className="text-[10px] font-semibold text-accent bg-accent/10 px-2 py-0.5 rounded-md uppercase tracking-wide">
                     {threshold.sub}
                   </div>
@@ -392,9 +392,9 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
             </motion.div>
           ))}
 
-          <div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 mb-2 px-1">{t.mainCriteria}:</div>
-            <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+          <div className="mt-8">
+            <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">{t.mainCriteria}:</div>
+            <ul className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
               <AnimatePresence mode="popLayout">
                 {requirements.map((rawReq, index) => {
                   const req = { ...rawReq };
@@ -452,17 +452,17 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                     className={`flex justify-between items-start gap-4 p-2 rounded-lg transition-colors group ${req.id?.startsWith('header') ? 'mt-4 mb-1 bg-slate-100/50 dark:bg-slate-800/50 border-l-2 border-indigo-500' : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/30'
                       }`}
                   >
-                    <span className={`flex-1 leading-normal ${req.id?.startsWith('header') ? 'text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'
+                    <span className={`flex-1 leading-normal ${req.id?.startsWith('header') ? 'text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400' : 'text-sm lg:text-xs lg:dark:text-slate-400'
                       }`}>
                       {translateRequirementLabel(req.label, req.id)}
                     </span>
                     {!req.id?.startsWith('header') && (
                       <div className="flex items-center gap-2 pt-[2px] shrink-0">
                         {req.status === 'warning' && <AlertCircle size={14} className="text-amber-500" />}
-                        <span className={`min-w-[1.25rem] text-center px-2 py-0.5 rounded-md text-[11px] font-medium ${req.status === 'required' ? 'bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400' :
-                          req.status === 'warning' ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' :
-                            'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                          }`}>
+                          <span className={`min-w-[1.25rem] text-center px-2 py-0.5 rounded-md text-xs lg:text-[11px] font-medium ${req.status === 'required' ? 'bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-400' :
+                           req.status === 'warning' ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+                             'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                           }`}>
                           {translateRequirementValue(req.value)}
                         </span>
                       </div>
@@ -485,7 +485,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
               <div className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-500">
                 <FileText size={16} />
               </div>
-              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              <h3 className="text-[13px] lg:text-sm font-bold text-slate-800 dark:text-slate-200">
                 {t.docs?.finalTitle || 'Final Document Checklist'}
               </h3>
             </div>
@@ -493,7 +493,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
             <div className="space-y-5">
               {/* Common Docs */}
               <div className="p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm">
-                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 px-1 uppercase tracking-wider flex items-center gap-2">
+                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/70"></div>
                   {t.docs?.commonTitle}
                 </div>
@@ -515,7 +515,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
               {/* Specific Docs */}
               <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-500/20 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl -mr-10 -mt-10"></div>
-                <div className="text-xs font-bold text-indigo-600/80 dark:text-indigo-400/80 mb-3 px-1 uppercase tracking-wider flex items-center gap-2 relative z-10">
+                <div className="text-xs font-bold text-indigo-600/80 dark:text-indigo-400/80 mb-3 uppercase tracking-wider flex items-center gap-2 relative z-10">
                   <div className="w-1.5 h-1.5 rounded-full bg-indigo-500/70"></div>
                   {t.docs?.specificTitle}
                 </div>

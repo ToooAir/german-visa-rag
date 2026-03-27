@@ -8,7 +8,7 @@ import {
   Award, BadgeCheck, GraduationCap
 } from 'lucide-react';
 import { useChatStore, Message, Source } from '../stores/chatStore';
-import { useTranslation } from '../translations';
+import { useTranslation, Translation } from '../translations';
 
 // Mapping for visa categories: Store ID -> Display Metadata
 const VISA_METADATA: Record<string, { labelKey: string, icon: React.ElementType }> = {
@@ -60,15 +60,15 @@ export function ChatArea({ className = '' }: { className?: string }) {
           <div className="flex flex-col">
             <button
               onClick={() => setIsSelectorOpen(!isSelectorOpen)}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group"
+              className="flex items-center gap-2 px-1.5 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group lg:px-2 lg:py-1.5"
             >
-              <div className="p-1 bg-accent/10 rounded-lg text-accent">
-                <ActiveIcon size={18} />
+              <div className="p-1 bg-accent/10 rounded-lg text-accent shrink-0">
+                <ActiveIcon size={16} className="lg:w-[18px] lg:h-[18px]" />
               </div>
-              <span className="text-lg font-bold text-slate-800 dark:text-slate-100">
-                {activeVisaCategory ? (t as any)[currentMeta.labelKey] : t.chatHeader}
+              <span className="text-base lg:text-lg font-bold text-slate-800 dark:text-slate-100 truncate max-w-[120px] sm:max-w-none">
+                {activeVisaCategory ? (t[currentMeta.labelKey as keyof Translation] as string) : t.chatHeader}
               </span>
-              <ChevronDown size={16} className={`text-slate-400 transition-transform duration-300 ${isSelectorOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={14} className={`text-slate-400 transition-transform duration-300 lg:w-[16px] lg:h-[16px] ${isSelectorOpen ? 'rotate-180' : ''}`} />
               {isLoading && <Loader2 className="w-4 h-4 animate-spin text-accent ml-1" />}
             </button>
           </div>
@@ -110,7 +110,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
                           <div className={`p-1.5 rounded-lg ${isActive ? 'bg-accent/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
                             <Icon size={16} />
                           </div>
-                          <span className="flex-1 text-left text-sm">{(t as any)[meta.labelKey]}</span>
+                          <span className="flex-1 text-left text-sm">{(t[meta.labelKey as keyof Translation] as string)}</span>
                           {isActive && <div className="w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_8px_rgba(var(--accent-rgb),0.5)]" />}
                         </button>
                       );
@@ -124,11 +124,11 @@ export function ChatArea({ className = '' }: { className?: string }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowConfirmModal(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all duration-200 group border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20"
+            className="flex items-center gap-2 px-2 py-1.5 lg:px-3 rounded-xl text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all duration-200 group border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20"
             title={t.newSession}
           >
             <Trash2 size={16} className="group-hover:scale-110 transition-transform" />
-            <span className="text-xs font-semibold">{t.newSession}</span>
+            <span className="hidden sm:inline text-xs font-semibold">{t.newSession}</span>
           </button>
         </div>
       </div>
@@ -191,7 +191,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
       {/* Message List */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-4 flex flex-col gap-6 pb-24"
+        className="flex-1 overflow-y-auto p-3 sm:p-4 flex flex-col gap-5 lg:gap-6 pb-28 lg:pb-24"
       >
         <AnimatePresence initial={false}>
           {messages.map((msg) => (
@@ -206,8 +206,8 @@ export function ChatArea({ className = '' }: { className?: string }) {
       </div>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 w-full bg-gradient-to-t from-background via-background to-transparent pb-6 pt-12 z-20">
-        <div className="relative glass-panel bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200 dark:border-slate-700 mx-4 flex items-center shadow-2xl shadow-black/5 dark:shadow-black/50 overflow-hidden">
+      <div className="absolute bottom-0 w-full bg-gradient-to-t from-background via-background to-transparent pb-4 lg:pb-6 pt-10 lg:pt-12 z-20">
+        <div className="relative glass-panel bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200 dark:border-slate-700 mx-3 sm:mx-4 flex items-center shadow-2xl shadow-black/5 dark:shadow-black/50 overflow-hidden">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -218,7 +218,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
               }
             }}
             placeholder={t.askPlaceholder}
-            className="w-full bg-transparent text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 py-4 pl-4 pr-14 outline-none text-[15px] resize-none overflow-hidden"
+            className="w-full bg-transparent text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 py-4 pl-4 pr-14 outline-none text-base lg:text-[15px] resize-none overflow-hidden"
             rows={1}
             style={{ minHeight: '56px' }}
           />
@@ -261,13 +261,13 @@ function ChatMessage({ message }: { message: Message }) {
             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300">
               U
             </div>
-            <span className="font-medium text-slate-800 dark:text-slate-200 text-sm">{t.you}</span>
+            <span className="font-medium text-slate-800 dark:text-slate-200 text-sm">{(t.you as string)}</span>
           </div>
           <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-xs">
             <MoreVertical size={14} className="cursor-pointer hover:text-slate-600 dark:hover:text-slate-300" />
           </div>
         </div>
-        <div className="text-slate-700 dark:text-slate-300 text-[15px] leading-relaxed ml-11 whitespace-pre-wrap">
+        <div className="text-slate-700 dark:text-slate-300 text-base lg:text-[15px] leading-relaxed whitespace-pre-wrap">
           {message.content}
         </div>
       </motion.div>
@@ -285,11 +285,11 @@ function ChatMessage({ message }: { message: Message }) {
           <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center text-accent ring-1 ring-accent/30">
             <Sparkles size={18} />
           </div>
-          <span className="font-semibold text-slate-900 dark:text-white text-sm tracking-wide">{t.personaName || 'Visa Assistant'}</span>
+          <span className="font-semibold text-slate-900 dark:text-white text-sm tracking-wide">{(t.personaName as string) || 'Visa Assistant'}</span>
         </div>
       </div>
 
-      <div className="text-slate-700 dark:text-slate-300 text-[15px] leading-relaxed ml-11 flex flex-col gap-4">
+      <div className="text-slate-700 dark:text-slate-300 text-base lg:text-[15px] leading-relaxed ml-0 lg:ml-11 flex flex-col gap-4">
         {/* RAG Traceability Loader */}
         {(isLoading || message.searchQueries) && !message.content && (
           <TraceLoader currentStatus={message.status} searchQueries={message.searchQueries} />
@@ -411,10 +411,10 @@ function QuickStarters({ onSelect }: { onSelect: (q: string) => void }) {
   ];
 
   return (
-    <div className="ml-11 mt-2">
-      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+    <div className="ml-0 mt-2">
+      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2 lg:ml-0">
         <Sparkles size={14} className="text-accent" />
-        {t.showcaseExamples}
+        {(t.showcaseExamples as string)}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {starters.map((s, i) => (

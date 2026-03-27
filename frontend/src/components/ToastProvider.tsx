@@ -13,16 +13,16 @@ export function ToastProvider() {
   const { toasts, removeToast } = useToastStore();
 
   return (
-    <div className="fixed top-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
+    <div className="fixed top-6 left-1/2 -translate-x-1/2 lg:left-auto lg:right-6 lg:translate-x-0 z-[100] flex flex-col gap-3 pointer-events-none w-[calc(100%-32px)] lg:w-auto max-w-[400px]">
       <AnimatePresence>
         {toasts.map((toast) => (
           <motion.div
             key={toast.id}
-            initial={{ opacity: 0, x: 50, scale: 0.9 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 20, scale: 0.9 }}
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
             layout
-            className="pointer-events-auto flex items-start gap-3 p-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border border-slate-200/50 dark:border-slate-700/50 shadow-2xl rounded-xl min-w-[300px] max-w-[400px]"
+            className="pointer-events-auto flex items-start gap-3 p-4 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md border border-slate-200/50 dark:border-slate-700/50 shadow-2xl rounded-xl w-full"
           >
             <div className="shrink-0 mt-0.5">{icons[toast.type]}</div>
             <div className="flex-1 min-w-0">

@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useChatStore } from '../stores/chatStore';
 import { useTranslation } from '../translations';
 
-export function Sidebar({ className = '' }: { className?: string }) {
+export function Sidebar({ className = '', onItemClick }: { className?: string, onItemClick?: () => void }) {
   const { t } = useTranslation();
 
   return (
@@ -17,14 +17,14 @@ export function Sidebar({ className = '' }: { className?: string }) {
 
       {/* Main Nav */}
       <nav className="flex flex-col gap-1 mb-8">
-        <NavItem icon={<Home size={18} />} label={t.home} to="/" end />
-        <NavItem icon={<FileText size={18} />} label={t.library} to="/documents" />
-        <NavItem icon={<Settings size={18} />} label={t.settings} to="/settings" />
+        <NavItem icon={<Home size={18} />} label={t.home} to="/" end onClick={onItemClick} />
+        <NavItem icon={<FileText size={18} />} label={t.library} to="/documents" onClick={onItemClick} />
+        <NavItem icon={<Settings size={18} />} label={t.settings} to="/settings" onClick={onItemClick} />
       </nav>
 
       {/* Recent Sources */}
       <div className="mb-8">
-        <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-2 mb-3">{t.recentSources}</h2>
+        <h2 className="text-sm lg:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-2 mb-3">{t.recentSources}</h2>
         <div className="flex flex-col gap-2">
           {/* Pinned Official Sources */}
           {useChatStore.getState().pinnedSources.map((s, i) => (
@@ -53,12 +53,13 @@ export function Sidebar({ className = '' }: { className?: string }) {
 }
 
 // Subcomponents
-function NavItem({ icon, label, to, end = false }: { icon: React.ReactNode, label: string, to: string, end?: boolean }) {
+function NavItem({ icon, label, to, end = false, onClick }: { icon: React.ReactNode, label: string, to: string, end?: boolean, onClick?: () => void }) {
   return (
     <NavLink
       to={to}
       end={end}
-      className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+      onClick={onClick}
+      className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-lg text-base lg:text-sm font-medium transition-colors ${
         isActive ? 'bg-accent/15 text-accent' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white'
       }`}
     >
@@ -81,7 +82,7 @@ function SourceItem({ title, url, favicon, official = false }: { title: string, 
       <div className="w-6 h-6 rounded bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs border border-slate-300 dark:border-slate-700 group-hover:border-accent/40 transition-colors">
         {favicon || defaultFavicon}
       </div>
-      <span className="text-sm text-slate-700 dark:text-slate-300 truncate flex-1 group-hover:text-accent transition-colors">{title}</span>
+      <span className="text-[15px] lg:text-sm text-slate-700 dark:text-slate-300 truncate flex-1 group-hover:text-accent transition-colors">{title}</span>
       {official && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
     </a>
   );

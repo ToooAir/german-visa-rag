@@ -46,20 +46,20 @@ export function DocumentsPage() {
     switch (level) {
       case 'official':
         return (
-          <span className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold uppercase tracking-wider">
-            <Shield size={10} /> {t.official || 'Official'}
+          <span className="text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold uppercase tracking-wider">
+            <Shield size={12} /> {t.official || 'Official'}
           </span>
         );
       case 'semi_official':
         return (
-          <span className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold uppercase tracking-wider">
-            <CheckCircle size={10} /> {t.verified || 'Verified'}
+          <span className="text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold uppercase tracking-wider">
+            <CheckCircle size={12} /> {t.verified || 'Verified'}
           </span>
         );
       default:
         return (
-          <span className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 bg-slate-500/10 text-slate-400 border border-slate-500/20 font-bold uppercase tracking-wider">
-            <Info size={10} /> {t.thirdParty || 'Third Party'}
+          <span className="text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1.5 bg-slate-500/10 text-slate-400 border border-slate-500/20 font-bold uppercase tracking-wider">
+            <Info size={12} /> {t.thirdParty || 'Third Party'}
           </span>
         );
     }
@@ -80,18 +80,17 @@ export function DocumentsPage() {
   };
 
   return (
-    <div className="flex-1 glass-panel p-8 bg-slate-900/40 rounded-2xl border border-slate-800/50 shadow-2xl overflow-y-auto w-full">
+    <div className="flex-1 glass-panel px-7 py-6 sm:p-8 bg-white/70 dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-800/50 shadow-2xl overflow-y-auto w-full">
       <div className="flex justify-between items-center mb-10">
         <div>
-          <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3">
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-4">
             <div className="p-2 bg-accent/20 rounded-lg text-accent">
               <FileText size={24} />
             </div>
             {t.library}
           </h2>
-          <p className="text-slate-400 text-sm mt-2 max-w-2xl">
-            Our RAG system is built on real-time indexed legislation and official guidelines.
-            Below are the primary sources currently in our knowledge base.
+          <p className="text-slate-600 dark:text-slate-400 text-base sm:text-sm mt-4 max-w-2xl leading-relaxed">
+            {t.libraryDesc}
           </p>
         </div>
       </div>
@@ -118,7 +117,7 @@ export function DocumentsPage() {
                 href={source.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="glass-panel p-4 flex flex-col justify-between bg-white/5 dark:bg-slate-800/15 hover:bg-white/10 dark:hover:bg-slate-800/25 border border-slate-200/40 dark:border-slate-800/50 hover:border-accent/30 transition-all cursor-pointer group hover:-translate-y-1 relative overflow-hidden h-[180px] min-w-0"
+                className="glass-panel p-5 sm:p-5 flex flex-col justify-between bg-white/5 dark:bg-slate-800/15 hover:bg-white/10 dark:hover:bg-slate-800/25 border border-slate-200/40 dark:border-slate-800/50 hover:border-accent/30 transition-all cursor-pointer group hover:-translate-y-1 relative overflow-hidden min-h-[190px] h-auto min-w-0"
               >
                 {/* Background Watermark Icon - Smaller & More Subtle */}
                 <div className="absolute -right-2 -bottom-2 opacity-[0.02] dark:opacity-[0.04] group-hover:opacity-[0.06] transition-opacity pointer-events-none transform rotate-12">
@@ -126,41 +125,41 @@ export function DocumentsPage() {
                 </div>
 
                 <div className="relative z-10">
-                  <div className="flex items-start justify-between mb-2.5">
+                  <div className="flex items-start justify-between mb-3.5">
                     {getAuthorityBadge(source.authority_level)}
-                    <ExternalLink size={12} className="text-slate-500 group-hover:text-accent transition-colors" />
+                    <ExternalLink size={14} className="text-slate-500 group-hover:text-accent transition-colors" />
                   </div>
 
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-1.5 line-clamp-2 leading-snug group-hover:text-accent transition-colors">
+                  <h3 className="text-base sm:text-sm font-bold text-slate-800 dark:text-slate-100 mb-2.5 line-clamp-2 leading-snug group-hover:text-accent transition-colors">
                     {source.title || 'Untitled Source'}
                   </h3>
 
-                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium opacity-80 group-hover:opacity-100 transition-opacity">
-                    <div className="w-3.5 h-3.5 rounded-sm overflow-hidden bg-slate-100/50 dark:bg-slate-800/50 flex items-center justify-center">
+                  <div className="flex items-center gap-2 text-xs sm:text-[10px] text-slate-500 font-medium opacity-80 group-hover:opacity-100 transition-opacity">
+                    <div className="w-4 h-4 rounded-sm overflow-hidden bg-slate-100/50 dark:bg-slate-800/50 flex items-center justify-center">
                       <img
                         src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=32`}
                         alt=""
-                        className="w-2.5 h-2.5 grayscale group-hover:grayscale-0 transition-all"
+                        className="w-3 h-3 grayscale group-hover:grayscale-0 transition-all"
                       />
                     </div>
                     <span className="truncate">{hostname}</span>
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100/50 dark:border-slate-800/50 flex flex-wrap gap-1.5 items-center justify-between relative z-10">
+                <div className="mt-5 pt-4 border-t border-slate-100/50 dark:border-slate-800/50 flex flex-wrap gap-1.5 items-center justify-between relative z-10">
                   <div className="flex flex-wrap gap-1">
                     {source.visa_types.slice(0, 1).map((v, j) => (
-                      <span key={j} className="text-[8px] px-1.5 py-0.5 rounded bg-accent/5 dark:bg-accent/10 text-accent font-bold border border-accent/10 uppercase tracking-tighter">
+                      <span key={j} className="text-[10px] sm:text-[8px] px-2 py-0.5 rounded bg-accent/5 dark:bg-accent/10 text-accent font-bold border border-accent/10 uppercase tracking-tighter">
                         {v.replace('_', ' ')}
                       </span>
                     ))}
                     {source.visa_types.length > 1 && (
-                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-100/50 dark:bg-slate-800/30 text-slate-500 font-bold border border-slate-200/50 dark:border-slate-700/50">
+                      <span className="text-[10px] sm:text-[8px] px-2 py-0.5 rounded bg-slate-100/50 dark:bg-slate-800/30 text-slate-500 font-bold border border-slate-200/50 dark:border-slate-700/50">
                         +{source.visa_types.length - 1}
                       </span>
                     )}
                   </div>
-                  <div className="text-[9px] text-slate-400 dark:text-slate-500 font-mono tracking-tighter">
+                  <div className="text-[10px] sm:text-[9px] text-slate-400 dark:text-slate-500 font-mono tracking-tighter">
                     {formatDate(source.last_fetched)}
                   </div>
                 </div>

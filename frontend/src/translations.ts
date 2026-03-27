@@ -8,6 +8,7 @@ export const translations = {
     settings: 'Settings',
     recentSources: 'Recent Sources',
     visaCategories: 'Visa Categories',
+    libraryDesc: 'Our RAG system is built on real-time indexed legislation and official guidelines. Below are the primary sources currently in our knowledge base.',
 
     // Settings
     appearance: 'Appearance',
@@ -40,6 +41,7 @@ export const translations = {
 
     // Insights
     progress: 'Progress',
+    progressSummary: 'Progress Summary',
     reqSummary: 'Requirement Summary',
     pointsReq: 'Points Required',
     mainCriteria: 'Main Criteria',
@@ -195,6 +197,7 @@ export const translations = {
     settings: 'Einstellungen',
     recentSources: 'Aktuelle Quellen',
     visaCategories: 'Visum-Kategorien',
+    libraryDesc: 'Unser RAG-System basiert auf echtzeit-indizierten Gesetzestexten und offiziellen Richtlinien. Unten finden Sie die wichtigsten Quellen in unserer Wissensdatenbank.',
 
     // Settings
     appearance: 'Erscheinungsbild',
@@ -227,6 +230,7 @@ export const translations = {
 
     // Insights
     progress: 'Fortschritt',
+    progressSummary: 'Fortschrittsübersicht',
     reqSummary: 'Anforderungszusammenfassung',
     pointsReq: 'Erforderliche Punkte',
     mainCriteria: 'Hauptkriterien',
@@ -382,6 +386,7 @@ export const translations = {
     settings: '設定',
     recentSources: '最近來源',
     visaCategories: '簽證類別',
+    libraryDesc: '我們的 RAG 系統基於即時索引的法律條文與官方指南。以下是目前收錄在知識庫中的核心資料來源。',
 
     // Settings
     appearance: '外觀',
@@ -414,6 +419,7 @@ export const translations = {
 
     // Insights
     progress: '當前進度',
+    progressSummary: '簽證進度摘要',
     reqSummary: '要求摘要',
     pointsReq: '積分門檻',
     mainCriteria: '主要標準',

@@ -48,6 +48,10 @@ interface ChatState {
   resetProgress: () => void;
   updateMilestone: (milestoneId: string, status: 'completed' | 'current' | 'pending', autoDetected?: boolean) => void;
   updateRequirement: (id: string, value: string, status: 'required' | 'info' | 'warning') => void;
+  isSidebarOpen: boolean;
+  isInsightsOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
+  setInsightsOpen: (open: boolean) => void;
   sendMessage: (content: string) => Promise<void>;
   newSession: () => void;
 }
@@ -86,6 +90,11 @@ export const useChatStore = create<ChatState>()(
     { title: "Consular Portal", url: "https://digital.diplo.de/visa", authority: "official" }
   ],
   recentSources: [],
+  isSidebarOpen: false,
+  isInsightsOpen: false,
+
+  setSidebarOpen: (open) => set({ isSidebarOpen: open }),
+  setInsightsOpen: (open) => set({ isInsightsOpen: open }),
 
   setActiveVisaCategory: (cat) => {
     set({ activeVisaCategory: cat });

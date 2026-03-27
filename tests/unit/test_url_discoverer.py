@@ -95,18 +95,18 @@ class TestStrategyRegistry:
 
     def test_exact_domain_match(self):
         registry = StrategyRegistry()
-        strategy = registry.get_strategy("make-it-in-germany.com")
-        assert strategy.domain == "make-it-in-germany.com"
+        strategy = registry.get_strategy("www.make-it-in-germany.com")
+        assert strategy.domain == "www.make-it-in-germany.com"
 
     def test_www_prefix_match(self):
         registry = StrategyRegistry()
-        strategy = registry.get_strategy("www.make-it-in-germany.com")
-        assert strategy.domain == "make-it-in-germany.com"
+        strategy = registry.get_strategy("make-it-in-germany.com")
+        assert strategy.domain == "www.make-it-in-germany.com"
 
     def test_url_based_lookup(self):
         registry = StrategyRegistry()
         strategy = registry.get_strategy("https://www.make-it-in-germany.com/en/visa-residence/")
-        assert strategy.domain == "make-it-in-germany.com"
+        assert strategy.domain == "www.make-it-in-germany.com"
 
     def test_unknown_domain_returns_default(self):
         registry = StrategyRegistry()
@@ -128,8 +128,8 @@ class TestStrategyRegistry:
     def test_get_all_domains(self):
         registry = StrategyRegistry()
         domains = registry.get_all_domains()
-        assert "make-it-in-germany.com" in domains
-        assert "chancenkarte.com" in domains
+        assert "www.make-it-in-germany.com" in domains
+        assert "www.chancenkarte.com" in domains
 
 
 # ============================================

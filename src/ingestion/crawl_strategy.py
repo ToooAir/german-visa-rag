@@ -479,6 +479,11 @@ class StrategyRegistry:
         if domain_clean in self._strategies:
             return self._strategies[domain_clean]
 
+        # If we have "example.com" and query "www.example.com" or vice versa
+        www_domain = f"www.{domain_clean}"
+        if www_domain in self._strategies:
+            return self._strategies[www_domain]
+
         # Try partial match (subdomain)
         for key, strategy in self._strategies.items():
             if domain.endswith(key) or domain_clean.endswith(key):

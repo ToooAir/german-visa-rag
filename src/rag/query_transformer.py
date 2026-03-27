@@ -81,8 +81,8 @@ class QueryTransformer:
         logger.debug("Transforming query: %.100s", query)
 
         try:
-            # Short queries always expand; longer queries respect apply_expansion
-            if len(query.split()) < 3 or apply_expansion:
+            # Prioritize apply_expansion flag; then fall back to length-based expansion
+            if apply_expansion and (len(query.split()) < 3 or apply_expansion):
                 return await self._expand_query_with_llm(query)
             else:
                 return {

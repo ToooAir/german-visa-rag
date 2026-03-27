@@ -13,7 +13,7 @@ export function MobileHeader({ onToggleSidebar, onToggleInsights, isSidebarOpen,
   const { t } = useTranslation();
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-16 bg-background/80 backdrop-blur-md border-b border-white/10 z-[80] px-4 flex items-center justify-between lg:hidden">
+    <header className="fixed top-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] bg-background/80 backdrop-blur-md border-b border-white/10 z-[80] px-4 flex items-center justify-between lg:hidden">
       <button
         onClick={onToggleSidebar}
         className="p-2 text-slate-400 hover:text-white transition-colors"

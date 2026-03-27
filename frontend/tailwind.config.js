@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+import tailwindcssSafeArea from 'tailwindcss-safe-area';
+
 export default {
   content: [
     "./index.html",
@@ -15,5 +17,7 @@ export default {
       }
     },
   },
-  plugins: [],
+  plugins: [
+    tailwindcssSafeArea,
+  ],
 }

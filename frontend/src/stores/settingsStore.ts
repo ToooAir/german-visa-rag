@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { applyTheme } from '../utils/applyTheme';
 
 export type Theme = 'light' | 'dark' | 'system';
 export type Language = 'en' | 'de' | 'zh-TW';
@@ -19,7 +20,10 @@ export const useSettingsStore = create<SettingsState>()(
       theme: 'dark',
       language: 'en',
       notificationsEnabled: true,
-      setTheme: (theme) => set({ theme }),
+      setTheme: (theme) => {
+        applyTheme(theme); // 同步立即執行，不等 React render cycle
+        set({ theme });
+      },
       setLanguage: (language) => set({ language }),
       setNotificationsEnabled: (notificationsEnabled) => set({ notificationsEnabled }),
     }),

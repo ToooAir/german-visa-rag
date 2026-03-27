@@ -9,6 +9,8 @@
     --text-main: #0f172a;
     --panel-bg: rgba(255, 255, 255, 0.7);
     --panel-border: rgba(0, 0, 0, 0.08);
+    /* URL bar 高度 = 最小視窗 - 動態視窗，補償非 PWA 模式的 Safari URL bar */
+    --url-bar-height: calc(100svh - 100dvh);
   }
 
   .dark {
@@ -23,21 +25,29 @@
     box-sizing: border-box;
   }
 
+  html {
+    background-color: var(--bg-gradient-start); /* 現在可安全使用，因 inline script 保證 class 已就位 */
+    /* 不加 overflow: hidden 以維持物理螢幕背景延伸 */
+  }
+
   html, body, #root {
     height: 100%;
-    height: -webkit-fill-available;
-    height: 100dvh;
     width: 100%;
     margin: 0;
     padding: 0;
-    overflow: hidden;
-    /* Force initial background to match Dark Mode exactly to prevent white-bar flicker */
-    background-color: #0B1120;
   }
 
-  /* Specific fix for iOS address bar area */
-  html {
-     background-color: #0B1120;
+  body, #root {
+    overflow: hidden;
+    height: 100dvh;
+    background-color: var(--bg-gradient-start);
+  }
+
+  /* iOS 專用高度補償 (只在支援 touch 且不支援 dvh 的舊版生效) */
+  @supports (-webkit-touch-callout: none) and (not (height: 100dvh)) {
+    body, #root {
+      height: -webkit-fill-available;
+    }
   }
 
   body {

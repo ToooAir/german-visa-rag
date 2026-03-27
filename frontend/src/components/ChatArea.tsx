@@ -192,7 +192,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
       {/* Message List */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-3 sm:p-4 pb-[calc(11.5rem+env(safe-area-inset-bottom))] pt-4 lg:pt-4 flex flex-col gap-5 lg:gap-6 relative"
+        className="flex-1 overflow-y-auto p-3 sm:p-4 pb-[calc(11.5rem+env(safe-area-inset-bottom)+var(--url-bar-height))] pt-4 lg:pt-4 flex flex-col gap-5 lg:gap-6 relative"
       >
         <AnimatePresence initial={false}>
           {messages.map((msg) => (
@@ -208,7 +208,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
       </div>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 w-full bg-gradient-to-t from-background via-background to-transparent pb-[calc(1rem+env(safe-area-inset-bottom))] lg:pb-6 pt-6 lg:pt-8 z-20">
+      <div className="absolute bottom-0 w-full bg-gradient-to-t from-background via-background to-transparent pb-[calc(1rem+env(safe-area-inset-bottom)+var(--url-bar-height))] lg:pb-6 pt-6 lg:pt-8 z-20">
         <div className="relative glass-panel bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200 dark:border-slate-700 mx-3 sm:mx-4 flex items-center shadow-2xl shadow-black/5 dark:shadow-black/50 overflow-hidden">
           <textarea
             value={input}

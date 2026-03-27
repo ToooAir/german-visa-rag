@@ -4,69 +4,31 @@ import { DashboardLayout } from './components/DashboardLayout';
 import { HomePage } from './pages/HomePage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { useSettingsStore, Theme } from './stores/settingsStore';
+import { useSettingsStore } from './stores/settingsStore';
 import { useChatStore } from './stores/chatStore';
 import { translations } from './translations';
 import { ToastProvider } from './components/ToastProvider';
+
+import { applyTheme } from './utils/applyTheme';
 
 function App() {
   const { theme } = useSettingsStore();
 
   useEffect(() => {
-    const root = window.document.documentElement;
-
-    const applyTheme = (currentTheme: Theme) => {
-      const isDark = currentTheme === 'dark' ||
-        (currentTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-
-      console.log(`[Theme] Applying theme: ${currentTheme}, IsDark: ${isDark}`);
-
-      if (isDark) {
-        root.classList.add('dark');
-        root.classList.remove('light');
-        updateThemeColor('#0B1120');
-      } else {
-        root.classList.add('light');
-        root.classList.remove('dark');
-        updateThemeColor('#F8FAFC');
-      }
-    };
-
-    const updateThemeColor = (color: string) => {
-      let meta = document.querySelector('meta[name="theme-color"]');
-      if (!meta) {
-        meta = document.createElement('meta');
-        meta.setAttribute('name', 'theme-color');
-        document.head.appendChild(meta);
-      }
-      meta.setAttribute('content', color);
-    };
-
+    // 1. 初始化（頁面載入時同步一次，確保內容與 localStorage 一致）
     applyTheme(theme);
 
-    // Listen for system theme changes
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    // 2. 只在 system 模式時監聽系統主題變化
+    if (theme !== 'system') return;
 
-    const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
-      if (theme === 'system') {
-        console.log(`[Theme] System theme changed. IsDark: ${e.matches}`);
-        applyTheme('system');
-      }
-    };
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => applyTheme('system');
 
     // Modern browsers
-    mediaQuery.addEventListener('change', handleChange as EventListener);
-
-    // Fallback for older browsers
-    if (mediaQuery.addListener) {
-      mediaQuery.addListener(handleChange);
-    }
+    mediaQuery.addEventListener('change', handleChange);
 
     return () => {
-      mediaQuery.removeEventListener('change', handleChange as EventListener);
-      if (mediaQuery.removeListener) {
-        mediaQuery.removeListener(handleChange);
-      }
+      mediaQuery.removeEventListener('change', handleChange);
     };
   }, [theme]);
 

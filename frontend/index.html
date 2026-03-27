@@ -8,6 +8,25 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#0B1120" />
     <title>VisaFlow DE - German Visa Assistant</title>
+
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('visapilot-settings');
+          var theme = stored ? JSON.parse(stored)?.state?.theme : 'dark';
+          var isDark =
+            theme === 'dark' ||
+            (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+          document.documentElement.classList.add(isDark ? 'dark' : 'light');
+
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', isDark ? '#0B1120' : '#F8FAFC');
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

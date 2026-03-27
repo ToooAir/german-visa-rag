@@ -9,7 +9,7 @@ export function DashboardLayout() {
   const { isSidebarOpen, setSidebarOpen, isInsightsOpen, setInsightsOpen } = useChatStore();
 
   return (
-    <div className="relative flex h-full w-full bg-background text-slate-100 overflow-hidden font-sans">
+    <div className="relative flex h-full w-full bg-background text-slate-900 dark:text-slate-100 overflow-hidden font-sans">
       {/* Background elements for depth */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent/20 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
@@ -55,9 +55,9 @@ export function DashboardLayout() {
                 animate={{ x: 0 }}
                 exit={{ x: -280 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="fixed inset-y-0 left-0 w-[280px] bg-background z-[70] lg:hidden shadow-2xl border-r border-white/10 pt-16"
+                className="fixed inset-y-0 left-0 w-[280px] bg-background z-[70] lg:hidden shadow-2xl border-r border-white/10 pt-[calc(4rem+env(safe-area-inset-top))]"
               >
-                <div className="flex flex-col h-full">
+                <div className="flex flex-col h-full pb-[env(safe-area-inset-bottom)]">
                   <Sidebar
                     className="flex-1 !bg-transparent !border-0"
                     onItemClick={() => setSidebarOpen(false)}

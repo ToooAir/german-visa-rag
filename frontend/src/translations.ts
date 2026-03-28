@@ -24,6 +24,8 @@ export const translations = {
     dark: 'Dark Mode',
     light: 'Light Mode',
     system: 'System Default',
+    sourceCode: 'Technical Insights',
+    sourceCodeDesc: 'Full RAG Pipeline (Python + React)',
 
     personaName: 'Visa Assistant',
     welcome: 'Hello! I am your **Visa Assistant**. I can help you understand German visa regulations, the *Chancenkarte*, and official requirements.',
@@ -214,6 +216,8 @@ export const translations = {
     dark: 'Dunkler Modus',
     light: 'Heller Modus',
     system: 'Systemstandard',
+    sourceCode: 'Technische Einblicke',
+    sourceCodeDesc: 'Vollständige RAG-Pipeline (Python + React)',
 
     personaName: 'Visum-Assistent',
     welcome: 'Hallo! Ich bin Ihr **Visum-Assistent**. Ich kann Ihnen helfen, deutsche Visumbestimmungen, die *Chancenkarte* und offizielle Anforderungen zu verstehen.',
@@ -404,6 +408,8 @@ export const translations = {
     dark: '深色模式',
     light: '淺色模式',
     system: '系統預設',
+    sourceCode: '技術原力',
+    sourceCodeDesc: '完整 RAG 架構 (Python + React)',
 
     personaName: '簽證小助手',
     welcome: '您好！我是您的 **簽證小助手**。我可以協助您了解德國簽證法規、*機會卡 (Chancenkarte)* 以及官方要求。',

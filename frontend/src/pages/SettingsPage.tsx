@@ -1,4 +1,4 @@
-import { Bell, Palette, Globe } from 'lucide-react';
+import { Bell, Palette, Globe, Github, ExternalLink, Code2 } from 'lucide-react';
 import { useSettingsStore, Theme, Language } from '../stores/settingsStore';
 import { useTranslation } from '../translations';
 
@@ -8,7 +8,13 @@ export function SettingsPage() {
 
   return (
     <div className="flex-1 glass-panel px-7 pt-[calc(6rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:p-8 bg-slate-50/40 dark:bg-slate-900/40 lg:rounded-2xl rounded-none border-0 lg:border border-slate-200/50 dark:border-slate-800/50 lg:shadow-2xl overflow-y-auto">
-      <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-8">{t.settings}</h2>
+      <div className="flex items-center justify-between mb-8">
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{t.settings}</h2>
+        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-accent">
+          <Code2 size={12} />
+          <span className="text-[10px] font-bold uppercase tracking-wider">v1.2.0 Open Source</span>
+        </div>
+      </div>
 
       <div className="max-w-2xl space-y-6">
         <section className="glass-panel p-6 bg-white/40 dark:bg-slate-800/40">
@@ -69,6 +75,23 @@ export function SettingsPage() {
               <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent border border-slate-300 dark:border-transparent"></div>
             </label>
           </div>
+        </section>
+
+        <section className="glass-panel p-6 bg-white/40 dark:bg-slate-800/40">
+          <div className="flex items-center gap-3 mb-4 text-slate-900 dark:text-white">
+            <Github size={20} />
+            <h3 className="font-semibold">{t.sourceCode}</h3>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">{t.sourceCodeDesc}</p>
+          <a
+            href="https://github.com/toooair/german-visa-rag"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between p-4 rounded-xl bg-slate-100/50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-accent group transition-all"
+          >
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 group-hover:text-accent transition-colors">GitHub Repository</span>
+            <ExternalLink size={16} className="text-slate-400 group-hover:text-accent transition-colors" />
+          </a>
         </section>
       </div>
     </div>

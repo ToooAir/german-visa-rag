@@ -414,12 +414,12 @@ function QuickStarters({ onSelect }: { onSelect: (q: string) => void }) {
   ];
 
   return (
-    <div className="ml-0 mt-4 px-2">
-      <div className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-5 flex items-center gap-2.5 lg:ml-0">
+    <div className="ml-0 mt-4">
+      <div className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-5 flex items-center gap-2.5 lg:pl-14">
         <Sparkles size={16} className="text-accent" />
         {(t.showcaseExamples as string)}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:ml-14">
         {starters.map((s, i) => (
           <button
             key={i}

@@ -55,9 +55,9 @@ export function ChatArea({ className = '' }: { className?: string }) {
   const ActiveIcon = currentMeta.icon;
 
   return (
-    <div className={`flex flex-col h-full bg-white/40 dark:bg-slate-900/40 lg:rounded-2xl rounded-none relative lg:border border-0 border-slate-200/50 dark:border-slate-800/50 lg:shadow-2xl overflow-hidden ${className}`}>
+    <div className={`flex flex-col h-full bg-white/40 dark:bg-slate-900/40 lg:rounded-2xl rounded-none relative lg:border border-0 border-slate-200/50 dark:border-slate-800/50 lg:shadow-2xl ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 lg:pt-3 pt-[calc(4.5rem+env(safe-area-inset-top))] border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-20">
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 lg:pt-3 pt-[calc(4.5rem+env(safe-area-inset-top))] border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-30 lg:rounded-t-2xl">
         <div className="flex items-center gap-3 relative">
           <div className="flex flex-col">
             <button
@@ -192,7 +192,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
       {/* Message List */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-3 sm:p-4 pb-[calc(11.5rem+env(safe-area-inset-bottom)+var(--url-bar-height))] pt-4 lg:pt-4 flex flex-col gap-5 lg:gap-6 relative"
+        className="flex-1 w-full overflow-y-auto px-4 md:px-8 pb-[calc(11.5rem+env(safe-area-inset-bottom)+var(--url-bar-height))] pt-[calc(9rem+env(safe-area-inset-top))] lg:pt-[4.5rem] flex flex-col gap-5 lg:gap-6 z-10"
       >
         <AnimatePresence initial={false}>
           {messages.map((msg) => (
@@ -208,7 +208,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
       </div>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 w-full bg-gradient-to-t from-background via-background to-transparent pb-[calc(1rem+env(safe-area-inset-bottom)+var(--url-bar-height))] lg:pb-6 pt-6 lg:pt-8 z-20">
+      <div className="absolute bottom-0 w-full bg-gradient-to-t from-background via-background to-transparent pb-[calc(1rem+env(safe-area-inset-bottom)+var(--url-bar-height))] lg:pb-6 pt-6 lg:pt-8 z-30 lg:rounded-b-2xl">
         <div className="relative glass-panel bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200 dark:border-slate-700 mx-3 sm:mx-4 flex items-center shadow-2xl shadow-black/5 dark:shadow-black/50 overflow-hidden">
           <textarea
             value={input}
@@ -414,20 +414,23 @@ function QuickStarters({ onSelect }: { onSelect: (q: string) => void }) {
   ];
 
   return (
-    <div className="ml-0 mt-4">
+    <div className="ml-0 mt-4 px-2">
       <div className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-5 flex items-center gap-2.5 lg:ml-0">
         <Sparkles size={16} className="text-accent" />
         {(t.showcaseExamples as string)}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {starters.map((s, i) => (
           <button
             key={i}
             onClick={() => onSelect(s.query)}
-            className="text-left p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-all hover:border-accent/30 group shadow-sm hover:shadow-md"
+            className="glass-panel text-left p-6 hover:border-accent/30 hover:shadow-accent/10 hover:scale-[1.02] active:scale-[0.98] group"
           >
             <div className="flex items-center gap-2.5 text-slate-800 dark:text-slate-200 font-bold mb-1.5 group-hover:text-accent transition-colors">
-              {s.icon} <span className="text-base">{s.title}</span>
+              <span className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl group-hover:bg-accent/10 transition-colors">
+                {s.icon}
+              </span>
+              <span className="text-base">{s.title}</span>
             </div>
             <div className="text-sm text-slate-500 line-clamp-2 leading-snug">"{s.query}"</div>
           </button>

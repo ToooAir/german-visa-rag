@@ -47,7 +47,7 @@ export function DashboardLayout() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setSidebarOpen(false)}
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] lg:hidden"
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] lg:hidden"
               />
               {/* Drawer */}
               <motion.aside
@@ -55,7 +55,7 @@ export function DashboardLayout() {
                 animate={{ x: 0 }}
                 exit={{ x: -280 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="fixed inset-y-0 left-0 w-[280px] bg-background z-[70] lg:hidden shadow-2xl border-r border-white/10 pt-[calc(4rem+env(safe-area-inset-top))]"
+                className="fixed inset-y-0 left-0 w-[280px] bg-background z-[100] lg:hidden shadow-2xl border-r border-white/10 pt-[calc(4rem+env(safe-area-inset-top))]"
               >
                 <div className="flex flex-col h-full pb-[env(safe-area-inset-bottom)]">
                   <Sidebar
@@ -69,7 +69,7 @@ export function DashboardLayout() {
         </AnimatePresence>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex gap-0 md:gap-4 h-full min-w-0 overflow-hidden relative">
+        <div className="flex-1 flex gap-0 md:gap-4 h-full min-w-0 relative">
           <Outlet />
         </div>
       </div>

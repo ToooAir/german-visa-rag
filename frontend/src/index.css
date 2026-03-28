@@ -9,6 +9,7 @@
     --text-main: #0f172a;
     --panel-bg: rgba(255, 255, 255, 0.7);
     --panel-border: rgba(0, 0, 0, 0.08);
+    --panel-shadow: 0 10px 40px -15px rgba(0, 0, 0, 0.1);
     /* URL bar 高度 = 最小視窗 - 動態視窗，補償非 PWA 模式的 Safari URL bar */
     --url-bar-height: calc(100svh - 100dvh);
   }
@@ -19,6 +20,7 @@
     --text-main: #f8fafc;
     --panel-bg: rgba(30, 41, 59, 0.4);
     --panel-border: rgba(255, 255, 255, 0.08);
+    --panel-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
   }
 
   *, *::before, *::after {
@@ -64,7 +66,8 @@
 
 @layer utilities {
   .glass-panel {
-    @apply bg-panel backdrop-blur-md border border-panelBorder shadow-xl rounded-2xl;
+    @apply bg-panel backdrop-blur-xl border border-panelBorder rounded-3xl transition-all duration-300;
+    box-shadow: var(--panel-shadow);
   }
 
   .custom-scrollbar::-webkit-scrollbar {

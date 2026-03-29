@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#0B1120" />
+    <meta name="theme-color" content="rgba(11, 17, 32, 0.5)" />
     <title>VisaFlow DE - German Visa Assistant</title>
 
     <script>
@@ -20,10 +20,14 @@
 
           document.documentElement.classList.add(isDark ? 'dark' : 'light');
 
+          // 直接設定 html.style.backgroundColor 防止 overscroll 色塊閃爍
+          document.documentElement.style.backgroundColor = isDark ? '#0B1120' : '#f8fafc';
+
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', isDark ? '#0B1120' : '#F8FAFC');
+          if (meta) meta.setAttribute('content', isDark ? 'rgba(11, 17, 32, 0.5)' : 'rgba(248, 250, 252, 0.5)');
         } catch (e) {
           document.documentElement.classList.add('dark');
+          document.documentElement.style.backgroundColor = '#0B1120';
         }
       })();
     </script>

@@ -19,6 +19,9 @@ const VISA_METADATA: Record<string, { labelKey: string, icon: React.ElementType 
 };
 
 export function ChatArea({ className = '' }: { className?: string }) {
+  // 必須在所有 useEffect 之前宣告
+  const isMobile = () => window.matchMedia('(max-width: 1023px)').matches;
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const { messages, sendMessage, isLoading, activeVisaCategory, setActiveVisaCategory } = useChatStore();
   const { t } = useTranslation();
   const [input, setInput] = useState('');
@@ -33,15 +36,39 @@ export function ChatArea({ className = '' }: { className?: string }) {
 
   // Auto-scroll to bottom
   useEffect(() => {
-    // Only auto-scroll if there are actual user/assistant messages (length > 1)
-    // This allows the welcome message to be shown at the top initially.
-    if (scrollContainerRef.current && messages.length > 1) {
-      scrollContainerRef.current.scrollTo({
-        top: scrollContainerRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
+    if (messages.length <= 1) return;
+    if (isMobile()) {
+      requestAnimationFrame(() => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); });
+    } else {
+      scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' });
     }
   }, [messages]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (!window.visualViewport || !isMobile()) return; // 桌面版早期返回
+
+      const height = window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop;
+      const isKeyboardOpen = height > 50;
+
+      document.documentElement.style.setProperty('--keyboard-offset', `${isKeyboardOpen ? height : 0}px`);
+
+      // 防抖處理 (Debounce)
+      clearTimeout(scrollTimerRef.current);
+      if (isKeyboardOpen) {
+        scrollTimerRef.current = setTimeout(() => {
+          window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }, 100);
+      }
+    };
+
+    window.visualViewport?.addEventListener('resize', handleResize);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleResize);
+      document.documentElement.style.removeProperty('--keyboard-offset');
+      clearTimeout(scrollTimerRef.current); // 卸載時清除 Timer
+    };
+  }, []);
 
   const handleSend = () => {
     if (input.trim() && !isLoading) {
@@ -55,9 +82,12 @@ export function ChatArea({ className = '' }: { className?: string }) {
   const ActiveIcon = currentMeta.icon;
 
   return (
-    <div className={`flex flex-col h-full bg-white/40 dark:bg-slate-900/40 lg:rounded-2xl rounded-none relative lg:border border-0 border-slate-200/50 dark:border-slate-800/50 lg:shadow-2xl ${className}`}>
+    <div className={`flex flex-col max-lg:min-h-[100dvh] lg:h-full bg-white/40 dark:bg-slate-900/40 lg:rounded-2xl rounded-none relative lg:border border-0 border-slate-200/50 dark:border-slate-800/50 lg:shadow-2xl max-lg:overflow-visible lg:overflow-hidden ${className}`}>
+      {/* 手機版專用 Spacer：撐開 MobileHeader 下方的空間 */}
+      <div className="max-lg:block hidden h-[calc(4.5rem+env(safe-area-inset-top))]" />
+
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 lg:pt-3 pt-[calc(4.5rem+env(safe-area-inset-top))] border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-30 lg:rounded-t-2xl">
+      <div className="max-lg:sticky max-lg:top-[calc(4rem+env(safe-area-inset-top))] max-lg:z-[75] lg:relative flex items-center justify-between px-4 py-3 lg:pt-3 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-800/50 z-30 lg:rounded-t-2xl">
         <div className="flex items-center gap-3 relative">
           <div className="flex flex-col">
             <button
@@ -192,7 +222,7 @@ export function ChatArea({ className = '' }: { className?: string }) {
       {/* Message List */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 w-full overflow-y-auto px-4 md:px-8 pb-[calc(11.5rem+env(safe-area-inset-bottom)+var(--url-bar-height))] pt-[calc(9rem+env(safe-area-inset-top))] lg:pt-[4.5rem] flex flex-col gap-5 lg:gap-6 z-10"
+        className="flex-1 lg:flex-1 w-full lg:overflow-y-auto px-4 md:px-8 max-lg:pb-[calc(140px+env(safe-area-inset-bottom))] lg:pb-[calc(11.5rem+env(safe-area-inset-bottom))] pt-4 lg:pt-4 flex flex-col gap-5 lg:gap-6 z-10"
       >
         <AnimatePresence initial={false}>
           {messages.map((msg) => (
@@ -208,7 +238,8 @@ export function ChatArea({ className = '' }: { className?: string }) {
       </div>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 w-full bg-gradient-to-t from-background via-background to-transparent pb-[calc(1rem+env(safe-area-inset-bottom)+var(--url-bar-height))] lg:pb-6 pt-6 lg:pt-8 z-30 lg:rounded-b-2xl">
+      <div className="max-lg:fixed max-lg:left-0 max-lg:right-0 max-lg:z-50 lg:absolute lg:bottom-0 w-full bg-gradient-to-t from-background via-background to-transparent pb-[calc(1rem+env(safe-area-inset-bottom))] lg:pb-6 pt-6 lg:pt-8 z-30 lg:rounded-b-2xl"
+           style={isMobile() ? { bottom: 'var(--keyboard-offset, 0px)' } : undefined}>
         <div className="relative glass-panel bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border border-slate-200 dark:border-slate-700 mx-3 sm:mx-4 flex items-center shadow-2xl shadow-black/5 dark:shadow-black/50 overflow-hidden">
           <textarea
             value={input}

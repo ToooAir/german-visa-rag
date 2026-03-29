@@ -23,43 +23,52 @@
     --panel-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
   }
 
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     box-sizing: border-box;
   }
 
   html {
-    background-color: var(--bg-gradient-start); /* 現在可安全使用，因 inline script 保證 class 已就位 */
-    /* 不加 overflow: hidden 以維持物理螢幕背景延伸 */
+    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
   }
 
-  html, body, #root {
+  html,
+  body,
+  #root {
     height: 100%;
     width: 100%;
     margin: 0;
     padding: 0;
   }
 
-  body, #root {
+  body {
+    background: transparent;
+    padding-top: env(safe-area-inset-top);
+  }
+
+  #root {
     overflow: hidden;
     height: 100dvh;
-    background-color: var(--bg-gradient-start);
+    background: transparent;
   }
 
   /* iOS 專用高度補償 (只在支援 touch 且不支援 dvh 的舊版生效) */
   @supports (-webkit-touch-callout: none) and (not (height: 100dvh)) {
-    body, #root {
+
+    body,
+    #root {
       height: -webkit-fill-available;
     }
   }
 
   body {
-    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
     color: var(--text-main);
     font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     /* Prevent accidental bounce overflow on non-scrollable areas */
-    overscroll-behavior: none;
+    overscroll-behavior-x: none;
     -webkit-overflow-scrolling: touch;
   }
 }
@@ -73,13 +82,16 @@
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     background: rgba(0, 0, 0, 0.1);
     border-radius: 10px;
   }
+
   .dark .custom-scrollbar::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.1);
   }
@@ -90,13 +102,29 @@
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 1023px) {
+  body {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  #root {
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 100dvh;
+    height: auto;
+  }
 }

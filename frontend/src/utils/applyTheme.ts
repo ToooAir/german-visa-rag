@@ -6,11 +6,14 @@ export function applyTheme(theme: Theme) {
     theme === 'dark' ||
     (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-  const bgColor = isDark ? '#0B1120' : '#F8FAFC';
+  const bgColor = isDark ? 'rgba(11, 17, 32, 0.5)' : 'rgba(248, 250, 252, 0.5)';
 
   // 1. Toggle Tailwind class
   root.classList.toggle('dark', isDark);
   root.classList.toggle('light', !isDark);
+
+  // 同步更新 html.style.backgroundColor 防止 theme 切換後的 overscroll 顏色過時
+  root.style.backgroundColor = isDark ? '#0B1120' : '#f8fafc';
 
   // 2. 移除 + 重新插入 theme-color meta，協助一般瀏覽器判斷
   const existing = document.querySelector('meta[name="theme-color"]');

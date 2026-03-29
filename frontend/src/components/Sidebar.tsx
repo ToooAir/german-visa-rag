@@ -7,7 +7,7 @@ export function Sidebar({ className = '', onItemClick }: { className?: string, o
   const { t } = useTranslation();
 
   return (
-    <div className={`glass-panel flex flex-col h-full overflow-hidden ${className}`}>
+    <div className={`glass-panel flex flex-col h-full overflow-hidden bg-white/40 dark:bg-slate-900/40 lg:rounded-2xl rounded-none border-0 lg:border border-slate-200/50 dark:border-slate-800/50 lg:shadow-2xl ${className}`}>
       {/* Brand & Fixed Nav Section */}
       <div className="p-5 pb-2 shrink-0">
         <div className="flex items-center gap-3 px-2 mb-8 mt-2">

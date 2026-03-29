@@ -301,7 +301,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
   });
 
   return (
-    <div className={`glass-panel flex flex-col gap-8 h-full overflow-y-auto p-6 lg:p-7 custom-scrollbar ${className}`}>
+    <div className={`glass-panel flex flex-col gap-8 h-full p-6 lg:p-7 max-lg:pb-[calc(2rem+env(safe-area-inset-bottom))] custom-scrollbar bg-white/40 dark:bg-slate-900/40 lg:rounded-2xl rounded-none border-0 lg:border border-slate-200/50 dark:border-slate-800/50 lg:shadow-2xl overflow-y-auto ${className}`}>
       {/* Progress Checklist */}
       <div className="relative">
         <div className="flex items-center justify-between mb-5">

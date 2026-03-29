@@ -93,7 +93,7 @@ export function DashboardLayout() {
                 }}
               >
                 <Sidebar
-                  className="flex-1 !bg-transparent !border-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+                  className="flex-1 !bg-transparent !border-0 pt-[calc(env(safe-area-inset-top)+64px)] pb-[env(safe-area-inset-bottom)]"
                   onItemClick={() => setSidebarOpen(false)}
                 />
               </motion.aside>

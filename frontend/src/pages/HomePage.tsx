@@ -42,7 +42,7 @@ export function HomePage() {
                 WebkitBackdropFilter: 'blur(20px)'
               }}
             >
-              <div className="flex flex-col h-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+              <div className="flex flex-col h-full pt-[calc(env(safe-area-inset-top)+64px)] pb-[env(safe-area-inset-bottom)]">
                 <div className="px-4 pt-4 pb-3 border-b border-white/5 flex items-center justify-center">
                   <h3 className="font-semibold text-slate-100 uppercase tracking-wider text-xs opacity-70">
                     {t.progressSummary}

@@ -83,11 +83,11 @@ export function ChatArea({ className = '' }: { className?: string }) {
 
   return (
     <div className={`flex flex-col max-lg:min-h-[100dvh] lg:h-full bg-white/40 dark:bg-slate-900/40 lg:rounded-2xl rounded-none relative lg:border border-0 border-slate-200/50 dark:border-slate-800/50 lg:shadow-2xl max-lg:overflow-visible lg:overflow-hidden ${className}`}>
-      {/* 手機版專用 Spacer：撐開 MobileHeader 下方的空間 */}
-      <div className="max-lg:block hidden h-[calc(4.5rem+env(safe-area-inset-top))]" />
+      {/* 手機版專用 Spacer：撐開 MobileHeader & Visa Header 的空間 */}
+      <div className="max-lg:block hidden h-[calc(8rem+env(safe-area-inset-top))]" />
 
-      {/* Header */}
-      <div className="max-lg:sticky max-lg:top-[calc(4rem+env(safe-area-inset-top))] max-lg:z-[75] lg:relative flex items-center justify-between px-4 py-3 lg:pt-3 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-800/50 z-30 lg:rounded-t-2xl">
+      {/* Header (Visa Selector & Trash) */}
+      <div className="max-lg:fixed max-lg:left-0 max-lg:right-0 max-lg:top-[calc(4rem+env(safe-area-inset-top))] max-lg:z-[75] lg:relative flex items-center justify-between px-3 py-1.5 sm:px-4 sm:py-3 lg:px-4 lg:py-3 lg:pt-3 bg-background/50 lg:bg-white/50 lg:dark:bg-slate-900/50 backdrop-blur-xl lg:backdrop-blur-md border-b border-slate-200 dark:border-white/10 lg:border-slate-200/50 lg:dark:border-slate-800/50 z-30 lg:rounded-t-2xl">
         <div className="flex items-center gap-3 relative">
           <div className="flex flex-col">
             <button

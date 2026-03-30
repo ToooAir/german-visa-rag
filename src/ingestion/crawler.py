@@ -5,6 +5,8 @@ robots.txt compliance, and recursive discovery-based crawling.
 """
 
 import asyncio
+import ipaddress
+import socket
 from datetime import datetime, timezone
 from typing import Any, Optional
 from urllib.parse import urlparse
@@ -101,6 +103,35 @@ class RobotsTxtChecker:
         self._cache[domain] = disallowed
 
 
+def _is_safe_url(url: str) -> bool:
+    """
+    Block SSRF targets: private IPs, loopback, link-local, cloud metadata endpoints.
+    Only http/https schemes are allowed.
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname or ""
+        if not hostname:
+            return False
+        # Block cloud metadata endpoints explicitly
+        if hostname in ("169.254.169.254", "metadata.google.internal"):
+            return False
+        # Resolve the hostname to catch DNS rebinding
+        try:
+            resolved_ip = socket.gethostbyname(hostname)
+            addr = ipaddress.ip_address(resolved_ip)
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+                return False
+        except (socket.gaierror, ValueError):
+            # Could not resolve — block to be safe
+            return False
+        return True
+    except Exception:
+        return False
+
+
 class WebCrawler:
     """
     Web crawler for fetching visa regulation documents.
@@ -113,6 +144,7 @@ class WebCrawler:
     - Automatic link extraction
     - robots.txt compliance
     - Discovery-based recursive crawling
+    - SSRF protection (private/loopback IPs blocked)
     """
 
     def __init__(self):
@@ -155,6 +187,10 @@ class WebCrawler:
         Returns:
             HTML content or None if fetch failed
         """
+        if not _is_safe_url(url):
+            logger.error("SSRF blocked — unsafe URL rejected: %s", url)
+            return None
+
         # Apply rate limiting
         await self.rate_limiter.acquire()
 

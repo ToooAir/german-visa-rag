@@ -134,15 +134,19 @@ async def rag_exception_handler(request: Request, exc: RAGException):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "error": "rag_processing_error",
-            "message": str(exc),
+            "message": "A retrieval error occurred. Please try again.",
         },
     )
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Handle unexpected global exceptions."""
-    logger.error("Unhandled exception on %s: %s", request.url.path, exc, exc_info=True)
+    """Handle unexpected global exceptions without leaking internals."""
+    # Log full traceback only in development; in production log just the type.
+    if settings.debug:
+        logger.error("Unhandled exception on %s: %s", request.url.path, exc, exc_info=True)
+    else:
+        logger.error("Unhandled %s on %s", type(exc).__name__, request.url.path)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"error": "internal_server_error", "message": "An unexpected error occurred."},
@@ -154,12 +158,15 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ============================================
 
 # CORS
+# NOTE: allow_origins="*" and allow_credentials=True cannot be combined — browsers
+# reject such responses. Always use an explicit origin list.
+_cors_origins = settings.allowed_origins if settings.allowed_origins else ["http://localhost:5173"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug else settings.allowed_origins,
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-API-Key", "Authorization"],
 )
 
 # GZIP compression
@@ -182,13 +189,26 @@ if not settings.debug:
 async def rate_limiting_middleware(request: Request, call_next):
     """Enforce IP-based rate limiting on sensitive core endpoints."""
     # Only rate limit chat/query endpoints to avoid impacting health/admin/docs
-    if request.url.path.startswith(("/query", "/ask")):
+    if request.url.path.startswith(("/query", "/ask", "/v1/chat/completions")):
         try:
             await rate_limiter.check_rate_limit(request)
         except HTTPException as e:
             return JSONResponse(status_code=e.status_code, content=e.detail)
 
     return await call_next(request)
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Attach security headers to every response."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if not settings.debug:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 
 @app.middleware("http")
@@ -264,8 +284,10 @@ if os.path.exists(static_dir):
             )
 
         # 1. Check if it's a direct file in the static root (like vite.svg or favicon.ico)
-        file_path = os.path.join(static_dir, full_path)
-        if full_path and os.path.isfile(file_path):
+        # Resolve and verify the path stays within static_dir to prevent path traversal.
+        resolved_static = os.path.realpath(static_dir)
+        file_path = os.path.realpath(os.path.join(static_dir, full_path))
+        if full_path and file_path.startswith(resolved_static + os.sep) and os.path.isfile(file_path):
             return FileResponse(file_path)
 
         # 2. Otherwise, serve index.html (SPA routing)
@@ -320,7 +342,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "src.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8080,
         reload=settings.debug,
         log_level=settings.log_level.lower(),
     )

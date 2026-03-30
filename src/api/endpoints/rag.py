@@ -16,7 +16,7 @@ router = APIRouter(prefix="/query", tags=["rag"])
 class QueryRequest(BaseModel):
     """RAG query request."""
 
-    query: str = Field(..., description="User question about German visa/Chancenkarte")
+    query: str = Field(..., min_length=1, max_length=2_000, description="User question about German visa/Chancenkarte")
     language: Optional[str] = Field(default="auto", description="Query language")
     visa_type: Optional[str] = Field(default=None, description="Active visa category context")
     requirements: Optional[List[Dict[str, str]]] = Field(default=None, description="Current UI checklist status")

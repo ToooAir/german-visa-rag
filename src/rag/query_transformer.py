@@ -116,11 +116,13 @@ class QueryTransformer:
 
         response_text = response_text.strip()
 
-        # Strip markdown code fences if present
-        if "```json" in response_text:
-            response_text = response_text.split("```json").split("```").strip()[1]
-        elif "```" in response_text:
-            response_text = response_text.split("```")[11].split("```")[0].strip()
+        # Strip markdown code fences if present using a single robust regex.
+        fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", response_text)
+        if fence_match:
+            response_text = fence_match.group(1).strip()
+
+        if len(response_text) > 10_000:
+            raise ValueError("LLM response too large for JSON parsing")
 
         result = json.loads(response_text)
         logger.debug("Query expansion result: %s", result)

@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     max_response_tokens: int = Field(default=1024, validation_alias="MAX_RESPONSE_TOKENS")
     api_timeout_seconds: int = Field(default=30, validation_alias="API_TIMEOUT_SECONDS")
 
+    # Response / request body size guards (OOM protection)
+    # ~50 000 chars ≈ 12 500 tokens — well above any expected answer length.
+    max_response_chars: int = Field(default=50_000, validation_alias="MAX_RESPONSE_CHARS")
+    # 2 000 chars is generous for a single query; rejects obviously abusive payloads.
+    max_query_chars: int = Field(default=2_000, validation_alias="MAX_QUERY_CHARS")
+
     # ============================================
     # Ollama (Local LLM Fallback)
     # ============================================
@@ -76,10 +82,10 @@ class Settings(BaseSettings):
     # ============================================
     # API Security
     # ============================================
-    api_key: str = Field(default="dev-key-12345", validation_alias="API_KEY")
+    api_key: str = Field(..., validation_alias="API_KEY")
     api_key_header: str = Field(default="X-API-Key", validation_alias="API_KEY_HEADER")
     require_api_key: bool = Field(default=True, validation_alias="REQUIRE_API_KEY")
-    allowed_hosts: Union[List[str], str] = Field(default=["*"], validation_alias="ALLOWED_HOSTS")
+    allowed_hosts: Union[List[str], str] = Field(default=["localhost", "127.0.0.1"], validation_alias="ALLOWED_HOSTS")
     allowed_origins: Union[List[str], str] = Field(
         default=["http://localhost:3000", "http://localhost:5173"], validation_alias="ALLOWED_ORIGINS"
     )

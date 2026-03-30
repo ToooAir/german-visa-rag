@@ -20,7 +20,7 @@ class ChatMessage(BaseModel):
     """Chat message following OpenAI format."""
 
     role: str = Field(..., description="Role: 'system', 'user', or 'assistant'")
-    content: str = Field(..., description="Message content")
+    content: str = Field(..., max_length=10_000, description="Message content")
 
 
 class ChatCompletionRequest(BaseModel):

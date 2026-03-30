@@ -197,6 +197,14 @@ class AnswerGenerator:
                 max_tokens=settings.max_response_tokens,
             )
 
+            if len(response_text) > settings.max_response_chars:
+                logger.warning(
+                    "LLM response (%d chars) exceeds max_response_chars (%d); truncating",
+                    len(response_text),
+                    settings.max_response_chars,
+                )
+                response_text = response_text[: settings.max_response_chars]
+
             sources = self._build_sources(reranked)
             latency = time.time() - start_time
 
@@ -349,6 +357,7 @@ class AnswerGenerator:
             extract_req = re.compile(r"\[REQ:([\d-]+):([^:]+):(\w+)\]")
 
             tag_buffer = ""
+            _size_limit_hit = False
 
             try:
                 async for chunk in self.llm.call_streaming(
@@ -390,8 +399,18 @@ class AnswerGenerator:
                             full_response += tag_buffer
                         tag_buffer = ""
 
+                    if len(full_response) > settings.max_response_chars:
+                        logger.warning(
+                            "Streaming response exceeded max_response_chars (%d) — aborting LLM stream (request_id=%s)",
+                            settings.max_response_chars,
+                            request_id,
+                        )
+                        _size_limit_hit = True
+                        yield self._format_sse_chunk("\n\n[Response truncated: size limit reached]")
+                        break
+
                 # Flush remaining buffer
-                if tag_buffer:
+                if tag_buffer and not _size_limit_hit:
                     for m_id, m_status in extract_milestone.findall(tag_buffer):
                         achieved_milestones.append({"id": m_id, "status": m_status})
                         yield self._format_milestone_chunk(m_id, m_status)

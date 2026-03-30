@@ -24,7 +24,19 @@ async def test_full_ingestion_flow():
     pipeline.crawler.crawl_document = AsyncMock(
         return_value={
             "url": "http://mock-visa.com",
-            "markdown": "## Requirements\nNeeds 6 points.",
+            "markdown": (
+                "## Chancenkarte Anforderungen\n\n"
+                "Die Chancenkarte ist ein neues Einwanderungsinstrument für qualifizierte Fachkräfte. "
+                "Sie ermöglicht die Einreise nach Deutschland zur Jobsuche für bis zu einem Jahr. "
+                "Voraussetzungen sind ein anerkannter Berufsabschluss oder Hochschulabschluss, "
+                "ausreichende Deutschkenntnisse oder Englischkenntnisse sowie Berufserfahrung. "
+                "Das Punktesystem bewertet Qualifikation, Sprachkenntnisse und Berufserfahrung.\n\n"
+                "## Punktesystem\n\n"
+                "Für die Chancenkarte werden mindestens sechs Punkte benötigt. "
+                "Deutschkenntnisse auf B2-Niveau geben vier Punkte, auf A1-Niveau einen Punkt. "
+                "Berufserfahrung von mehr als fünf Jahren gibt drei Punkte, unter fünf Jahren einen Punkt. "
+                "Ein Studienabschluss aus Deutschland gibt zusätzlich einen Punkt."
+            ),
             "fetched_at": "2024-01-01T00:00:00",
             "metadata": {"title": "Test"},
         }

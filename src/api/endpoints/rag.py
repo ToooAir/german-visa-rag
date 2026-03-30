@@ -56,7 +56,7 @@ async def ask_question(
     x_api_key: str = Depends(auth.verify_api_key),
 ):
     """Ask a question about German visa regulations."""
-    logger.info(f"Query: {request.query[:100]}, Visa: {request.visa_type}, Lang: {request.language}")
+    logger.info("Query: %.100s, Visa: %s, Lang: %s", request.query, request.visa_type, request.language)
     result = await generator.generate_answer(
         request.query, language=request.language, visa_type=request.visa_type, requirements=request.requirements
     )
@@ -70,7 +70,7 @@ async def ask_question_stream(
     x_api_key: str = Depends(auth.verify_api_key),
 ):
     """Ask a question with streaming response."""
-    logger.info(f"Stream query: {request.query[:100]}, Visa: {request.visa_type}, Lang: {request.language}")
+    logger.info("Stream query: %.100s, Visa: %s, Lang: %s", request.query, request.visa_type, request.language)
     stream = generator.generate_answer_streaming(
         request.query, language=request.language, visa_type=request.visa_type, requirements=request.requirements
     )

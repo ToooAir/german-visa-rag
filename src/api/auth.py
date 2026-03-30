@@ -38,7 +38,7 @@ class APIKeyAuth:
             )
 
         if x_api_key != settings.api_key:
-            logger.warning(f"Invalid API key attempt: {x_api_key[:10]}...")
+            logger.warning("Invalid API key attempt: %.10s...", x_api_key)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Invalid API key",

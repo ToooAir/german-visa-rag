@@ -7,9 +7,10 @@ Includes quota guard (preflight check) and 429 circuit breaker.
 import asyncio
 import re
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Optional
 
 import httpx
+import openai
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.config import settings
@@ -46,12 +47,12 @@ class EmbedderBase(ABC):
     """Base class for embedding providers."""
 
     @abstractmethod
-    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for list of texts."""
         pass
 
     @abstractmethod
-    async def embed_single(self, text: str) -> List[float]:
+    async def embed_single(self, text: str) -> list[float]:
         """Generate embedding for single text."""
         pass
 
@@ -82,24 +83,20 @@ class OpenAIEmbedder(EmbedderBase):
         """Lazy-initialize async OpenAI or AzureOpenAI client."""
         if self.client is None:
             if self.is_azure:
-                from openai import AsyncAzureOpenAI
-
-                self.client = AsyncAzureOpenAI(
+                self.client = openai.AsyncAzureOpenAI(
                     api_key=self.api_key,
                     azure_endpoint=self.azure_endpoint,
                     api_version=self.azure_api_version,
                     azure_deployment=self.azure_deployment,
                 )
             else:
-                from openai import AsyncOpenAI
-
-                self.client = AsyncOpenAI(
+                self.client = openai.AsyncOpenAI(
                     api_key=self.api_key, base_url=self.base_url, timeout=settings.api_timeout_seconds
                 )
         return self.client
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
-    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """
         Embed multiple texts with OpenAI API with retry logic and automatic batching.
         OpenAI has a total token limit per request (8192), so we split large lists.
@@ -136,9 +133,6 @@ class OpenAIEmbedder(EmbedderBase):
                 all_embeddings.extend([emb.embedding for emb in batch_embeddings])
 
             except Exception as e:
-                # Detect rate limit errors
-                import openai
-
                 if isinstance(e, openai.RateLimitError):
                     headers = getattr(e, "response", None).headers if hasattr(e, "response") else {}
                     raise QuotaExhaustedError(
@@ -148,7 +142,7 @@ class OpenAIEmbedder(EmbedderBase):
                         message=f"Provider: {'Azure' if self.is_azure else 'OpenAI'}",
                     ) from e
 
-                logger.error(f"OpenAI batch embedding failed (batch {i//BATCH_SIZE}): {e}")
+                logger.error("OpenAI batch embedding failed (batch %d): %s", i // BATCH_SIZE, e)
                 raise
 
         return all_embeddings
@@ -161,7 +155,7 @@ class OpenAIEmbedder(EmbedderBase):
             return int(match.group(1))
         return 0
 
-    async def embed_single(self, text: str) -> List[float]:
+    async def embed_single(self, text: str) -> list[float]:
         """Embed single text."""
         result = await self.embed_texts([text])
         return result[0] if result else []
@@ -176,7 +170,7 @@ class OllamaEmbedder(EmbedderBase):
         self.client = httpx.AsyncClient(timeout=60.0)
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
-    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Embed texts using local Ollama API."""
         if not texts:
             return []
@@ -193,12 +187,12 @@ class OllamaEmbedder(EmbedderBase):
                 embeddings.append(data.get("embedding", []))
 
             except Exception as e:
-                logger.error(f"Ollama embedding failed for text: {e}")
+                logger.error("Ollama embedding failed for text: %s", e)
                 raise
 
         return embeddings
 
-    async def embed_single(self, text: str) -> List[float]:
+    async def embed_single(self, text: str) -> list[float]:
         """Embed single text."""
         result = await self.embed_texts([text])
         return result[0] if result else []
@@ -239,14 +233,14 @@ class Embedder:
                 azure_api_version=settings.azure_openai_api_version,
                 azure_deployment=settings.azure_embedding_deployment,
             )
-            logger.info(f"Azure OpenAI embedder initialized (deployment: {settings.azure_embedding_deployment})")
+            logger.info("Azure OpenAI embedder initialized (deployment: %s)", settings.azure_embedding_deployment)
         else:
             self.primary = OpenAIEmbedder(
                 api_key=settings.openai_api_key,
                 model=settings.embedding_model,
                 base_url=settings.openai_api_base,
             )
-            logger.info("Standard OpenAI embedder initialized")
+            logger.info("Standard OpenAI embedder initialized (model: %s)", settings.embedding_model)
 
         self.fallback = None
         if settings.use_ollama:
@@ -254,7 +248,7 @@ class Embedder:
                 base_url=settings.ollama_base_url,
                 model=settings.ollama_model,
             )
-            logger.info("Ollama embedder initialized as fallback")
+            logger.info("Ollama embedder initialized as fallback (model: %s)", settings.ollama_model)
 
     async def preflight_check(self) -> bool:
         """
@@ -276,14 +270,14 @@ class Embedder:
             # Re-raise quota errors — caller should handle these
             raise
         except Exception as e:
-            logger.error(f"❌ Embedding API preflight check failed: {e}")
+            logger.error("❌ Embedding API preflight check failed: %s", e)
             return False
 
     async def embed_texts(
         self,
-        texts: List[str],
+        texts: list[str],
         _quota_retry: int = 0,
-    ) -> List[List[float]]:
+    ) -> list[list[float]]:
         """
         Embed texts with fallback and quota-aware retry support.
 
@@ -316,19 +310,19 @@ class Embedder:
             return await self.embed_texts(texts, _quota_retry=_quota_retry + 1)
 
         except Exception as e:
-            logger.warning(f"Primary embedder failed: {e}")
+            logger.warning("Primary embedder failed: %s", e)
 
             if self.fallback:
                 try:
                     logger.info("Falling back to Ollama embedder")
                     return await self.fallback.embed_texts(texts)
                 except Exception as fallback_error:
-                    logger.error(f"Fallback embedder also failed: {fallback_error}")
+                    logger.error("Fallback embedder also failed: %s", fallback_error)
                     raise
             else:
                 raise
 
-    async def embed_single(self, text: str) -> List[float]:
+    async def embed_single(self, text: str) -> list[float]:
         """Embed single text."""
         result = await self.embed_texts([text])
         return result[0] if result else []

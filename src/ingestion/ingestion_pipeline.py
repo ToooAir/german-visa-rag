@@ -4,9 +4,10 @@ deduplication, and Qdrant upsert.
 """
 
 import asyncio
+import hashlib
+import json
 import uuid
-from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from qdrant_client.http.models import FieldCondition, Filter, MatchValue, PointStruct
 
@@ -44,10 +45,10 @@ class IngestionPipeline:
 
     async def run_full_ingestion(
         self,
-        source_documents: List[Dict[str, Any]],
+        source_documents: list[dict[str, Any]],
         triggered_by: str = "manual",
         force: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute complete ingestion pipeline.
 
@@ -94,7 +95,7 @@ class IngestionPipeline:
                     "quota_exhausted": False,
                 }
         except QuotaExhaustedError as qe:
-            logger.error(f"⛔ Embedding quota exhausted before crawling: {qe}")
+            logger.error("⛔ Embedding quota exhausted before crawling: %s", qe)
             self.state_store.finalize_ingestion_run(
                 run_id,
                 0,
@@ -146,7 +147,7 @@ class IngestionPipeline:
                 if isinstance(result, QuotaExhaustedError):
                     errors.append({"url": source_url, "error": str(result)})
             elif isinstance(result, Exception):
-                logger.error(f"Unexpected error in pipeline task for {source_url}: {result}")
+                logger.error("Unexpected error in pipeline task for %s: %s", source_url, result)
                 errors.append({"url": source_url, "error": str(result)})
             elif isinstance(result, dict):
                 if result.get("skipped_quota"):
@@ -160,11 +161,7 @@ class IngestionPipeline:
                     errors.append({"url": source_url, "error": result["error"]})
 
         # Serialize errors for DB
-        error_details_json = None
-        if errors:
-            import json
-
-            error_details_json = json.dumps(errors)
+        error_details_json = json.dumps(errors) if errors else None
 
         # Finalize run
         self.state_store.finalize_ingestion_run(
@@ -199,9 +196,9 @@ class IngestionPipeline:
 
     async def _process_single_document(
         self,
-        source_doc: Dict[str, Any],
+        source_doc: dict[str, Any],
         force: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Process a single source document through full pipeline.
 
@@ -213,7 +210,7 @@ class IngestionPipeline:
         authority_level = AuthorityLevel(source_doc.get("authority_level", "third_party"))
         visa_types = [VisaType(vt) for vt in source_doc.get("visa_types", [])]
 
-        logger.debug(f"Processing document: {url}")
+        logger.debug("Processing document: %s", url)
 
         try:
             # Register in state store
@@ -230,7 +227,6 @@ class IngestionPipeline:
                 return {"success": False, "error": f"Failed to crawl {url}"}
 
             markdown_text = crawled["markdown"]
-            datetime.fromisoformat(crawled["fetched_at"])
             content_hash = self._compute_document_hash(markdown_text)
 
             # --- Optimization: Skip if content hasn't changed ---
@@ -281,7 +277,7 @@ class IngestionPipeline:
                     "skipped_low_content": True,
                 }
 
-            logger.debug(f"Generated {len(chunks)} chunks for {url}")
+            logger.debug("Generated %d chunks for %s", len(chunks), url)
 
             # Step 3: Deduplicate
             chunks_to_ingest = []
@@ -306,7 +302,7 @@ class IngestionPipeline:
                 chunks_to_ingest.append(chunk)
                 seen_hashes.add(text_hash)
 
-            logger.debug(f"Deduplication: {len(chunks_to_ingest)} to ingest, {skipped_count} skipped")
+            logger.debug("Deduplication: %d to ingest, %d skipped", len(chunks_to_ingest), skipped_count)
 
             # Step 4: Embed (Children only)
             # In Parent-Child strategy, we only search against children.
@@ -314,7 +310,7 @@ class IngestionPipeline:
             chunks_to_embed = [c for c in chunks_to_ingest if not c.metadata.is_parent]
             texts_to_embed = [c.text for c in chunks_to_embed]
 
-            embeddings: List[List[float]] = []
+            embeddings: list[list[float]] = []
             if texts_to_embed:
                 embeddings = await embedder.embed_texts(texts_to_embed)
                 if len(embeddings) != len(chunks_to_embed):
@@ -353,7 +349,7 @@ class IngestionPipeline:
                 points.append(point)
 
             # Step 6: Upsert to Qdrant
-            logger.debug(f"Upserting {len(points)} points to Qdrant")
+            logger.debug("Upserting %d points to Qdrant", len(points))
             await self.qdrant.upsert_points(points, wait=True)
 
             # Step 7: Update state store with tracking
@@ -373,8 +369,7 @@ class IngestionPipeline:
                     point.id,
                 )
 
-            # Mark document as ingested
-            content_hash = self._compute_document_hash(markdown_text)
+            # Mark document as ingested (content_hash computed earlier, reused here)
             self.state_store.mark_document_ingested(doc_id, content_hash)
 
             logger.info(
@@ -394,15 +389,13 @@ class IngestionPipeline:
             }
 
         except Exception as e:
-            logger.error(f"Document processing failed: {e}", exc_info=True)
+            logger.error("Document processing failed: %s", e, exc_info=True)
             if doc_id:
                 self.state_store.mark_document_failed(doc_id, str(e))
             return {"success": False, "error": str(e)}
 
     def _compute_document_hash(self, text: str) -> str:
         """Compute hash of entire document for versioning."""
-        import hashlib
-
         return hashlib.sha256(text.encode()).hexdigest()
 
 

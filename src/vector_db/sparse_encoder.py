@@ -8,7 +8,6 @@ to integer indices. Designed for German/English/Chinese legal text.
 
 import re
 from math import log
-from typing import Dict, List
 
 from qdrant_client.http.models import SparseVector
 
@@ -38,7 +37,7 @@ class SparseEncoder:
         """
         self.vocab_size = vocab_size
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         r"""
         Extract tokens from text.
 
@@ -85,7 +84,7 @@ class SparseEncoder:
             return SparseVector(indices=[], values=[])
 
         # Count term frequencies
-        tf: Dict[int, float] = {}
+        tf: dict[int, float] = {}
         for token in tokens:
             idx = self._token_to_index(token)
             tf[idx] = tf.get(idx, 0.0) + 1.0
@@ -101,7 +100,7 @@ class SparseEncoder:
 
         return SparseVector(indices=indices, values=values)
 
-    def encode_batch(self, texts: List[str]) -> List[SparseVector]:
+    def encode_batch(self, texts: list[str]) -> list[SparseVector]:
         """
         Encode a batch of texts.
 
@@ -116,7 +115,7 @@ class SparseEncoder:
             try:
                 results.append(self.encode(text))
             except Exception as e:
-                logger.warning(f"Sparse encoding failed for text, using empty vector: {e}")
+                logger.warning("Sparse encoding failed for text, using empty vector: %s", e)
                 results.append(SparseVector(indices=[], values=[]))
         return results
 
@@ -130,5 +129,5 @@ def get_sparse_encoder(vocab_size: int = 30_000) -> SparseEncoder:
     global _encoder
     if _encoder is None:
         _encoder = SparseEncoder(vocab_size=vocab_size)
-        logger.info(f"Sparse encoder initialized (vocab_size={vocab_size})")
+        logger.info("Sparse encoder initialized (vocab_size=%d)", vocab_size)
     return _encoder

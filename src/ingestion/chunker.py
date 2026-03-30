@@ -6,7 +6,7 @@ Advanced chunking strategy: Parent-Child (Small-to-Big) chunking.
 
 import re
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from src.config import settings
 from src.logger import logger
@@ -111,7 +111,7 @@ class ParentChildChunker:
         text = normalize_whitespace(text)
         return text
 
-    def split_by_headers(self, markdown_text: str) -> List[Tuple[str, str]]:
+    def split_by_headers(self, markdown_text: str) -> list[tuple[str, str]]:
         """
         Split markdown by H2/H3 headers.
 
@@ -125,9 +125,9 @@ class ParentChildChunker:
         pattern = r"^(#{2,3})\s+(.+?)$"
 
         lines = markdown_text.split("\n")
-        sections = []
+        sections: list[tuple[str, str]] = []
         current_header = None  # None = we haven't hit any header yet
-        current_content: List[str] = []
+        current_content: list[str] = []
 
         for line in lines:
             match = re.match(pattern, line)
@@ -159,7 +159,7 @@ class ParentChildChunker:
                 else:
                     sections.append((current_header, content_text))
 
-        logger.debug(f"Split markdown into {len(sections)} sections by headers")
+        logger.debug("Split markdown into %d sections by headers", len(sections))
         return sections
 
     def _derive_context_label(self, section_header: str, title: str) -> str:
@@ -175,7 +175,7 @@ class ParentChildChunker:
             return title or "Overview"
         return section_header
 
-    def split_into_sentences(self, text: str, max_size: int) -> List[str]:
+    def split_into_sentences(self, text: str, max_size: int) -> list[str]:
         """
         Split text into sentences/paragraphs with size limit.
 
@@ -252,10 +252,10 @@ class ParentChildChunker:
         doc_id: str,
         title: str,
         authority_level: AuthorityLevel = AuthorityLevel.THIRD_PARTY,
-        visa_types: Optional[List[VisaType]] = None,
+        visa_types: Optional[list[VisaType]] = None,
         language: str = "de",
         published_at: Optional[datetime] = None,
-    ) -> List[Chunk]:
+    ) -> list[Chunk]:
         """
         Create parent-child chunk structure.
 
@@ -302,13 +302,16 @@ class ParentChildChunker:
 
             # Safety check: Trim parent if it's monstrously large
             if len(parent_text) > MAX_CHUNK_LENGTH:
-                logger.warning(f"Trimming oversized parent chunk ({len(parent_text)} chars) for {source_url}")
+                logger.warning("Trimming oversized parent chunk (%d chars) for %s", len(parent_text), source_url)
                 parent_text = parent_text[:MAX_CHUNK_LENGTH] + "... [Truncated]"
 
             # Drop trivially short parent sections (nav links, breadcrumbs, etc.)
             if len(parent_text.strip()) < self.min_parent_length:
                 logger.debug(
-                    f"Skipping short parent section '{section_header}' " f"({len(parent_text)} chars) in {source_url}"
+                    "Skipping short parent section '%s' (%d chars) in %s",
+                    section_header,
+                    len(parent_text),
+                    source_url,
                 )
                 continue
 
@@ -393,7 +396,7 @@ class ParentChildChunker:
 
         return chunks
 
-    def _extract_urls(self, text: str) -> List[str]:
+    def _extract_urls(self, text: str) -> list[str]:
         """Extract URLs from chunk text."""
         url_pattern = r"https?://[^\s\)]+"
         return list(set(re.findall(url_pattern, text)))

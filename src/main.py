@@ -88,25 +88,25 @@ async def lifespan(app: FastAPI):
         try:
             await app.state.http_client.aclose()
         except Exception as e:
-            logger.warning(f"Error closing HTTP client: {e}")
+            logger.warning("Error closing HTTP client: %s", e)
 
         try:
             if settings.enable_internal_scheduler:
                 scheduler = get_scheduler()
                 await scheduler.shutdown()
         except Exception as e:
-            logger.warning(f"Error during scheduler shutdown: {e}")
+            logger.warning("Error during scheduler shutdown: %s", e)
 
         try:
             qdrant = get_qdrant_client()
             await qdrant.close()
         except Exception as e:
-            logger.warning(f"Error closing Qdrant: {e}")
+            logger.warning("Error closing Qdrant: %s", e)
 
         try:
             await query_cache.close()
         except Exception as e:
-            logger.warning(f"Error closing Redis: {e}")
+            logger.warning("Error closing Redis: %s", e)
 
 
 # ============================================
@@ -129,7 +129,7 @@ app = FastAPI(
 @app.exception_handler(RAGException)
 async def rag_exception_handler(request: Request, exc: RAGException):
     """Handle custom RAG domain exceptions."""
-    logger.error(f"RAG Exception on {request.url.path}: {str(exc)}")
+    logger.error("RAG Exception on %s: %s", request.url.path, exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
@@ -142,7 +142,7 @@ async def rag_exception_handler(request: Request, exc: RAGException):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Handle unexpected global exceptions."""
-    logger.error(f"Unhandled exception on {request.url.path}: {exc}", exc_info=True)
+    logger.error("Unhandled exception on %s: %s", request.url.path, exc, exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"error": "internal_server_error", "message": "An unexpected error occurred."},
@@ -197,7 +197,9 @@ async def log_requests(request: Request, call_next):
     start_time = time.time()
 
     logger.debug(
-        f"{request.method} {request.url.path}",
+        "%s %s",
+        request.method,
+        request.url.path,
         extra={
             "method": request.method,
             "path": request.url.path,
@@ -210,7 +212,10 @@ async def log_requests(request: Request, call_next):
 
         process_time = time.time() - start_time
         logger.debug(
-            f"{request.method} {request.url.path} - {response.status_code}",
+            "%s %s - %s",
+            request.method,
+            request.url.path,
+            response.status_code,
             extra={
                 "status_code": response.status_code,
                 "latency_seconds": process_time,
@@ -221,7 +226,7 @@ async def log_requests(request: Request, call_next):
         return response
 
     except Exception as e:
-        logger.error(f"Request processing failed: {e}", exc_info=True)
+        logger.error("Request processing failed: %s", e, exc_info=True)
         raise
 
 
@@ -274,7 +279,7 @@ if os.path.exists(static_dir):
         )
 
 else:
-    logger.warning(f"Static directory not found at {static_dir}. Frontend will not be served.")
+    logger.warning("Static directory not found at %s. Frontend will not be served.", static_dir)
 
 
 # ============================================

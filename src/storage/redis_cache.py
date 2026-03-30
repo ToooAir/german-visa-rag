@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import redis.asyncio as redis
 
@@ -23,7 +23,7 @@ class QueryCache:
         normalized = " ".join(query.lower().split())
         return f"rag_cache:{hashlib.md5(normalized.encode()).hexdigest()}"
 
-    async def get(self, query: str) -> Optional[Dict[str, Any]]:
+    async def get(self, query: str) -> Optional[dict[str, Any]]:
         """Retrieve cached response for a query."""
         if not self.enabled or not self.redis:
             return None
@@ -31,16 +31,16 @@ class QueryCache:
         try:
             cached = await self.redis.get(self._hash_query(query))
             if cached:
-                logger.info(f"Redis Cache HIT for query: {query[:30]}...")
+                logger.info("Redis Cache HIT for query: %.30s...", query)
                 return json.loads(cached)
 
-            logger.debug(f"Redis Cache MISS for query: {query[:30]}...")
+            logger.debug("Redis Cache MISS for query: %.30s...", query)
             return None
         except Exception as e:
-            logger.warning(f"Redis get failed: {e}")
+            logger.warning("Redis get failed: %s", e)
             return None
 
-    async def set(self, query: str, response: Dict[str, Any]):
+    async def set(self, query: str, response: dict[str, Any]):
         """Save response to cache."""
         if not self.enabled or not self.redis:
             return
@@ -49,7 +49,7 @@ class QueryCache:
             await self.redis.setex(self._hash_query(query), self.ttl, json.dumps(response, ensure_ascii=False))
             logger.debug("Query cached successfully to Redis")
         except Exception as e:
-            logger.warning(f"Redis set failed: {e}")
+            logger.warning("Redis set failed: %s", e)
 
     async def close(self):
         """Close Redis connection pool."""

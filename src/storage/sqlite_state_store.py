@@ -8,7 +8,7 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from src.config import settings
 from src.logger import logger
@@ -110,7 +110,7 @@ class SQLiteStateStore:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_discovered_domain ON discovered_urls(domain)")
 
             conn.commit()
-            logger.info(f"SQLite state store initialized at {self.db_path}")
+            logger.info("SQLite state store initialized at %s", self.db_path)
 
     @contextmanager
     def _get_connection(self):
@@ -127,7 +127,7 @@ class SQLiteStateStore:
         source_url: str,
         title: str,
         authority_level: str = "third_party",
-        visa_types: Optional[List[str]] = None,
+        visa_types: Optional[list[str]] = None,
     ) -> str:
         """
         Register a source document for tracking.
@@ -155,7 +155,7 @@ class SQLiteStateStore:
                         source_url,
                         title,
                         authority_level,
-                        str(visa_types or []),
+                        json.dumps(visa_types or []),
                         "pending",
                     ),
                 )
@@ -216,7 +216,7 @@ class SQLiteStateStore:
             )
             conn.commit()
 
-    def get_document_metadata(self, source_url: str) -> Optional[Dict[str, Any]]:
+    def get_document_metadata(self, source_url: str) -> Optional[dict[str, Any]]:
         """Get document status and content hash."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -274,7 +274,7 @@ class SQLiteStateStore:
                 conn.commit()
                 return cursor.lastrowid
             except Exception as e:
-                logger.error(f"Error registering chunk {chunk_id}: {e}")
+                logger.error("Error registering chunk %s: %s", chunk_id, e)
                 return None
 
     def update_chunk_qdrant_id(self, chunk_id: str, qdrant_point_id: int):
@@ -297,7 +297,7 @@ class SQLiteStateStore:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM chunks WHERE parent_doc_id = ?", (doc_id,))
             conn.commit()
-            logger.debug(f"Deleted existing chunks for doc_id {doc_id} from SQLite")
+            logger.debug("Deleted existing chunks for doc_id %s from SQLite", doc_id)
 
     def create_ingestion_run(self, run_id: str, triggered_by: str = "manual") -> str:
         """Create new ingestion run record."""
@@ -351,7 +351,7 @@ class SQLiteStateStore:
             )
             conn.commit()
 
-    def get_pending_documents(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_pending_documents(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get documents pending ingestion."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -369,7 +369,7 @@ class SQLiteStateStore:
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get ingestion statistics."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -410,7 +410,7 @@ class SQLiteStateStore:
     def save_discovered_urls(
         self,
         domain: str,
-        urls_with_metadata: List[Dict[str, Any]],
+        urls_with_metadata: list[dict[str, Any]],
     ):
         """
         Save discovered URLs to cache, replacing any previous entries for the domain.
@@ -445,13 +445,13 @@ class SQLiteStateStore:
                     ),
                 )
             conn.commit()
-            logger.info(f"Cached {len(urls_with_metadata)} discovered URLs for {domain}")
+            logger.info("Cached %d discovered URLs for %s", len(urls_with_metadata), domain)
 
     def get_cached_discovery(
         self,
         domain: str,
         max_age_hours: int = 24,
-    ) -> Optional[List[Dict[str, Any]]]:
+    ) -> Optional[list[dict[str, Any]]]:
         """
         Return cached discovery URLs if they exist and are fresh enough.
 
@@ -506,7 +506,7 @@ class SQLiteStateStore:
             cursor = conn.cursor()
             if domain:
                 cursor.execute("DELETE FROM discovered_urls WHERE domain = ?", (domain,))
-                logger.info(f"Cleared discovery cache for {domain}")
+                logger.info("Cleared discovery cache for %s", domain)
             else:
                 cursor.execute("DELETE FROM discovered_urls")
                 logger.info("Cleared all discovery cache")

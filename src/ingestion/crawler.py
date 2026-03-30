@@ -6,7 +6,7 @@ robots.txt compliance, and recursive discovery-based crawling.
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -51,7 +51,7 @@ class RobotsTxtChecker:
 
     def __init__(self, client: httpx.AsyncClient):
         self.client = client
-        self._cache: Dict[str, List[str]] = {}  # domain -> disallowed paths
+        self._cache: dict[str, list[str]] = {}  # domain -> disallowed paths
 
     async def is_allowed(self, url: str) -> bool:
         """Check if URL is allowed by robots.txt."""
@@ -68,7 +68,7 @@ class RobotsTxtChecker:
         path = parsed.path
         for rule in disallowed:
             if path.startswith(rule):
-                logger.debug(f"Blocked by robots.txt: {url}")
+                logger.debug("Blocked by robots.txt: %s", url)
                 return False
         return True
 
@@ -96,7 +96,7 @@ class RobotsTxtChecker:
                             if path:
                                 disallowed.append(path)
         except Exception as e:
-            logger.debug(f"Could not fetch robots.txt for {domain}: {e}")
+            logger.debug("Could not fetch robots.txt for %s: %s", domain, e)
 
         self._cache[domain] = disallowed
 
@@ -120,7 +120,7 @@ class WebCrawler:
         self.timeout = settings.crawler_timeout_seconds
         self.max_retries = settings.crawler_max_retries
         self.user_agent = settings.crawler_user_agent
-        self._visited_urls: Set[str] = set()
+        self._visited_urls: set[str] = set()
 
         # HTTP client with pooling
         self.client = httpx.AsyncClient(
@@ -143,7 +143,7 @@ class WebCrawler:
     async def fetch_url(
         self,
         url: str,
-        headers: Optional[Dict[str, str]] = None,
+        headers: Optional[dict[str, str]] = None,
     ) -> Optional[str]:
         """
         Fetch URL content with rate limiting and retries.
@@ -162,22 +162,22 @@ class WebCrawler:
             request_headers = headers or {}
             request_headers["User-Agent"] = self.user_agent
 
-            logger.debug(f"Fetching URL: {url}")
+            logger.debug("Fetching URL: %s", url)
 
             response = await self.client.get(url, headers=request_headers)
             response.raise_for_status()
 
-            logger.info(f"Successfully fetched {url}", extra={"status_code": response.status_code})
+            logger.info("Successfully fetched %s", url, extra={"status_code": response.status_code})
             return response.text
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error {e.response.status_code} for {url}")
+            logger.error("HTTP error %s for %s", e.response.status_code, url)
             raise
         except httpx.RequestError as e:
-            logger.error(f"Request error for {url}: {e}")
+            logger.error("Request error for %s: %s", url, e)
             raise
         except Exception as e:
-            logger.error(f"Unexpected error fetching {url}: {e}")
+            logger.error("Unexpected error fetching %s: %s", url, e)
             raise
 
     def parse_html_to_markdown(self, html_content: str, url: str) -> str:
@@ -233,9 +233,10 @@ class WebCrawler:
                 ".btn",
                 ".contact-bar",
             ]
+            # Always use select() — it handles plain tags, class selectors,
+            # and attribute selectors like nav[aria-label='Breadcrumb'] correctly.
             for selector in noise_selectors:
-                elements = soup.select(selector) if selector.startswith(".") else soup.find_all(selector)
-                for element in elements:
+                for element in soup.select(selector):
                     element.decompose()
 
             # Extract main content area (heuristic)
@@ -251,7 +252,7 @@ class WebCrawler:
             )
 
             if not main_content:
-                logger.warning(f"Could not find main content in {url}")
+                logger.warning("Could not find main content in %s", url)
                 main_content = soup
 
             # Convert to Markdown
@@ -260,14 +261,14 @@ class WebCrawler:
             # Clean up
             markdown_text = normalize_whitespace(markdown_text)
 
-            logger.debug(f"Converted {url} to Markdown ({len(markdown_text)} chars)")
+            logger.debug("Converted %s to Markdown (%d chars)", url, len(markdown_text))
             return markdown_text
 
         except Exception as e:
-            logger.error(f"HTML parsing failed for {url}: {e}")
+            logger.error("HTML parsing failed for %s: %s", url, e)
             return ""
 
-    def extract_metadata(self, html_content: str, url: str) -> Dict[str, Any]:
+    def extract_metadata(self, html_content: str, url: str) -> dict[str, Any]:
         """Extract metadata from HTML (title, og:tags, etc.)."""
         try:
             soup = BeautifulSoup(html_content, "lxml")
@@ -303,10 +304,10 @@ class WebCrawler:
                 "url": url,
             }
         except Exception as e:
-            logger.warning(f"Metadata extraction failed for {url}: {e}")
+            logger.warning("Metadata extraction failed for %s: %s", url, e)
             return {"title": url, "url": url}
 
-    async def crawl_document(self, url: str) -> Optional[Dict[str, Any]]:
+    async def crawl_document(self, url: str) -> Optional[dict[str, Any]]:
         """
         Crawl a single document.
 
@@ -326,7 +327,7 @@ class WebCrawler:
             markdown = self.parse_html_to_markdown(html_content, url)
 
             if not markdown:
-                logger.warning(f"No markdown content extracted from {url}")
+                logger.warning("No markdown content extracted from %s", url)
                 return None
 
             return {
@@ -338,7 +339,7 @@ class WebCrawler:
             }
 
         except Exception as e:
-            logger.error(f"Document crawl failed for {url}: {e}")
+            logger.error("Document crawl failed for %s: %s", url, e)
             return None
 
     async def crawl_batch(self, urls: list) -> list:
@@ -352,7 +353,7 @@ class WebCrawler:
     async def crawl_with_discovery(
         self,
         force_refresh: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Run URL discovery and then crawl all discovered pages.
 
@@ -367,8 +368,8 @@ class WebCrawler:
         discoverer = get_url_discoverer()
         results = await discoverer.discover_all(force_refresh=force_refresh)
 
-        all_urls = []
-        url_metadata = {}  # url -> {authority_level, visa_types}
+        all_urls: list[str] = []
+        url_metadata: dict[str, dict] = {}  # url -> {authority_level, visa_types}
 
         for result in results:
             strategy = discoverer.registry.get_strategy(result.domain)
@@ -380,7 +381,7 @@ class WebCrawler:
                         "visa_types": strategy.default_visa_types,
                     }
 
-        logger.info(f"Discovery complete. Crawling {len(all_urls)} URLs across " f"{len(results)} domains")
+        logger.info("Discovery complete. Crawling %d URLs across %d domains", len(all_urls), len(results))
 
         # Crawl all discovered URLs with metadata enrichment
         crawled_docs = []
@@ -398,7 +399,7 @@ class WebCrawler:
                 crawled_docs.append(doc)
                 self._visited_urls.add(url)
 
-        logger.info(f"Crawled {len(crawled_docs)} documents successfully")
+        logger.info("Crawled %d documents successfully", len(crawled_docs))
         return crawled_docs
 
     def reset_visited(self):

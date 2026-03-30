@@ -1,12 +1,15 @@
+import json
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.api.auth import auth
 from src.api.endpoints.dependencies import get_generator
+from src.llm.token_counter import get_token_counter
 from src.logger import logger
 from src.rag.answer_generator import AnswerGenerator
 
@@ -24,7 +27,7 @@ class ChatCompletionRequest(BaseModel):
     """OpenAI-compatible chat completion request."""
 
     model: str = Field(default="gpt-4o-mini", description="Model name")
-    messages: List[ChatMessage] = Field(..., description="Message history")
+    messages: list[ChatMessage] = Field(..., description="Message history")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     top_p: float = Field(default=1.0, ge=0.0, le=1.0)
     max_tokens: Optional[int] = Field(default=None, description="Max output tokens")
@@ -38,8 +41,8 @@ class ChatCompletionResponse(BaseModel):
     object: str = "chat.completion"
     created: int
     model: str
-    choices: List[Dict[str, Any]]
-    usage: Dict[str, int]
+    choices: list[dict[str, Any]]
+    usage: dict[str, int]
 
 
 @router.post("/completions", response_model=ChatCompletionResponse)
@@ -61,14 +64,10 @@ async def chat_completions(
     )
 
     if request.stream:
-        from fastapi.responses import StreamingResponse
-
         return StreamingResponse(
             generate_chat_stream(request, generator),
             media_type="text/event-stream",
         )
-
-    from src.llm.token_counter import get_token_counter
 
     counter = get_token_counter()
     messages_dicts = [{"role": msg.role, "content": msg.content} for msg in request.messages]
@@ -123,7 +122,7 @@ async def generate_chat_stream(request: ChatCompletionRequest, generator: Answer
             break
 
     if not query:
-        yield "data: {'error': 'No user message'}\n\n"
+        yield f"data: {json.dumps({'error': 'No user message'})}\n\n"
         return
 
     # Yield streaming response

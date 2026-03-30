@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
-from typing import Dict
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from src.api.auth import auth
 from src.logger import logger
+from src.storage.redis_cache import query_cache
 from src.storage.sqlite_state_store import get_state_store
 from src.vector_db.qdrant_client_wrapper import get_qdrant_client
 
@@ -18,7 +18,7 @@ class HealthResponse(BaseModel):
     status: str
     timestamp: str
     version: str
-    dependencies: Dict[str, str]
+    dependencies: dict[str, str]
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -31,10 +31,18 @@ async def health_check():
         state_store = get_state_store()
         db_ok = state_store.db_path.exists()
 
+        # Ping Redis if enabled; treat missing client as degraded (not failed)
+        redis_ok = True
+        if query_cache.enabled and query_cache.redis:
+            try:
+                await query_cache.redis.ping()
+            except Exception:
+                redis_ok = False
+
         dependencies = {
             "qdrant": "✓ OK" if qdrant_ok else "✗ FAILED",
             "sqlite": "✓ OK" if db_ok else "✗ FAILED",
-            "redis": "✓ OK",
+            "redis": "✓ OK" if redis_ok else "✗ FAILED",
         }
 
         all_ok = all("✓" in v for v in dependencies.values())
@@ -47,7 +55,7 @@ async def health_check():
         )
 
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
+        logger.error("Health check failed: %s", e)
         return HealthResponse(
             status="unhealthy",
             timestamp=datetime.now(timezone.utc).isoformat(),

@@ -23,7 +23,7 @@ admin_router = admin_router_module
 # Exception Handlers
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions."""
-    logger.warning(f"HTTP error: {exc.status_code} - {exc.detail}")
+    logger.warning("HTTP error: %s - %s", exc.status_code, exc.detail)
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail, "status": exc.status_code},
@@ -32,7 +32,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle general exceptions."""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.error("Unhandled exception: %s", exc, exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Internal server error"},

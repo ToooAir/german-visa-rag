@@ -3,7 +3,7 @@ OpenAI API client wrapper with retry logic, token counting, and cost tracking.
 Supports both streaming and non-streaming responses.
 """
 
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, Optional
 
 import tiktoken
 from openai import AsyncAzureOpenAI, AsyncOpenAI, OpenAIError
@@ -39,7 +39,7 @@ class OpenAIClient:
                 api_version=settings.azure_openai_api_version,
                 azure_deployment=settings.azure_llm_deployment,
             )
-            logger.info(f"Azure OpenAI client initialized (deployment: {settings.azure_llm_deployment})")
+            logger.info("Azure OpenAI client initialized (deployment: %s)", settings.azure_llm_deployment)
         else:
             self.client = AsyncOpenAI(
                 api_key=api_key,
@@ -67,7 +67,7 @@ class OpenAIClient:
         try:
             return len(self.encoding.encode(text))
         except Exception as e:
-            logger.warning(f"Token counting failed: {e}, using approximation")
+            logger.warning("Token counting failed: %s, using approximation", e)
             return len(text) // 4  # Rough approximation
 
     def estimate_cost(
@@ -91,7 +91,7 @@ class OpenAIClient:
     )
     async def call(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
         top_p: float = 1.0,
@@ -102,7 +102,8 @@ class OpenAIClient:
         """
         try:
             logger.debug(
-                f"Calling {self.model}",
+                "Calling %s",
+                self.model,
                 extra={
                     "messages": len(messages),
                     "temperature": temperature,
@@ -122,15 +123,15 @@ class OpenAIClient:
             return response
 
         except OpenAIError as e:
-            logger.error(f"OpenAI API error: {e}", extra={"model": self.model})
+            logger.error("OpenAI API error: %s", e, extra={"model": self.model})
             raise
         except Exception as e:
-            logger.error(f"Unexpected error calling OpenAI: {e}")
+            logger.error("Unexpected error calling OpenAI: %s", e)
             raise
 
     async def call_non_streaming(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
     ) -> str:
@@ -146,7 +147,7 @@ class OpenAIClient:
 
     async def call_streaming(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
     ) -> AsyncIterator[str]:

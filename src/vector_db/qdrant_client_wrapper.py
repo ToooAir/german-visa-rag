@@ -1,5 +1,4 @@
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from qdrant_client import AsyncQdrantClient, QdrantClient
 from qdrant_client.http import models
@@ -7,7 +6,7 @@ from qdrant_client.http.models import (
     Distance,
     FieldCondition,
     Filter,
-    MatchValue,
+    MatchAny,
     PointStruct,
     SparseVector,
     VectorParams,
@@ -52,11 +51,11 @@ class QdrantWrapper:
             collection_names = [col.name for col in collections.collections]
 
             if self.collection_name in collection_names:
-                logger.info(f"Collection '{self.collection_name}' already exists")
+                logger.info("Collection '%s' already exists", self.collection_name)
                 return
 
             # Create collection with hybrid search setup
-            logger.info(f"Creating collection '{self.collection_name}'")
+            logger.info("Creating collection '%s'", self.collection_name)
 
             await self.client.create_collection(
                 collection_name=self.collection_name,
@@ -74,15 +73,15 @@ class QdrantWrapper:
                 },
             )
 
-            logger.info(f"Collection '{self.collection_name}' created successfully")
+            logger.info("Collection '%s' created successfully", self.collection_name)
 
         except Exception as e:
-            logger.error(f"Failed to ensure collection exists: {e}")
+            logger.error("Failed to ensure collection exists: %s", e)
             raise
 
     async def upsert_points(
         self,
-        points: List[PointStruct],
+        points: list[PointStruct],
         wait: bool = True,
     ) -> None:
         """
@@ -97,7 +96,7 @@ class QdrantWrapper:
                 logger.info("No points to upsert, skipping.")
                 return
 
-            logger.debug(f"Upserting {len(points)} points to Qdrant")
+            logger.debug("Upserting %d points to Qdrant", len(points))
 
             await self.client.upsert(
                 collection_name=self.collection_name,
@@ -105,22 +104,22 @@ class QdrantWrapper:
                 wait=wait,
             )
 
-            logger.info(f"Successfully upserted {len(points)} points")
+            logger.info("Successfully upserted %d points", len(points))
 
         except Exception as e:
-            logger.error(f"Upsert failed: {e}", extra={"points_count": len(points)})
+            logger.error("Upsert failed: %s", e, extra={"points_count": len(points)})
             raise
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     async def hybrid_search(
         self,
-        dense_vector: List[float],
+        dense_vector: list[float],
         query_text: str,
         top_k: int = 5,
         filters: Optional[Filter] = None,
         dense_weight: float = 0.7,
         sparse_weight: float = 0.3,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Perform hybrid search combining dense vector + sparse BM25 via Qdrant RRF fusion.
 
@@ -140,7 +139,7 @@ class QdrantWrapper:
             List of scored search results with metadata
         """
         try:
-            logger.debug(f"Performing hybrid search with top_k={top_k}")
+            logger.debug("Performing hybrid search with top_k=%d", top_k)
 
             # --- Build sparse vector from query text ---
             sparse_vec: Optional[SparseVector] = None
@@ -173,26 +172,18 @@ class QdrantWrapper:
                 )
 
             # --- Execute RRF hybrid query ---
-            if len(prefetches) > 1:
-                # True hybrid: RRF fusion of dense + sparse
-                search_result = await self.client.query_points(
-                    collection_name=self.collection_name,
-                    prefetch=prefetches,
-                    query=models.FusionQuery(fusion=models.Fusion.RRF),
-                    with_payload=True,
-                    limit=top_k,
-                )
-                logger.debug(f"Hybrid RRF search: dense + sparse legs, top_k={top_k}")
+            is_hybrid = len(prefetches) > 1
+            search_result = await self.client.query_points(
+                collection_name=self.collection_name,
+                prefetch=prefetches,
+                query=models.FusionQuery(fusion=models.Fusion.RRF),
+                with_payload=True,
+                limit=top_k,
+            )
+            if is_hybrid:
+                logger.debug("Hybrid RRF search: dense + sparse legs, top_k=%d", top_k)
             else:
-                # Dense-only fallback (sparse disabled or empty vector)
-                search_result = await self.client.query_points(
-                    collection_name=self.collection_name,
-                    prefetch=prefetches,
-                    query=models.FusionQuery(fusion=models.Fusion.RRF),
-                    with_payload=True,
-                    limit=top_k,
-                )
-                logger.debug(f"Dense-only fallback search (sparse disabled or empty), top_k={top_k}")
+                logger.debug("Dense-only fallback search (sparse disabled or empty), top_k=%d", top_k)
 
             # --- Format results ---
             ranked = [
@@ -204,14 +195,14 @@ class QdrantWrapper:
                 for point in search_result.points
             ]
 
-            logger.debug(f"Hybrid search returned {len(ranked)} results")
+            logger.debug("Hybrid search returned %d results", len(ranked))
             return ranked
 
         except Exception as e:
-            logger.error(f"Hybrid search failed: {type(e).__name__}: {e}", exc_info=True)
+            logger.error("Hybrid search failed: %s: %s", type(e).__name__, e, exc_info=True)
             raise
 
-    async def get_unique_sources(self) -> List[Dict[str, Any]]:
+    async def get_unique_sources(self) -> list[dict[str, Any]]:
         """
         Retrieve unique sources (URLs and titles) from the collection.
         Since Qdrant doesn't have a direct 'distinct' query on payloads,
@@ -260,17 +251,17 @@ class QdrantWrapper:
             authority_rank = {"official": 0, "semi_official": 1, "third_party": 2}
             result.sort(key=lambda x: (authority_rank.get(x["authority_level"], 3), x["title"]))
 
-            logger.info(f"Retrieved {len(result)} unique sources from Qdrant")
+            logger.info("Retrieved %d unique sources from Qdrant", len(result))
             return result
 
         except Exception as e:
-            logger.error(f"Failed to get unique sources: {e}")
+            logger.error("Failed to get unique sources: %s", e)
             return []
 
     def build_filter_authority_and_visa(
         self,
         min_authority_level: AuthorityLevel = AuthorityLevel.SEMI_OFFICIAL,
-        visa_types: Optional[List[str]] = None,
+        visa_types: Optional[list[str]] = None,
         max_days_old: int = 365,
     ) -> Filter:
         """
@@ -298,7 +289,7 @@ class QdrantWrapper:
         conditions.append(
             FieldCondition(
                 key="authority_level",
-                match=MatchValue(value=authority_values),
+                match=MatchAny(any=authority_values),
             )
         )
 
@@ -307,15 +298,12 @@ class QdrantWrapper:
             conditions.append(
                 FieldCondition(
                     key="visa_types",
-                    match=MatchValue(value=visa_types),
+                    match=MatchAny(any=visa_types),
                 )
             )
 
-        # Recency filter (documents fetched within max_days_old)
-        if max_days_old:
-            datetime.now(timezone.utc).timestamp() - max_days_old * 86400
-            # Note: Qdrant doesn't have native datetime filtering in v0.x
-            # This would need custom filtering logic
+        # Recency filter: Qdrant doesn't have native datetime filtering;
+        # recency scoring is applied post-retrieval in HybridRetriever instead.
 
         # Combine conditions with OR logic
         if len(conditions) == 1:
@@ -326,7 +314,7 @@ class QdrantWrapper:
                 # Use OR if multiple types
             )
 
-    async def get_point_by_id(self, point_id: int) -> Optional[Dict[str, Any]]:
+    async def get_point_by_id(self, point_id: int) -> Optional[dict[str, Any]]:
         """Retrieve a single point by ID."""
         try:
             result = await self.client.retrieve(
@@ -336,7 +324,7 @@ class QdrantWrapper:
             )
             return result[0].model_dump() if result else None
         except Exception as e:
-            logger.error(f"Failed to retrieve point {point_id}: {e}")
+            logger.error("Failed to retrieve point %s: %s", point_id, e)
             return None
 
     async def delete_by_filter(self, filters: Filter) -> bool:
@@ -346,10 +334,10 @@ class QdrantWrapper:
                 collection_name=self.collection_name,
                 points_selector=filters,
             )
-            logger.info(f"Deleted points matching filter (Status: {result.status})")
+            logger.info("Deleted points matching filter (Status: %s)", result.status)
             return result.status == "completed"
         except Exception as e:
-            logger.error(f"Delete by filter failed: {e}")
+            logger.error("Delete by filter failed: %s", e)
             raise
 
     async def count_points(self) -> int:
@@ -358,7 +346,7 @@ class QdrantWrapper:
             collection = await self.client.get_collection(collection_name=self.collection_name)
             return collection.points_count
         except Exception as e:
-            logger.error(f"Failed to count points: {e}")
+            logger.error("Failed to count points: %s", e)
             return 0
 
     async def health_check(self) -> bool:
@@ -367,7 +355,7 @@ class QdrantWrapper:
             _ = await self.client.get_collections()
             return True
         except Exception as e:
-            logger.error(f"Qdrant health check failed: {e}")
+            logger.error("Qdrant health check failed: %s", e)
             return False
 
     async def close(self):
@@ -375,7 +363,7 @@ class QdrantWrapper:
         try:
             await self.client.close()
         except Exception as e:
-            logger.warning(f"Error closing Qdrant client: {e}")
+            logger.warning("Error closing Qdrant client: %s", e)
 
 
 # Singleton instance

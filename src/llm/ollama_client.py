@@ -2,7 +2,8 @@
 Ollama local LLM client for fallback/offline scenarios.
 """
 
-from typing import AsyncIterator, Dict, List, Optional
+import json
+from typing import AsyncIterator, Optional
 
 import httpx
 
@@ -23,13 +24,13 @@ class OllamaClient:
 
     async def call_non_streaming(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
     ) -> str:
         """Call Ollama and return complete response."""
         try:
-            logger.debug(f"Calling Ollama {self.model}")
+            logger.debug("Calling Ollama %s", self.model)
 
             response = await self.client.post(
                 f"{self.base_url}/api/chat",
@@ -49,12 +50,12 @@ class OllamaClient:
             return data.get("message", {}).get("content", "")
 
         except Exception as e:
-            logger.error(f"Ollama call failed: {e}")
+            logger.error("Ollama call failed: %s", e)
             raise
 
     async def call_streaming(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
     ) -> AsyncIterator[str]:
@@ -77,8 +78,6 @@ class OllamaClient:
 
             async for line in response.aiter_lines():
                 if line:
-                    import json
-
                     try:
                         chunk = json.loads(line)
                         content = chunk.get("message", {}).get("content", "")
@@ -88,7 +87,7 @@ class OllamaClient:
                         pass
 
         except Exception as e:
-            logger.error(f"Ollama streaming failed: {e}")
+            logger.error("Ollama streaming failed: %s", e)
             raise
 
     async def close(self):

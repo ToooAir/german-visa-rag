@@ -13,9 +13,9 @@ Built with **Production-ready** standards, this project features an automated we
 ## ✨ Core Features
 
 ### 🔍 Advanced RAG Pipeline
-- **Query Transformation**: Utilizes a lightweight LLM for intent expansion and spell-checking to solve multi-lingual vector space misalignment.
-- **Hybrid Search**: Combines **Dense Vectors** (OpenAI `text-embedding-3-small`) with **Sparse BM25** search via Qdrant, fused using server-side **Reciprocal Rank Fusion (RRF)**.
-- **Cross-Encoder Reranking**: Fetches Top-20 candidates and reranks them using a Cross-Encoder API to distill the precise Top-5 chunks.
+- **Query Transformation**: Utilizes a lightweight LLM for intent expansion and spell-checking to solve multi-lingual vector space misalignment. Generates `german_query`, `english_query`, and `query_variants` simultaneously, searching across all of them for maximum recall.
+- **Hybrid Search**: Combines **Dense Vectors** (OpenAI `text-embedding-3-small`) with **Sparse BM25** search via Qdrant, fused using server-side **Reciprocal Rank Fusion (RRF)**. The BM25 Sparse Encoder is custom-built and hash-based, serving as a zero-dependency design decision that doesn't rely on any external models or training corpora.
+- **Cross-Encoder Reranking**: Fetches Top-20 candidates (`RETRIEVAL_TOP_K_HYBRID=20`) and reranks them using a Cross-Encoder API to distill the precise Top-10 chunks (`RETRIEVAL_TOP_K_RERANKED=10`).
 - **Time-Aware & Authority Weighting**: Prioritizes official government sources and recently fetched documents during retrieval scoring.
 
 ### 🚀 Performance & Cost Optimization
@@ -26,7 +26,7 @@ Built with **Production-ready** standards, this project features an automated we
 - **LLM Factory Pattern (Local Fallback)**: Implements dependency inversion. If the OpenAI API key is missing or offline, the system seamlessly falls back to a local **Ollama** model (ideal for local resilience testing).
 - **Standalone CLI Ingestion Script**: Decouples the ETL pipeline from the Web API. The provided CLI perfectly aligns with Serverless environments (e.g., GCP Cloud Run Jobs) to prevent CPU throttling during web crawling.
 - **OpenAI-Compatible API**: Fully implements the `POST /v1/chat/completions` endpoint with SSE Streaming support.
-- **Defensive Programming**: Built-in Prompt Injection detection and a Global Exception Handler.
+- **Defensive Programming**: Built-in Prompt Injection detection, a Global Exception Handler, and a Fixed-Window Rate Limiter for the API backend.
 
 ---
 
@@ -107,9 +107,12 @@ export PYTHONPATH=$PYTHONPATH:$(pwd) && python scripts/test_provider.py
 This script will tell you if your API key is valid and, if you are rate-limited, exactly how many seconds until reset.
 
 ### 3. Spin Up Services
+
+*💡 Note: When using volume mounts during local development, please ensure the `src/__pycache__` directory on your host machine is cleared or properly ignored in `.dockerignore` to prevent stale `.pyc` files from causing service crashes.*
+
 ```bash
 docker-compose up -d
-curl -H "X-API-Key: dev-key-12345" http://localhost:8000/v1/health
+curl -H "X-API-Key: dev-key-12345" http://localhost:8080/v1/health
 ```
 
 ### 4. Build & Run Frontend (Optional Manual Setup)
@@ -158,7 +161,7 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key="dev-key-12345",
-    base_url="http://localhost:8000/v1"
+    base_url="http://localhost:8080/v1"
 )
 
 response = client.chat.completions.create(
@@ -168,7 +171,7 @@ response = client.chat.completions.create(
 )
 
 for chunk in response:
-    print(chunk.choices.delta.content or "", end="")
+    print(chunk.choices[0].delta.content or "", end="")
 
 *💡 Tip: If you send the same question consecutively, the system will automatically hit the Redis cache, consuming zero API tokens!*
 
@@ -193,6 +196,9 @@ Aside from message content, the system emits "Thinking" metadata:
 docker-compose exec api bash
 
 # 1. Run Tests & Coverage
+# Note: Ensure pytest is installed in the container (pip install .[test]), or run directly on the host with .venv/bin/python -m pytest.
+# The test suite consists of 135 tests (130 unit tests with full mocking, 5 integration tests connecting to real services).
+pip install .[test]
 pytest tests/ -v --cov=src --cov-report=term-missing
 
 # 2. Run Ragas Pipeline Evaluation

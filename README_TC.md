@@ -13,9 +13,9 @@
 ## ✨ 核心特色
 
 ### 🔍 進階 RAG 檢索管線
-- **Query Transformation**：使用輕量 LLM 進行查詢意圖擴充與拼字修正，解決多語系向量偏移問題。
-- **Hybrid Search**：結合 **Dense Vector** (OpenAI `text-embedding-3-small`) 與 **Sparse BM25** 進行混合檢索，應用服務器端 **Reciprocal Rank Fusion (RRF)** 進行分數融合。
-- **Cross-Encoder Reranking**：檢索 Top-20 後，使用 Reranker 進行語意重排，精確提取 Top-5 丟給 LLM。
+- **Query Transformation**：使用輕量 LLM 進行查詢意圖擴充與拼字修正，解決多語系向量偏移問題。系統會同時生成 `german_query` + `english_query` + `query_variants` 並對全部詞彙進行搜尋，以最大化召回率。
+- **Hybrid Search**：結合 **Dense Vector** (OpenAI `text-embedding-3-small`) 與 **Sparse BM25** 進行混合檢索，應用服務器端 **Reciprocal Rank Fusion (RRF)** 進行分數融合。其中的 BM25 Sparse Encoder 採用基於雜湊 (Hash-based) 的自研零依賴 (Zero-dependency) 設計，不須依賴任何外部模型或訓練語料。
+- **Cross-Encoder Reranking**：檢索候選數 (`RETRIEVAL_TOP_K_HYBRID = 20`) 後，使用 Reranker 進行語意重排，精煉提取 Top-10 (`RETRIEVAL_TOP_K_RERANKED = 10`) 丟給 LLM。
 - **時間感知與權威加權**：優先檢索官方 (Official) 來源與最新抓取的法規文件。
 
 ### 🚀 效能優化與成本控制 (Performance & Cost)
@@ -26,7 +26,7 @@
 - **LLM Factory Pattern (本地備援機制)**：實作依賴反轉，當 OpenAI API 失效或未設定時，系統可無縫切換至本地 **Ollama** 模型（僅限 Local 開發），提高開發韌性。
 - **獨立 CLI 爬蟲腳本**：將 API 與 ETL (Extract, Transform, Load) 爬蟲解耦。提供專屬的 CLI 指令，完美適配 GCP Cloud Run Job 的 Serverless 排程架構，避免 CPU Throttling。
 - **OpenAI 相容 API**：完整實作 `POST /v1/chat/completions`，支援 SSE Streaming。
-- **防禦性編程**：內建 Prompt Injection 偵測與全局例外處理 (Global Exception Handler)。
+- **防禦性編程**：內建 Prompt Injection 偵測、全局例外處理 (Global Exception Handler)，以及 API 後端的固定窗口限流機制 (Fixed-Window Rate Limiter)。
 
 ---
 
@@ -108,9 +108,12 @@ export PYTHONPATH=$PYTHONPATH:$(pwd) && python scripts/test_provider.py
 此腳本會告知您的 API 金鑰是否有效；若遇到限流 (Rate-limited)，它會顯示具體的重置秒數。
 
 ### 3. 啟動服務
+
+*💡 提示：本地開發使用 Volume Mount 時，請確保清除 Host 端的 `src/__pycache__` 目錄或新增 `.dockerignore`，以避免舊的 `.pyc` 檔被帶入容器導致服務崩潰。*
+
 ```bash
 docker-compose up -d
-curl -H "X-API-Key: dev-key-12345" http://localhost:8000/v1/health
+curl -H "X-API-Key: dev-key-12345" http://localhost:8080/v1/health
 ```
 
 ### 4. 前端手動編譯與靜態掛載 (非 Docker 開發)
@@ -159,7 +162,7 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key="dev-key-12345",
-    base_url="http://localhost:8000/v1" # 指向本地 RAG API
+    base_url="http://localhost:8080/v1" # 指向本地 RAG API
 )
 
 response = client.chat.completions.create(
@@ -169,7 +172,7 @@ response = client.chat.completions.create(
 )
 
 for chunk in response:
-    print(chunk.choices.delta.content or "", end="")
+    print(chunk.choices[0].delta.content or "", end="")
 
 # 📡 SSE 串流結構詳細說明 (供 UI 開發者參考)
 本專案的 Streaming 響應除了包含內容外，還會傳送「AI 思考過程」的 Metadata，可用於實作類似 Perplexity 的動態進度條：
@@ -193,6 +196,10 @@ for chunk in response:
 docker-compose exec api bash
 
 # 1. 執行單元與整合測試
+# 註：容器內可能未預裝 pytest，需先執行 pip install .[test]，
+# 或者直接在 Host 環境執行 .venv/bin/python -m pytest。
+# 系統具有優良的測試廣度，目前包含 135 個測試（130 個 Unit tests 全 Mock、5 個 Integration tests 串接真實服務）。
+pip install .[test]
 pytest tests/ -v --cov=src --cov-report=term-missing
 
 # 2. 執行 Ragas RAG 質量評測 (Context Precision & Faithfulness)

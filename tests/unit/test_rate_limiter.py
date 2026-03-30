@@ -20,6 +20,7 @@ def make_limiter(enabled: bool = True, limit: int = 60) -> RateLimiter:
     limiter.enabled = enabled
     limiter.limit = limit
     limiter.window = 60
+    limiter._memory = {}
     return limiter
 
 

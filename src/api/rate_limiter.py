@@ -22,7 +22,7 @@ class RateLimiter:
 
     def _check_memory(self, client_ip: str) -> None:
         """Enforce rate limit using in-memory counters (fallback path)."""
-        count, window_start = self._memory[client_ip]
+        count, window_start = self._memory.get(client_ip, (0, time.monotonic()))
         now = time.monotonic()
 
         if now - window_start >= self.window:

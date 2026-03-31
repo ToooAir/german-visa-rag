@@ -244,4 +244,4 @@ gcloud run jobs execute german-visa-rag-job-prod
 
 ### 支援
 
-如遇技術問題，請至 [GitHub Issues](https://github.com/yourusername/german-visa-rag/issues) 回報，或查閱 `logs/` 目錄中的應用程式日誌。
+如遇技術問題，請至 [GitHub Issues](https://github.com/ToooAir/german-visa-rag/issues) 回報，或查閱 `logs/` 目錄中的應用程式日誌。

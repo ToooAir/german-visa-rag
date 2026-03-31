@@ -5,7 +5,7 @@
 [![Qdrant](https://img.shields.io/badge/Qdrant-Vector_DB-FF5252.svg?logo=qdrant)](https://qdrant.tech/)
 [![Redis](https://img.shields.io/badge/Redis-Cache-DC382D.svg?logo=redis)](https://redis.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![codecov](https://codecov.io/gh/yourusername/german-visa-rag/branch/main/graph/badge.svg)](https://codecov.io/gh/yourusername/german-visa-rag)
+[![codecov](https://codecov.io/gh/ToooAir/german-visa-rag/branch/main/graph/badge.svg)](https://codecov.io/gh/ToooAir/german-visa-rag)
 
 這是一個基於 **進階 RAG (Retrieval-Augmented Generation)** 架構的 API 系統，專門用於解答關於「德國簽證」與「機會卡 (Chancenkarte)」的法規與申請問題。系統支援中、英、德三語提問，並確保所有回答皆基於權威官方來源，附帶精確的引用出處。
 
@@ -107,7 +107,7 @@ graph TB
 
 ### 1. 環境初始化
 ```bash
-git clone https://github.com/yourusername/german-visa-rag.git
+git clone https://github.com/ToooAir/german-visa-rag.git
 cd german-visa-rag
 cp .env.example .env
 # 請編輯 .env 並填入 OPENAI_API_KEY

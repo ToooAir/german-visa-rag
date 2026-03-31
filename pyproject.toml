@@ -98,10 +98,10 @@ deploy = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/german-visa-rag"
-Documentation = "https://github.com/yourusername/german-visa-rag/docs"
-Repository = "https://github.com/yourusername/german-visa-rag.git"
-Issues = "https://github.com/yourusername/german-visa-rag/issues"
+Homepage = "https://github.com/ToooAir/german-visa-rag"
+Documentation = "https://github.com/ToooAir/german-visa-rag/docs"
+Repository = "https://github.com/ToooAir/german-visa-rag.git"
+Issues = "https://github.com/ToooAir/german-visa-rag/issues"
 
 [tool.setuptools]
 packages = ["src"]

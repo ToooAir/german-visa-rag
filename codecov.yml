@@ -1,0 +1,16 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto      # maintain current coverage; don't drop
+        threshold: 2%     # allow up to 2% drop before failing
+    patch:
+      default:
+        target: 80%       # new code in a PR must be at least 80% covered
+
+ignore:
+  - "tests/**"
+  - "eval/**"
+  - "scripts/**"
+  - "src/scripts/**"
+  - "frontend/**"

@@ -244,4 +244,4 @@ For a deep dive into the GCP deployment scripts, refer to the `infra/` and `scri
 
 ### Support
 
-For technical issues, please open a [GitHub Issue](https://github.com/yourusername/german-visa-rag/issues) or consult the application logs in the `logs/` directory.
+For technical issues, please open a [GitHub Issue](https://github.com/ToooAir/german-visa-rag/issues) or consult the application logs in the `logs/` directory.

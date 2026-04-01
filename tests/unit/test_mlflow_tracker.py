@@ -112,6 +112,35 @@ class TestMLflowTrackerInit:
             t = MLflowTracker()
         assert t.enabled is False
 
+    def test_enabled_when_mlflow_available_and_configured(self):
+        mock_mlflow = MagicMock()
+        with (
+            patch.object(tracker_module, "MLFLOW_AVAILABLE", True),
+            patch.object(tracker_module, "mlflow", mock_mlflow),
+            patch("src.observability.mlflow_tracker.settings") as mock_settings,
+        ):
+            mock_settings.enable_mlflow = True
+            mock_settings.mlflow_tracking_uri = "http://localhost:5000"
+            mock_settings.mlflow_experiment_name = "test-exp"
+            t = MLflowTracker()
+        assert t.enabled is True
+        mock_mlflow.set_tracking_uri.assert_called_once_with("http://localhost:5000")
+        mock_mlflow.set_experiment.assert_called_once_with("test-exp")
+
+    def test_disabled_when_mlflow_init_fails(self):
+        mock_mlflow = MagicMock()
+        mock_mlflow.set_tracking_uri.side_effect = RuntimeError("mlflow init error")
+        with (
+            patch.object(tracker_module, "MLFLOW_AVAILABLE", True),
+            patch.object(tracker_module, "mlflow", mock_mlflow),
+            patch("src.observability.mlflow_tracker.settings") as mock_settings,
+        ):
+            mock_settings.enable_mlflow = True
+            mock_settings.mlflow_tracking_uri = "http://localhost:5000"
+            mock_settings.mlflow_experiment_name = "test-exp"
+            t = MLflowTracker()
+        assert t.enabled is False
+
 
 # ─── Singleton ────────────────────────────────────────────────────────────────
 

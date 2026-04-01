@@ -1,6 +1,6 @@
 """Unit tests for src/rag/reranker.py"""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -109,6 +109,20 @@ class TestCohereReranker:
         await r.close()
         r.client.aclose.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_call_api_success(self):
+        """Lines 79-94: actual _call_api HTTP path via mocked httpx client."""
+        r = self._make()
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {"results": [{"index": 0, "relevance_score": 0.9}]}
+        r.client = AsyncMock()
+        r.client.post = AsyncMock(return_value=mock_response)
+
+        result = await r._call_api("query", ["doc text"], top_k=1)
+        assert result == [{"index": 0, "relevance_score": 0.9}]
+        r.client.post.assert_called_once()
+
 
 # ─── JinaReranker ─────────────────────────────────────────────────────────────
 
@@ -148,6 +162,20 @@ class TestJinaReranker:
         r.client = AsyncMock()
         await r.close()
         r.client.aclose.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_call_api_success(self):
+        """Lines 149-163: actual _call_api HTTP path via mocked httpx client."""
+        r = self._make()
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {"results": [{"index": 0, "relevance_score": 0.85}]}
+        r.client = AsyncMock()
+        r.client.post = AsyncMock(return_value=mock_response)
+
+        result = await r._call_api("query", ["doc text"], top_k=1)
+        assert result == [{"index": 0, "relevance_score": 0.85}]
+        r.client.post.assert_called_once()
 
 
 # ─── RerankerFactory ──────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 """Unit tests for Prompt Builder and security checks."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -107,6 +107,20 @@ class TestPromptRequest:
             requirements=[{"id": "1", "value": "v", "status": "required"}],
         )
         assert isinstance(req.requirements, tuple)
+
+
+class TestStaticHelpersEdgeCases:
+    def test_sanitize_tag_field_empty_string_returns_empty(self):
+        """Line 276: empty/falsy value returns '' immediately."""
+        assert PromptBuilder._sanitize_tag_field("") == ""
+
+    def test_sanitize_tag_field_none_returns_empty(self):
+        """Line 276: None is falsy → returns ''."""
+        assert PromptBuilder._sanitize_tag_field(None) == ""  # type: ignore[arg-type]
+
+    def test_sanitize_question_empty_string_returns_empty(self):
+        """Line 288: empty question returns '' immediately."""
+        assert PromptBuilder._sanitize_question("", 100) == ""
 
 
 class TestStaticHelpersExtended:
@@ -241,6 +255,26 @@ class TestBuildUserMessageExtended:
         assert "<injection>" not in msg["content"]
 
 
+class TestRequirementSanitizationWarning:
+    def test_requirement_with_sanitized_empty_id_is_skipped(self):
+        """Lines 376-381: warning logged when s_id is empty after sanitization."""
+        pb = _builder()
+        # req_id "[::]" sanitizes to "" (all chars stripped) → triggers warning + continue
+        reqs = [{"id": "[::]", "value": "valid", "status": "required"}]
+        req = PromptRequest(context="ctx", question="q?", requirements=reqs)
+        prompt = pb.build_system_prompt(req)
+        # No requirement content should appear (it was skipped)
+        assert "CURRENT_UI_STATE" not in prompt
+
+    def test_requirement_with_sanitized_empty_value_is_skipped(self):
+        """Lines 376-381: warning logged when s_val is empty after sanitization."""
+        pb = _builder()
+        reqs = [{"id": "1-1", "value": "[::]", "status": "required"}]
+        req = PromptRequest(context="ctx", question="q?", requirements=reqs)
+        prompt = pb.build_system_prompt(req)
+        assert "CURRENT_UI_STATE" not in prompt
+
+
 class TestGetPromptBuilderExtended:
     def test_returns_prompt_builder_instance(self):
         with patch("src.rag.prompt_builder.settings") as s:
@@ -258,5 +292,12 @@ class TestGetPromptBuilderExtended:
             s.max_context_content_chars = 2000
             s.max_question_chars = 1000
             s.default_language = "en"
+            pb = get_prompt_builder()
+        assert isinstance(pb, PromptBuilder)
+
+    def test_get_prompt_builder_missing_attr_triggers_default_warning(self):
+        """Lines 504-505: _MISSING returned when setting attr doesn't exist."""
+        # spec=[] → all attribute access raises AttributeError → getattr returns _MISSING
+        with patch("src.rag.prompt_builder.settings", MagicMock(spec=[])):
             pb = get_prompt_builder()
         assert isinstance(pb, PromptBuilder)

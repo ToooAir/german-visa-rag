@@ -1,5 +1,7 @@
 """Unit tests for the sparse BM25 encoder."""
 
+from unittest.mock import patch
+
 import pytest
 from qdrant_client.http.models import SparseVector
 
@@ -77,6 +79,15 @@ class TestSparseEncoderGermanTerms:
         assert set(r1.indices) != set(r2.indices)
 
 
+class TestSparseEncoderEmptyTokens:
+    def test_all_single_char_tokens_returns_empty_vector(self, encoder):
+        """Line 84: text that tokenizes to nothing (all tokens < 2 chars) → empty SparseVector."""
+        # "a b c" produces tokens ['a','b','c'], all filtered (len < 2), extra also empty
+        result = encoder.encode("a b c")
+        assert result.indices == []
+        assert result.values == []
+
+
 class TestSparseEncoderBatch:
     def test_batch_encoding_matches_single(self, encoder):
         texts = ["first text", "second text", "§18c AufenthG"]
@@ -97,6 +108,16 @@ class TestSparseEncoderBatch:
         for i, (text, result) in enumerate(zip(texts, results)):
             expected = encoder.encode(text)
             assert result.indices == expected.indices
+
+
+class TestSparseEncoderBatchError:
+    def test_encode_exception_returns_empty_vector(self, encoder):
+        """Lines 117-119: encode raises → batch catches and returns empty SparseVector."""
+        with patch.object(encoder, "encode", side_effect=RuntimeError("encode failed")):
+            results = encoder.encode_batch(["some text"])
+        assert len(results) == 1
+        assert results[0].indices == []
+        assert results[0].values == []
 
 
 class TestSparseEncoderSingleton:

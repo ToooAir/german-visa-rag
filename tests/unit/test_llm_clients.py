@@ -252,6 +252,33 @@ class TestOllamaClientStreaming:
         assert chunks == ["good"]
 
     @pytest.mark.asyncio
+    async def test_empty_line_skipped(self):
+        """Line 80->79: empty string from aiter_lines is falsy and skipped."""
+        client = OllamaClient()
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+
+        async def _aiter_lines():
+            yield ""  # empty → if line: is False, branch 80->79
+            yield json.dumps({"message": {"content": "data"}})
+
+        mock_response.aiter_lines = _aiter_lines
+        with patch.object(client.client, "post", new_callable=AsyncMock, return_value=mock_response):
+            chunks = [c async for c in client.call_streaming([])]
+
+        assert chunks == ["data"]
+
+    @pytest.mark.asyncio
+    async def test_streaming_exception_reraises(self):
+        """Lines 89-91: exception during streaming is logged and reraised."""
+        client = OllamaClient()
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = RuntimeError("stream error")
+        with patch.object(client.client, "post", new_callable=AsyncMock, return_value=mock_response):
+            with pytest.raises(RuntimeError, match="stream error"):
+                _ = [c async for c in client.call_streaming([])]
+
+    @pytest.mark.asyncio
     async def test_close(self):
         client = OllamaClient()
         client.client = AsyncMock()

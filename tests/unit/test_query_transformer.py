@@ -248,6 +248,35 @@ class TestGetSearchQueriesExtended:
         assert result == ["my query"]
 
 
+class TestGetSearchQueriesVariantAdded:
+    @pytest.mark.asyncio
+    async def test_variant_appended_when_queries_less_than_3(self):
+        """Lines 185-186: query_variants item added when search_queries has <3 entries."""
+        t = _make_transformer()
+        # All keys same → search_queries stays at 1 entry → variant is appended
+        expanded = {
+            "corrected_query": "same",
+            "english_query": "same",
+            "german_query": "same",
+            "query_variants": ["new_variant"],
+        }
+        t._expand_query_with_llm = AsyncMock(return_value=expanded)
+        with patch("src.rag.query_transformer.settings") as s:
+            s.enable_query_expansion = True
+            result = await t.get_search_queries("same")
+        assert "new_variant" in result
+
+    @pytest.mark.asyncio
+    async def test_transform_query_raises_triggers_except(self):
+        """Lines 190-192: exception in transform_query causes fallback to [query]."""
+        t = _make_transformer()
+        t.transform_query = AsyncMock(side_effect=RuntimeError("transform crash"))
+        with patch("src.rag.query_transformer.settings") as s:
+            s.enable_query_expansion = True
+            result = await t.get_search_queries("my query")
+        assert result == ["my query"]
+
+
 class TestSingletonExtended:
     def test_returns_same_instance(self):
         qt_module._transformer = None

@@ -79,6 +79,16 @@ class TestOpenAIEmbedderEmbedTexts:
         assert result == [[0.1, 0.2, 0.3]]
 
     @pytest.mark.asyncio
+    async def test_non_rate_limit_error_reraises(self):
+        e = _make_openai_embedder()
+        mock_client = AsyncMock()
+        mock_client.embeddings.create = AsyncMock(side_effect=ValueError("unexpected error"))
+        e.client = mock_client
+
+        with pytest.raises(ValueError, match="unexpected error"):
+            await e.embed_texts(["test"])
+
+    @pytest.mark.asyncio
     async def test_rate_limit_error_raises_quota_exhausted(self):
         import openai as oai
 
@@ -179,6 +189,20 @@ class TestOllamaEmbedder:
         await e.close()
         e.client.aclose.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_embed_texts_error_reraises(self):
+        from tenacity import RetryError
+
+        e = OllamaEmbedder()
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = RuntimeError("Ollama error")
+        with (
+            patch.object(e.client, "post", new_callable=AsyncMock, return_value=mock_response),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            with pytest.raises((RuntimeError, RetryError)):
+                await e.embed_texts(["hello"])
+
 
 # ─── Embedder (unified) ───────────────────────────────────────────────────────
 
@@ -195,6 +219,38 @@ def _make_embedder():
         s.use_ollama = False
         e = Embedder()
     return e
+
+
+class TestEmbedderInit:
+    def test_azure_openai_init(self):
+        from src.vector_db.embedder import Embedder, OpenAIEmbedder
+
+        with patch("src.vector_db.embedder.settings") as s:
+            s.use_azure_openai = True
+            s.azure_openai_api_key = "az-key"
+            s.embedding_model = "embed-model"
+            s.azure_openai_endpoint = "https://example.openai.azure.com/"
+            s.azure_openai_api_version = "2024-12-01-preview"
+            s.azure_embedding_deployment = "embed-deploy"
+            s.use_ollama = False
+            e = Embedder()
+        assert isinstance(e.primary, OpenAIEmbedder)
+        assert e.primary.is_azure is True
+        assert e.fallback is None
+
+    def test_ollama_fallback_init(self):
+        from src.vector_db.embedder import Embedder, OllamaEmbedder
+
+        with patch("src.vector_db.embedder.settings") as s:
+            s.use_azure_openai = False
+            s.openai_api_key = "sk-test"
+            s.embedding_model = "text-embedding-3-small"
+            s.openai_api_base = None
+            s.use_ollama = True
+            s.ollama_base_url = "http://localhost:11434"
+            s.ollama_model = "mistral"
+            e = Embedder()
+        assert isinstance(e.fallback, OllamaEmbedder)
 
 
 class TestEmbedderPreflight:
@@ -264,6 +320,28 @@ class TestEmbedderEmbedTexts:
             pytest.raises(QuotaExhaustedError),
         ):
             await e.embed_texts(["hello"], _quota_retry=3)  # already at max
+
+    @pytest.mark.asyncio
+    async def test_quota_retry_waits_and_retries(self):
+        e = _make_embedder()
+        quota_err = QuotaExhaustedError(wait_seconds=5, reset_tokens="10s", reset_requests="5s")
+        # First call raises quota error, second succeeds
+        e.primary = AsyncMock()
+        e.primary.embed_texts = AsyncMock(side_effect=[quota_err, [[0.1]]])
+        with patch("src.vector_db.embedder.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            result = await e.embed_texts(["hello"], _quota_retry=0)
+        mock_sleep.assert_called_once_with(5)
+        assert result == [[0.1]]
+
+    @pytest.mark.asyncio
+    async def test_fallback_also_fails_reraises(self):
+        e = _make_embedder()
+        e.primary = AsyncMock()
+        e.primary.embed_texts = AsyncMock(side_effect=RuntimeError("primary down"))
+        e.fallback = AsyncMock()
+        e.fallback.embed_texts = AsyncMock(side_effect=RuntimeError("fallback down"))
+        with pytest.raises(RuntimeError, match="fallback down"):
+            await e.embed_texts(["hello"])
 
     @pytest.mark.asyncio
     async def test_embed_single(self):

@@ -299,6 +299,110 @@ class TestProcessSingleDocument:
         p.qdrant.delete_by_filter.assert_called_once()
         p.state_store.delete_document_chunks.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_exception_during_processing_returns_error(self):
+        """Lines 391-395: exception in _process_single_document returns error dict."""
+        p = _make_pipeline()
+        p.crawler.crawl_document = AsyncMock(side_effect=RuntimeError("unexpected crash"))
+        result = await p._process_single_document(_SOURCE_DOC)
+        assert result["success"] is False
+        assert "unexpected crash" in result["error"]
+        # doc_id was set before the error → mark_document_failed called
+        p.state_store.mark_document_failed.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_exception_with_falsy_doc_id(self):
+        """Line 393->395: doc_id=None/falsy → mark_document_failed NOT called."""
+        p = _make_pipeline()
+        # register returns None (falsy doc_id), then crawl raises
+        p.state_store.register_source_document = MagicMock(return_value=None)
+        p.crawler.crawl_document = AsyncMock(side_effect=RuntimeError("crash after register"))
+        result = await p._process_single_document(_SOURCE_DOC)
+        assert result["success"] is False
+        assert "crash after register" in result["error"]
+        p.state_store.mark_document_failed.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_batch_duplicate_skipped(self):
+        """Lines 298-300: second chunk with same hash in same batch is skipped."""
+        p = _make_pipeline()
+        # Use parent chunks so no embedding is needed
+        chunk1 = _make_chunk("c1", "same_hash", is_parent=True)
+        chunk2 = _make_chunk("c2", "same_hash", is_parent=True)  # same hash → batch dup
+        p.crawler.crawl_document = AsyncMock(return_value={"markdown": "content", "metadata": {}})
+        p.chunker.chunk_document = MagicMock(return_value=[chunk1, chunk2])
+        p.state_store.check_chunk_duplicate = MagicMock(return_value=False)
+
+        from src.models.chunk import QdrantPayload
+
+        with (
+            patch.object(QdrantPayload, "from_chunk", return_value=MagicMock(to_dict=MagicMock(return_value={}))),
+            patch("src.ingestion.ingestion_pipeline.get_sparse_encoder") as mock_sparse,
+            patch("src.ingestion.ingestion_pipeline.settings") as s,
+        ):
+            s.sparse_vocab_size = 8000
+            s.qdrant_vector_size = 1536
+            mock_enc = MagicMock()
+            mock_enc.encode_batch = MagicMock(return_value=[])
+            mock_sparse.return_value = mock_enc
+            result = await p._process_single_document(_SOURCE_DOC)
+
+        # Only 1 chunk ingested (duplicate skipped), 1 skipped
+        assert result["success"] is True
+        assert result["chunks_ingested"] == 1
+        assert result["chunks_skipped"] == 1
+
+
+class TestRunFullIngestionAdditional:
+    @pytest.mark.asyncio
+    async def test_quota_exhausted_during_task_covers_lines_134_148(self):
+        """Lines 134-136, 146-148: QuotaExhaustedError raised in sem_process sets quota_exhausted."""
+        p = _make_pipeline()
+
+        async def _raise_quota(source_doc, force=False):
+            raise QuotaExhaustedError(wait_seconds=60)
+
+        with (
+            patch("src.ingestion.ingestion_pipeline.embedder") as mock_emb,
+            patch.object(p, "_process_single_document", side_effect=_raise_quota),
+        ):
+            mock_emb.preflight_check = AsyncMock(return_value=True)
+            result = await p.run_full_ingestion([_SOURCE_DOC])
+
+        assert result["quota_exhausted"] is True
+        assert len(result["errors"]) >= 1
+
+    @pytest.mark.asyncio
+    async def test_unexpected_exception_in_task_counted_as_error(self):
+        """Lines 150-151: unexpected Exception from asyncio.gather counted as error."""
+        p = _make_pipeline()
+
+        async def _raise_runtime(source_doc, force=False):
+            raise RuntimeError("unexpected pipeline crash")
+
+        with (
+            patch("src.ingestion.ingestion_pipeline.embedder") as mock_emb,
+            patch.object(p, "_process_single_document", side_effect=_raise_runtime),
+        ):
+            mock_emb.preflight_check = AsyncMock(return_value=True)
+            result = await p.run_full_ingestion([_SOURCE_DOC])
+
+        assert len(result["errors"]) == 1
+        assert "unexpected pipeline crash" in result["errors"][0]["error"]
+
+    @pytest.mark.asyncio
+    async def test_no_mlflow_does_not_crash(self):
+        """Line 192->195: mlflow=None skips mlflow logging."""
+        p = _make_pipeline()
+        p.mlflow = None
+        p.crawler.crawl_document = AsyncMock(return_value=None)
+
+        with patch("src.ingestion.ingestion_pipeline.embedder") as mock_emb:
+            mock_emb.preflight_check = AsyncMock(return_value=True)
+            result = await p.run_full_ingestion([_SOURCE_DOC])
+
+        assert result is not None
+
 
 # ─── Singleton ────────────────────────────────────────────────────────────────
 

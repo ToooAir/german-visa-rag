@@ -31,6 +31,8 @@ def mock_llm_client(monkeypatch):
     """Mock the LLM client to avoid real API calls in unit tests."""
     from unittest.mock import AsyncMock
 
+    import src.rag.query_transformer as qt_module
+
     mock = AsyncMock()
     # Default response for QueryTransformer tests
     mock.call_non_streaming.return_value = """
@@ -45,4 +47,7 @@ def mock_llm_client(monkeypatch):
     }
     """
     monkeypatch.setattr("src.rag.query_transformer.get_llm_client", lambda: mock)
-    return mock
+    # Reset the singleton so a new instance is created with the patched get_llm_client
+    qt_module._transformer = None
+    yield mock
+    qt_module._transformer = None

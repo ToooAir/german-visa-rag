@@ -234,7 +234,7 @@ docker-compose exec api bash
 # 1. 執行單元與整合測試
 # 註：容器內可能未預裝 pytest，需先執行 pip install .[test]，
 # 或者直接在 Host 環境執行 .venv/bin/python -m pytest。
-# 系統目前包含 135 個測試（130 個 Unit tests 全 Mock、5 個 Integration tests 串接真實服務）。
+# 系統目前包含 649 個測試（644 個 Unit tests 全 Mock、5 個 Integration tests 串接真實服務）。
 pip install .[test]
 pytest tests/ -v --cov=src --cov-report=term-missing
 
@@ -249,7 +249,7 @@ python -m eval.ragas_evaluator eval/eval_dataset.json
 每次推送至 `main` 或 `develop` 分支，GitHub Actions 會自動執行以下流程：
 - 啟動真實的 **Qdrant** 與 **Redis** 服務容器（非 Mock）
 - 執行 **Black** 格式檢查、**Ruff** 靜態分析，以及 **mypy** 型別檢查
-- 執行完整的 135 個測試並生成覆蓋率報告
+- 執行完整的 649 個測試並生成覆蓋率報告
 - 將覆蓋率結果上傳至 **Codecov**
 
 ---

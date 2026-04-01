@@ -232,7 +232,7 @@ docker-compose exec api bash
 
 # 1. Run Tests & Coverage
 # Note: Ensure pytest is installed in the container (pip install .[test]), or run directly on the host with .venv/bin/python -m pytest.
-# The test suite consists of 135 tests (130 unit tests with full mocking, 5 integration tests connecting to real services).
+# The test suite consists of 649 tests (644 unit tests with full mocking, 5 integration tests connecting to real services).
 pip install .[test]
 pytest tests/ -v --cov=src --cov-report=term-missing
 
@@ -247,7 +247,7 @@ Evaluation results are automatically synced to the MLflow Tracking Server (`http
 Every push to `main` or `develop` triggers a GitHub Actions workflow that:
 - Spins up real **Qdrant** and **Redis** service containers (not mocks)
 - Runs **Black** formatting check, **Ruff** linting, and **mypy** type checking
-- Executes the full 135-test suite with coverage reporting
+- Executes the full 649-test suite with coverage reporting
 - Uploads coverage results to **Codecov**
 
 ---

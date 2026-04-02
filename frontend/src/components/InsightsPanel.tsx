@@ -135,6 +135,14 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       return (rv?.lackOfFunds || '缺 €{amount}').replace('{amount}', formatted);
     }
 
+    // Dynamic Experience Fallback
+    const expMatch = key.match(/^(\d+)_YEARS?_EXP$/);
+    if (expMatch) {
+      if (language === 'zh-TW') return `${expMatch[1]} 年以上經驗`;
+      if (language === 'de') return `${expMatch[1]}+ Jahre Erfahrung`;
+      return `${expMatch[1]}+ years experience`;
+    }
+
     return value;
   };
 
@@ -156,6 +164,25 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
         }
       }
     });
+
+    // Factor in reverse-inferred Language points
+    if (!requirements.some(r => r.id === '2-1' && r.status === 'required')) {
+      const tReq = requirements.find(r => r.id === '1-2' && r.status === 'required');
+      if (tReq) {
+        const val = tReq.value.toLowerCase();
+        const ptsMap: Record<string, number> = { a2: 1, b1: 2, b2: 3, c1: 4, en_c1: 1 };
+        total += ptsMap[val] || 0;
+      }
+    }
+
+    // Factor in reverse-inferred Qualification points
+    if (!requirements.some(r => r.id === '2-4' && r.status === 'required')) {
+      const tQual = requirements.find(r => r.id === '1-3' && r.status === 'required');
+      if (tQual && tQual.value === 'PARTIAL_RECOGNITION') {
+        total += 4;
+      }
+    }
+
     return total;
   };
 

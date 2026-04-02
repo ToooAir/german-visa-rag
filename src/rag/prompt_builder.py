@@ -202,6 +202,13 @@ Analyze the user's current situation and intent. Output the following hidden tag
    - Chancenkarte:         Thresholds: 1-1:Financial-Proof, 1-2:Language, 1-3:Qualification
                            Points:     2-1:Language (e.g. B1|2), 2-2:Experience (e.g. 5_YEARS_EXP|3), 2-3:Age (e.g. UNDER_35|2), 2-4:Qualification (e.g. DEGREE|4), 2-5:Germany-Exp, 2-6:Partner
    - Student Visa:         1:Financial-Proof, 2:Language, 3:Health-Insurance, 4:Prior-Qualification
+
+   REQ Tag Mapping — Chancenkarte Financial Proof (ID 1-1):
+     User explicitly confirms funds ≥ €13,092  → [REQ:1-1:MET:required]
+     User has NOT mentioned funds at all        → [REQ:1-1:TBC:warning]
+     User mentions insufficient funds           → [REQ:1-1:LACK_OF_FUNDS:13092:warning]
+   CRITICAL RULE: `TBC` and `LACK_OF_FUNDS` MUST always use STATUS `warning`.
+   NEVER use STATUS `required` for 1-1 unless the user has explicitly confirmed the full €13,092 amount.
 </tag_schema>
 
 ### RETRIEVED LEGAL DOCUMENTS

@@ -395,6 +395,16 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
               <AnimatePresence mode="popLayout">
                 {requirements.map((rawReq, index) => {
                   const req = { ...rawReq };
+
+                  // Safety guard: TBC and LACK_OF_FUNDS are semantically unconfirmed states.
+                  // They must NEVER render as green (required), regardless of LLM status emission.
+                  if (req.status === 'required') {
+                    const upperVal = (req.value ?? '').toUpperCase();
+                    if (upperVal === 'TBC' || upperVal.startsWith('LACK_OF_FUNDS')) {
+                      req.status = 'warning';
+                    }
+                  }
+
                   // Apply smart inference to visually satisfy prerequisites if points are awarded
                   if (activeVisaCategory === 'chancenkarte') {
                     const hasLangPoints = requirements.some(r => r.id === '2-1' && r.status === 'required');
@@ -433,8 +443,15 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                     }
 
                     // D. Milestone-to-Requirement Inference
-                    const isM1Met = checklist.find(i => i.id === '1' && i.status === 'completed');
-                    if (isM1Met && req.id?.startsWith('1-')) {
+                    // Re-derive thresholds from store data (same logic as displayChecklist block)
+                    // instead of reading stale persisted checklist, to avoid cross-session
+                    // contamination where a prior 'completed' milestone force-marks items
+                    // the user never confirmed in this session.
+                    const _isFinMetNow = requirements.some(r => r.id === '1-1' && r.status === 'required');
+                    const _isLangMetNow = hasLangPoints || requirements.some(r => r.id === '1-2' && r.status === 'required');
+                    const _isQualMetNow = hasQualPoints || requirements.some(r => r.id === '1-3' && r.status === 'required');
+                    const isAllBaseMetNow = _isFinMetNow && _isLangMetNow && _isQualMetNow;
+                    if (isAllBaseMetNow && req.id?.startsWith('1-')) {
                         req.status = 'required';
                         if (req.value === '-' || !req.value) req.value = 'MET';
                     }

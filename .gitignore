@@ -67,6 +67,7 @@ data/*.jsonl
 *.snapshot
 *.log
 logs/
+plan.md
 
 # --- Docker ---
 .docker/

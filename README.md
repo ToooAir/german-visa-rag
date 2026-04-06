@@ -11,6 +11,22 @@ An **Advanced RAG (Retrieval-Augmented Generation)** API system designed to answ
 
 Built with **Production-ready** standards, this project features an automated web ingestion pipeline, canonical state deduplication, Hybrid Search, Cross-Encoder Reranking, LLM-based query transformation, **Redis Semantic Caching**, and a complete CI/CD workflow.
 
+## 💡 Motivation: Why build this?
+
+This project originated from my personal frustration when applying for a German visa. While using general-purpose AI tools like Perplexity or ChatGPT + Web Search, I consistently encountered two major bottlenecks:
+
+1. **Hallucinated Constraints**: Generic search engines struggle to accurately parse complex conditional legal logic. For example, under the new *Chancenkarte* (Opportunity Card) rules, if an applicant holds a German-recognized university degree, no additional language certificates are required. Yet, Cloud LLMs almost universally hallucinated that English or German proof was strictly mandatory.
+2. **Lack of Stateful Reasoning**: Visa eligibility is not a simple "document search" problem; it requires structured, multi-step inference based on dynamic user states (e.g., degree, work experience points, language levels).
+
+I built this project to explore the engineering boundaries between **RAG systems and structured LLM reasoning** in a domain with complex business logic. I deliberately chose this scope to validate:
+- How to bridge **cross-lingual retrieval gaps** (e.g., querying German laws in Chinese).
+- How to implement **state compression** in long conversations to avoid context rot.
+- How to eliminate the AI "black box" via a transparent **UX that forces strict source citations**.
+
+*For a deep dive into the engineering trade-offs, please see the [Architecture & Design Decisions (ADR)](docs/design-decisions.md).*
+
+---
+
 ## ✨ Core Features
 
 ### 🔍 Advanced RAG Pipeline

@@ -31,7 +31,7 @@
 
 ### 🔍 進階 RAG 檢索管線
 - **Query Transformation**：使用輕量 LLM 進行查詢意圖擴充與拼字修正，解決多語系向量偏移問題。系統會同時生成 `german_query` + `english_query` + `query_variants` 並對全部詞彙進行搜尋，以最大化召回率。
-- **Hybrid Search**：結合 **Dense Vector** (OpenAI `text-embedding-3-small`) 與 **Sparse BM25** 進行混合檢索，應用服務器端 **Reciprocal Rank Fusion (RRF)** 進行分數融合。其中的 BM25 Sparse Encoder 採用基於雜湊 (Hash-based) 的自研零依賴 (Zero-dependency) 設計，不須依賴任何外部模型或訓練語料。
+- **Hybrid Search**：結合 **Dense Vector** (OpenAI `text-embedding-3-small`) 與 **Sparse BM25** 進行混合檢索，應用伺服器端 **Reciprocal Rank Fusion (RRF)** 進行分數融合。其中的 BM25 Sparse Encoder 採用基於雜湊 (Hash-based) 的自研零依賴 (Zero-dependency) 設計，不須依賴任何外部模型或訓練語料。
 - **Cross-Encoder Reranking**：檢索候選數 (`RETRIEVAL_TOP_K_HYBRID = 20`) 後，使用 Reranker（支援 Cohere、Jina 或 Mock 模式）進行語意重排，精煉提取 Top-10 (`RETRIEVAL_TOP_K_RERANKED = 10`) 丟給 LLM。
 - **簽證類型上下文過濾**：Retrieval 與 Prompt 會根據 UI 中選定的簽證類別動態調整——支援四種類型：**機會卡 (Chancenkarte)**、**歐盟藍卡 (EU Blue Card)**、**技術移民 (Skilled Worker / FEG 2.0)**、**學生簽證 (Student Visa)**。Prompt Builder 會為每種簽證注入對應的法律門檻（如存款要求、評分規則、語言等級強制條件）。
 - **時間感知與權威加權**：優先檢索官方 (`official`) 來源與最新抓取的法規文件，按 `official` > `semi_official` > `third_party` 分層加權。
@@ -39,7 +39,7 @@
 ### 🚀 效能優化與成本控制 (Performance & Cost)
 - **Semantic Caching（語意快取）**：整合 Redis 實作 LLM 回答快取，針對重複問題達到 **10 毫秒級**回應，大幅降低 OpenAI Token 成本。
 - **Token 計數與成本追蹤**：內建 `TokenCounter` 模組，記錄每次查詢的輸入/輸出 Token 數量並估算 USD 花費，方便進行預算監控。
-- **進階 Parent-Child Chunking**：實作「由小到大」策略，並內建 **標題內容注入 (Title Context Injection)** 與 **自動去躁 (Noise Removal)**，確保 80% 更乾淨的 RAG 上下文。
+- **進階 Parent-Child Chunking**：實作「由小到大」策略，並內建 **標題內容注入 (Title Context Injection)** 與 **自動去噪 (Noise Removal)**，確保 80% 更乾淨的 RAG 上下文。
 
 ### 🛠️ 工程最佳實踐 (Engineering Excellence)
 - **LLM Factory Pattern（多 Provider 支援）**：透過單一 `USE_AZURE_OPENAI` 開關，無縫切換 **OpenAI** 與 **Azure OpenAI**。若主要 Provider 離線，系統可自動降級至本地 **Ollama** 模型，兼顧彈性與韌性。
@@ -165,7 +165,7 @@ python src/main.py
 
 若需要前端熱重載開發體驗，請在 `frontend/` 目錄內執行 `npm run dev`，開發伺服器將在 `http://localhost:5173` 啟動。
 
-### 5. 觸發資料攝入（CLI 獨立腳本）
+### 5. 觸發資料導入（CLI 獨立腳本）
 本專案提供專業的 CLI 工具來執行資料爬取，適合打包為 Cronjob 或 Serverless Job：
 ```bash
 # 抓取設定檔中的所有網址
@@ -183,7 +183,7 @@ python -m src.ingestion.cli ingest --source "https://www.make-it-in-germany.com/
 # 乾跑測試：僅執行網址發現而不進行爬取
 python -m src.ingestion.cli discover --domain "www.make-it-in-germany.com"
 
-# 查看目前資料庫內的攝入統計數據
+# 查看目前資料庫內的導入統計數據
 python -m src.ingestion.cli status
 ```
 

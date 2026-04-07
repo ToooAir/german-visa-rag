@@ -32,7 +32,7 @@
 
 ## 1. 本地開發 (已驗證)
 
-這是在您自己的機器上最快速運行完整 RAG 技術棧（API + 向量資料庫 + 快取 + MLflow）的方式。
+這是在您自己的機器上最快速運行完整 RAG 技術堆疊（API + 向量資料庫 + 快取 + MLflow）的方式。
 
 ### 快速開始
 
@@ -47,7 +47,7 @@ docker-compose up -d
 # 3. 驗證 API 健康狀態（連接埠為 8080，非 8000）
 curl -H "X-API-Key: dev-key-12345" http://localhost:8080/v1/health
 
-# 4. 導入數據（CLI）
+# 4. 導入資料（CLI）
 python -m src.ingestion.cli ingest --auto-discover
 ```
 
@@ -109,9 +109,9 @@ OLLAMA_MODEL=mistral
 
 ### 第一步：創建新服務
 
-1. 將您的 GitHub 存儲庫連接到 Zeabur。
-2. 選擇 `german-visa-rag` 存儲庫。
-3. Zeabur 將自動檢測 `Dockerfile` 並開始部署。
+1. 將您的 GitHub 儲存庫連接到 Zeabur。
+2. 選擇 `german-visa-rag` 儲存庫。
+3. Zeabur 將自動偵測 `Dockerfile` 並開始部署。
 
 ### 第二步：配置環境變數
 
@@ -164,8 +164,8 @@ python -m src.ingestion.cli ingest --auto-discover
 
 `frontend/` 目錄是一個獨立的 React 應用程式。請在 Zeabur 上部署為獨立服務：
 
-1. 創建一個指向相同存儲庫的新服務，但將根目錄設置為 `frontend/`。
-2. Zeabur 將自動識別為 Node.js/Vite 專案。
+1. 創建一個指向相同儲存庫的新服務，但將根目錄設置為 `frontend/`。
+2. Zeabur 將自動辨識為 Node.js/Vite 專案。
 3. 設置環境變數 `VITE_API_URL` 為您的後端 API URL（例如 `https://your-api.zeabur.app`）。
 4. 確保後端的 `ALLOWED_ORIGINS` 包含您的前端 URL。
 
@@ -177,7 +177,7 @@ python -m src.ingestion.cli ingest --auto-discover
 
 ### 前置條件
 
-- 已安裝 `gcloud` CLI 並完成身份驗證（`gcloud auth login`）
+- 已安裝 `gcloud` CLI 並完成身分驗證（`gcloud auth login`）
 - 已安裝 Docker（用於構建映像）
 - 目標 GCP 專案已啟用 Cloud Run、Secret Manager 和 Artifact Registry API
 
@@ -227,7 +227,7 @@ gcloud run jobs execute german-visa-rag-job-prod
 
 1. **OOM（記憶體不足）**: 如果運行重排器（Reranker）或查詢轉換器（Query Transformer），請確保容器至少有 2 GB 記憶體。
 
-2. **Qdrant 連接超時**: 檢查 Qdrant Cloud IP 白名單是否允許您的部署出口 IP（或設置 VPC 對等連接）。
+2. **Qdrant 連接逾時**: 檢查 Qdrant Cloud IP 白名單是否允許您的部署出口 IP（或設置 VPC 對等連接）。
 
 3. **無效的 API 金鑰**: 驗證 `X-API-Key` 標頭是否與 `API_KEY` 環境變數匹配。
 

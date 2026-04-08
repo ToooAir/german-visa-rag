@@ -1,26 +1,35 @@
 """
 RAG evaluation using Ragas framework.
-Computes Context Precision, Answer Faithfulness, and other metrics.
+Computes Faithfulness and Answer Relevancy metrics.
+
+Metrics chosen:
+- Faithfulness: Is the answer grounded in the retrieved context? (hallucination detection)
+- Answer Relevancy: Does the answer address the question? (response quality)
+
+Context Precision and Context Recall are excluded from this run to stay within
+the LLM API call budget (~100 calls for 10 questions vs ~260 for all 4 metrics).
 """
 
 import asyncio
 import json
+import warnings
 from datetime import datetime
 from typing import Any, Dict
 
 import pandas as pd
 from datasets import Dataset
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from ragas import evaluate
-from ragas.metrics import (
-    answer_relevancy,
-    context_precision,
-    context_recall,
-    faithfulness,
-)
+from ragas.embeddings import LangchainEmbeddingsWrapper
+from ragas.llms import LangchainLLMWrapper
+from ragas.metrics import answer_relevancy, faithfulness
 
+from src.config import settings
 from src.logger import logger
 from src.observability.mlflow_tracker import get_mlflow_tracker
-from src.rag.answer_generator import get_answer_generator
+from src.rag.answer_generator import AnswerGenerator
+from src.rag.hybrid_retriever import HybridRetriever
+from src.vector_db.qdrant_client_wrapper import get_qdrant_client
 
 
 class RagasEvaluator:
@@ -28,15 +37,35 @@ class RagasEvaluator:
     Evaluate RAG pipeline using Ragas framework.
 
     Metrics:
-    - Context Precision: Are retrieved contexts relevant to query?
-    - Context Recall: Are all necessary information retrieved?
-    - Faithfulness: Is answer grounded in retrieved context?
-    - Answer Relevancy: Does answer address the query?
+    - Faithfulness: Is answer grounded in retrieved context? (hallucination proxy)
+    - Answer Relevancy: Does answer address the query? (response quality)
     """
 
     def __init__(self):
-        self.generator = get_answer_generator()
+        # Ragas creates OpenAI clients internally; ensure the key is in env
+        import os
+
+        os.environ["OPENAI_API_KEY"] = settings.openai_api_key
+
+        qdrant = get_qdrant_client()
+        retriever = HybridRetriever(qdrant_client=qdrant)
+        self.generator = AnswerGenerator(retriever=retriever)
         self.mlflow = get_mlflow_tracker()
+        # Ragas judge LLM + embeddings — must match the project's base_url (GitHub Models)
+        self.ragas_llm = LangchainLLMWrapper(
+            ChatOpenAI(
+                model=settings.openai_model,
+                api_key=settings.openai_api_key,
+                base_url=settings.openai_api_base,
+            )
+        )
+        self.ragas_embeddings = LangchainEmbeddingsWrapper(
+            OpenAIEmbeddings(
+                model=settings.embedding_model,
+                api_key=settings.openai_api_key,
+                base_url=settings.openai_api_base,
+            )
+        )
 
     async def evaluate_from_dataset(
         self,
@@ -54,7 +83,6 @@ class RagasEvaluator:
             Evaluation results with metrics and analysis
         """
         try:
-            # Load dataset
             logger.info(f"Loading evaluation dataset from {dataset_path}")
             with open(dataset_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -67,58 +95,56 @@ class RagasEvaluator:
 
             logger.info(f"Loaded {len(questions)} test cases")
 
-            # Generate predictions and contexts
             predictions = []
             contexts = []
 
             for i, question in enumerate(questions):
-                logger.debug(f"Evaluating question {i+1}/{len(questions)}")
+                logger.info(f"Generating answer {i+1}/{len(questions)}: {question[:60]}...")
 
                 try:
                     result = await self.generator.generate_answer(question)
                     predictions.append(result["answer"])
-
-                    # Extract source texts as context
-                    source_texts = [
-                        f"[{src.get('title', 'Unknown')}]\n{src.get('url', '')}" for src in result["sources"]
-                    ]
-                    contexts.append(source_texts)
+                    # Use actual retrieved text (not just title/URL) for faithful evaluation
+                    context_texts = [t for t in result.get("contexts", []) if t]
+                    contexts.append(context_texts if context_texts else [""])
 
                 except Exception as e:
                     logger.error(f"Failed to generate answer for question {i+1}: {e}")
                     predictions.append("")
-                    contexts.append([])
+                    contexts.append([""])
 
-            # Prepare dataset for Ragas
+            # ragas 0.4.x uses new column names; column_map bridges old Dataset format
             eval_dataset = Dataset.from_dict(
                 {
                     "question": questions,
-                    "ground_truth": ground_truths,
                     "answer": predictions,
                     "contexts": contexts,
+                    "ground_truth": ground_truths,
                 }
             )
 
-            logger.info("Running Ragas evaluation...")
+            logger.info("Running Ragas evaluation (faithfulness + answer_relevancy)...")
 
-            # Run evaluation
-            results = evaluate(
-                eval_dataset,
-                metrics=[
-                    context_precision,
-                    context_recall,
-                    faithfulness,
-                    answer_relevancy,
-                ],
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                results = evaluate(
+                    eval_dataset,
+                    metrics=[faithfulness, answer_relevancy],
+                    llm=self.ragas_llm,
+                    embeddings=self.ragas_embeddings,
+                    column_map={
+                        "user_input": "question",
+                        "response": "answer",
+                        "retrieved_contexts": "contexts",
+                        "reference": "ground_truth",
+                    },
+                    raise_exceptions=False,
+                    batch_size=1,  # Serialize to respect GitHub Models rate limits
+                )
 
-            # Convert to dataframe for analysis
             results_df = results.to_pandas()
 
-            # Calculate aggregate metrics
             aggregate_metrics = {
-                "context_precision": float(results_df["context_precision"].mean()),
-                "context_recall": float(results_df["context_recall"].mean()),
                 "faithfulness": float(results_df["faithfulness"].mean()),
                 "answer_relevancy": float(results_df["answer_relevancy"].mean()),
                 "count": len(results_df),
@@ -126,7 +152,6 @@ class RagasEvaluator:
 
             logger.info("Evaluation completed", extra=aggregate_metrics)
 
-            # Save results
             import os
 
             os.makedirs(output_dir, exist_ok=True)
@@ -135,21 +160,19 @@ class RagasEvaluator:
 
             report = {
                 "timestamp": datetime.utcnow().isoformat(),
+                "metrics_evaluated": ["faithfulness", "answer_relevancy"],
                 "aggregate_metrics": aggregate_metrics,
-                "sample_results": results_df.head(5).to_dict("records"),
+                "sample_results": results_df.to_dict("records"),
                 "full_results_csv": f"{output_dir}/ragas_detailed.csv",
             }
 
             with open(output_file, "w", encoding="utf-8") as f:
                 json.dump(report, f, indent=2, ensure_ascii=False)
 
-            # Save detailed CSV
-            csv_file = f"{output_dir}/ragas_detailed.csv"
-            results_df.to_csv(csv_file, index=False)
+            results_df.to_csv(f"{output_dir}/ragas_detailed.csv", index=False)
 
             logger.info(f"Results saved to {output_file}")
 
-            # Log to MLflow
             if self.mlflow:
                 self._log_to_mlflow(aggregate_metrics, results_df)
 
@@ -165,20 +188,18 @@ class RagasEvaluator:
             import mlflow
 
             with mlflow.start_run(run_name="ragas_evaluation"):
-                # Log metrics
                 for metric_name, value in metrics.items():
                     if metric_name != "count":
                         mlflow.log_metric(metric_name, value)
 
-                # Log params
                 mlflow.log_params(
                     {
                         "test_count": metrics["count"],
+                        "metrics": "faithfulness,answer_relevancy",
                         "timestamp": datetime.utcnow().isoformat(),
                     }
                 )
 
-                # Log artifact: CSV
                 results_df.to_csv("/tmp/ragas_results.csv", index=False)
                 mlflow.log_artifact("/tmp/ragas_results.csv")
 
@@ -192,24 +213,18 @@ class RagasEvaluator:
         question: str,
         expected_answer: str,
     ) -> Dict[str, Any]:
-        """
-        Evaluate a single query-answer pair.
-
-        Useful for quick validation during development.
-        """
+        """Evaluate a single query-answer pair for quick validation."""
         try:
             result = await self.generator.generate_answer(question)
 
-            # Manual evaluation
-            evaluation = {
+            return {
                 "question": question,
                 "generated_answer": result["answer"],
                 "expected_answer": expected_answer,
                 "sources": result["sources"],
                 "sources_count": len(result["sources"]),
+                "contexts_count": len(result.get("contexts", [])),
             }
-
-            return evaluation
 
         except Exception as e:
             logger.error(f"Single query evaluation failed: {e}")
@@ -232,7 +247,13 @@ async def main():
     print("\n" + "=" * 60)
     print("EVALUATION REPORT")
     print("=" * 60)
-    print(json.dumps(report, indent=2, ensure_ascii=False))
+    print(json.dumps(report["aggregate_metrics"], indent=2, ensure_ascii=False))
+    print("\nPer-sample results:")
+    for r in report["sample_results"]:
+        q = r.get("question", "")[:60]
+        f = r.get("faithfulness", "N/A")
+        ar = r.get("answer_relevancy", "N/A")
+        print(f"  [{f:.2f}/{ar:.2f}] {q}")
 
 
 if __name__ == "__main__":

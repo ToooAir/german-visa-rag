@@ -164,6 +164,7 @@ class AnswerGenerator:
                 return {
                     "answer": _NO_INFO_MSG.get(language, _NO_INFO_MSG["en"]),
                     "sources": [],
+                    "contexts": [],
                     "metadata": {"query": query, "retrieval_count": 0, "cache_hit": False},
                 }
 
@@ -211,6 +212,7 @@ class AnswerGenerator:
             result = {
                 "answer": response_text,
                 "sources": sources,
+                "contexts": [(doc.get("text") or doc.get("content", "")) for doc in reranked],
                 "metadata": {
                     "query": query,
                     "retrieval_count": len(reranked),

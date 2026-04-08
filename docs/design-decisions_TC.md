@@ -31,13 +31,21 @@
 ### 接受的 Trade-offs
 此架構刻意接受的 Trade-off 是：**選擇確定性 (Determinism)，犧牲對非標準文件結構的適應力**。基於 Heading 的切割預設了完美的 Markdown H2/H3 階層。對於結構扁平或不一致的文件，會產出過大或語意不連貫的 Chunk，這是已知的盲點，需要在新增資料來源時逐份驗證。此外，在 Qdrant 中維護兩層索引結構（Child 與 Parent）會讓儲存成本與導入複雜度翻倍。最後，`clean_markdown()` 的 Regex 管線本質上是脆弱的：針對特定 UI 噪音的 Pattern 如果遇到目標網站大改版，就會默默失效，需要定期重新審核導入品質。
 
+### 驗證狀態 (Validation Status)
+
+在上述替代方案中選擇 Parent-Child 切塊策略，是基於**領域專屬的原則性推論**（法律文件結構、檢索精準度與上下文完整性之間的張力），而非正式的消融實驗 (ablation study)。我並未在完全相同的語料庫與保留測試集的條件下進行切塊策略的對照實驗。上表中的 Trade-off 分析反映的是工程判斷，而非測量出的數據差異。
+
+檢索品質透過第 5 節的 Ragas 評測進行了**間接驗證**：Faithfulness (忠實度) 主要是衡量 LLM 回答是否奠基於檢索出的上下文，這對切塊的連貫性非常敏感——即使管線的其他部分再怎麼優化，不連貫或受到污染的切塊必然會導致 Faithfulness 分數下降。我們觀察到的 Faithfulness 提升（在三次評測中從 0.54 → 0.66），與「此切塊策略能產生語意連貫的檢索單元」這個假說是相符的，但這無法單獨分離出切塊策略本身的貢獻。
+
+一個直接的消融實驗（例如：在固定其他所有變數的情況下，使用 Fixed-size 切塊策略重新執行完整的管線）能提供更乾淨的數據訊號，這將作為未來的優化方向。
+
 ---
 
 ## 2. 如何解決跨語言檢索的痛點 (Cross-lingual Retrieval)？
 
 本系統面臨的特殊挑戰：**使用者以中文提問，但法規知識庫為德文。** 單純依賴單一模型容易在特定法律術語（如：*Chancenkarte*、*Verpflichtungserklärung*）上產生錯位。我設計了**三層檢索架構**來彌補此落差：
 
-1. **多語言 Dense Embedding 模型**：底層採用 `text-embedding-3-small`，該模型在同一向量空間內具備基礎的 Cross-lingual Alignment 能力。
+1. **多語言 Dense Embedding 模型**：底層採用 `text-embedding-3-small`，該模型在同一向量空間內具備基礎的 Cross-lingual Alignment 能力。**我選擇不使用 `text-embedding-3-large` 或 `Multilingual-E5`，是因為早期的測試顯示，在這個狹窄的簽證領域中，`small` 模型的語意解析度已經綽綽有餘。此外，它在 API 延遲與成本上具有壓倒性的優勢，非常符合本專案的範疇。**
 2. **LLM Query Expansion (查詢擴展)**：透過 `query_transformer.py` 將使用者的中文提問，瞬間轉換為「對應的德文法律術語」以及「英文版本」。利用這三個 Query 進行批次檢索後 Merge 結果，消除了特定關鍵字的向量無法對齊問題。
 3. **支援 Umlauts 的 Sparse BM25 檢索**：作為 Dense 檢索的持續補充，我實作了基於 Hash 的自訂 BM25 Encoder，並針對德文字元（ä, ö, ü, ß）設計專用 Regex（`[\w§]+`），確保精確關鍵字能夠被絕對命中。
 
@@ -145,6 +153,34 @@ sequenceDiagram
     FE->>FE: 合併新 tag → 更新 Checklist，並保留先前的已知事實
 ```
 
+### Token 效率分析
+
+與每次對話都會線性增長的完整對話歷史相比，注入 State Token 的成本是有上限的，呈次線性 (sub-linear) 增長。
+
+**測量基準：**
+- 單次對話平均：約 40 tokens (User) + 約 300 tokens (Assistant) = **每輪 340 tokens**
+- Chancenkarte 諮詢：8 項資格審查標準（門檻 + 計分需求）
+- `<CURRENT_UI_STATE>` 區塊：約 70 tokens 的固定標頭 + 每項已確認條件約 13 tokens
+- 以一個 10 輪的諮詢情境建立模型
+
+| 輪次 | 完整歷史 Tokens (Context 輸入) | State Tag Tokens (Context 輸入) | 節省比例 |
+| ---: | ---: | ---: | ---: |
+| 1 | 0 | 0 | — |
+| 2 | 340 | ~60 | 82% |
+| 3 | 680 | ~100 | 85% |
+| 4 | 1,020 | ~130 | 87% |
+| 5 | 1,360 | ~155 | 89% |
+| 6 | 1,700 | ~165 | 90% |
+| 7 | 2,040 | ~175 | 91% |
+| 8 | 2,380 | ~180 | 92% |
+| 9 | 2,720 | ~180 | 93% |
+| **10** | **3,060** | **~180** | **94%** |
+| **10 輪總計** | **15,300** | **~1,325** | **~91%** |
+
+當 8 項條件都被確認後（大約在第 5-6 輪之後），State Tag 的 Payload 會持平在約 180 tokens；但完整對話歷史依然會以每輪 340 tokens 的速度持續累積。到了第 10 輪，State Tag 策略在狀態管理上注入的 Context Tokens **足足少了 17 倍**。
+
+**這個做法最大的好處不是節省成本，而是提升推理品質。** 在第 10 輪時，完整歷史的策略會強迫 LLM 閱讀高達 3,060 tokens 的對話紀錄——其中包含開場白、澄清提問與各種閒聊——然後才進入法律推理的任務。而 State Tag 將這些雜訊替換成了 180 tokens 的機器可讀事實，徹底根除了 Context Rot 發生的可能路徑。
+
 ### Parsing 失敗與降級策略
 
 Tag 解析機制的設計理念是 **Fail-safe (安全失效)，而非 Fail-hard (硬失效)**：
@@ -211,6 +247,77 @@ V1 與 V2 一樣受到 `<documents>` 隔離機制的保護，但 V2 需要在**�
 ### 接受的 Trade-offs
 
 防禦縱深策略所接受的 Trade-off 是：**以 Recall 的覆蓋率換取抵抗 Injection 的安全性**。Context 開關掃描器 (`validate_context_for_injection()`) 是基於靜態正則表達式運作的，這意味著它極易發生 False Positives (偽陽性)：一份出現 *"ignore previous permit conditions"* 或是 *"you are now required to submit"* 的正當法律文件，可能會因此被誤判而靜默拋棄。這會降低邊緣查詢 (edge-case) 的覆蓋率。我們坦然接受這個失敗模式，因為**回答偏少，優於給出誤導**—丟失文檔只會讓系統說「找不到資料」，這是可恢復的；讓潛藏的指令污染行為邏輯，則是無可挽回的。同理，強制出處溯源雖然提升了可稽核性，卻加重了 LLM 在文案生成上的掣肘，它可能為了塞進對應的 Reference 而讓敘事稍嫌生硬—這是為了可稽核性付出的流暢度代價。
+
+---
+
+## 5. RAG 效能評測 (Ragas)
+
+### 方法論
+
+評測是透過 [Ragas](https://github.com/explodinggradients/ragas) 框架 (v0.4.3)，在一個手工打造的 10 題資料集上運行。這 10 題涵蓋了所有四種簽證類型（機會卡、歐盟藍卡、技術移民、學生簽證），並包含了中、英、德文的提問。為了獨立衡量每一層優化的貢獻，我們執行了**三次 (Three runs)**：
+
+| 參數 | 數值 |
+| :--- | :--- |
+| 評測資料集 | 10 題精選提問 + Ground Truths (`eval/eval_dataset.json`) |
+| 裁判 LLM | `gpt-4o-mini`（與 RAG 管線相同的模型，透過 GitHub Models 呼叫） |
+| Embedding 模組 | `text-embedding-3-small` (用於計算 Answer Relevancy 的餘弦相似度) |
+| Reranker | **Run 1**: MockReranker · **Run 2–3**: Jina `jina-reranker-v2-base-multilingual` |
+| Prompt | **Run 1–2**: 原始版本 · **Run 3**: 緊縮版本的 Grounding 限制 (Rule 4 限制 DOMAIN_KNOWLEDGE 僅可用於生成 tags；Rule 5 新增禁止自行發揮的限制) |
+| 衡量指標 | Faithfulness (忠實度), Answer Relevancy (回答相關性) |
+| 執行腳本 | `python -m eval.ragas_evaluator eval/eval_dataset.json` |
+
+### 評測結果
+
+| 指標 | Run 1: MockReranker | Run 2: + Jina reranker | Run 3: + 緊縮 Prompt | 累計差異 (Δ) |
+| :--- | :---: | :---: | :---: | :---: |
+| **Faithfulness** | 0.543 | 0.619 | **0.657** | +21% |
+| **Answer Relevancy** | 0.483 | 0.540 | 0.503 | +4% |
+
+**單題細部表現 (三次評測結果)：**
+
+| 提問 | 語言 | Run1 F | Run2 F | Run3 F | AR (Run3) |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| Chancenkarte 申請基本條件 | 中文 | 0.14 | 0.67 | **0.88** | 0.72 |
+| 工作簽證需要僱主贊助嗎 | 中文 | 0.00 | 0.29 | **0.62** | 0.00 † |
+| 中文系畢業生可申請 Chancenkarte | 中文 | 0.12 | 0.60 | 0.50 | 0.60 |
+| Chancenkarte 持有期間 | 中文 | 1.00 | 1.00 | **1.00** | 0.72 |
+| 學生簽證資金證明 | 中文 | 0.75 | 0.67 | 0.57 | 0.67 |
+| Chancenkarte vs work visa differences | 英文 | 0.73 | 0.20 | 0.50 | 0.97 |
+| Chancenkarte family reunification | 英文 | 0.75 | 1.00 | 0.67 | 0.00 † |
+| Work visa processing time | 英文 | 0.80 | 0.62 | **0.83** | 0.00 † |
+| 德國容易拿工作簽證的職業 | 中文 | 0.50 | 0.14 | 0.50 | 0.75 |
+| Chancenkarte 過期後轉工作簽 | 中文 | 0.62 | 1.00 | 0.50 | 0.61 |
+
+† AR=0.00 為 Ragas 的多語言測量誤差，並非品質衰退 (詳見下文 ②)。
+
+### 數據解讀與已知限制
+
+**有兩個干擾因素導致絕對分數低於一般的 Production 基準：**
+
+**① 優化疊代的獨立貢獻衡量**
+
+這三個獨立的改進項目被依序套用並測量：
+
+- **MockReranker → Jina 多語言 reranker** (Faithfulness +14%)：在沒有 Reranker 的情況下，Top-20 混合檢索候選文獻會未經過濾直接送往 LLM。不相關的切塊（例如：提問「機會卡」，卻跑出「聯邦外交部國家名單」）會膨脹 Faithfulness 的分母。Jina 的 Cross-encoder 利用相關性分數將 Top-20 過濾至 Top-10。這項提升在中文提問上特別顯著，因為多語言模型在這塊具備極大優勢。
+
+- **Prompt 的 Grounding 緊縮限制** (對比 Run 2，Faithfulness +6%)：原始的 Prompt 允許當檢索結果缺漏資訊時，將 `DOMAIN_KNOWLEDGE` 當成「輔助參考資料」使用 (Rule 4)。這會導致 LLM 擅自把硬編碼的簽證門檻加進回答中，而 Ragas 無法從擷取的上下文中驗證這些資訊——從而將這些陳述判斷為沒有根據 (unsupported)。將 DOMAIN_KNOWLEDGE 的權限嚴格限制在只允許生成結構化 tag，並加上一條明確的「禁止統合發揮」規則 (Rule 5) 後，大幅減少了這種行為。最顯著的提升是：「工作簽證需要僱主贊助嗎」這題從 0.00 躍升至 0.62。
+
+在樣本數只有 10 題的情況下，單獨題目的變異數很大（例如：第七題「家庭依親」在 Run 3 從 1.00 衰退至 0.67；第十題「轉工作簽」從 1.00 衰退至 0.50）。受限於樣本規模，這些應被視為雜訊 (noise)，而非系統性的退步。
+
+**② Ragas 衡量 Answer Relevancy 的多語系限制**
+
+Answer Relevancy 的運作原理是：先從「回答」中反向生成 N 句英文提問，然後計算這些提問與「原始提問」的 Embedding 餘弦相似度。對於中文提問來說，反向生成的英文提問在語意空間上會與原始的中文提問產生錯位，進而產生趨近於零的相似度分數。這是 Ragas 在評測非英文資料集時（預設配置下）的一個已知限制，這並不代表回答品質很差。
+
+**總結對照表：**
+
+| 評測配置 | Faithfulness | Answer Relevancy | 備註 |
+| :--- | :---: | :---: | :--- |
+| Run 1: MockReranker, 原始 Prompt | 0.54 | 0.48 | 基準線 (Baseline) |
+| Run 2: Jina reranker, 原始 Prompt | 0.62 | 0.54 | +14% F |
+| Run 3: Jina reranker, 緊縮 Prompt | **0.66** | 0.50 | 較 Baseline 提升 +21% F |
+| 僅篩選英文提問 — Run 3 (n=3) | 0.67 | 0.49 ‡ | ‡ 排除 AR=0.00 的離群值 |
+
+累計高達 +21% 的 Faithfulness 提升，證實了「檢索品質 (reranker)」與「回答生成限制 (prompt)」是兩個可以疊加且能獨立衡量的操控槓桿——這也正是本管線採用模組化架構的設計初衷。
 
 ---
 

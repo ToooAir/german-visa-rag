@@ -32,7 +32,7 @@
 ### 🔍 進階 RAG 檢索管線
 - **Query Transformation**：使用輕量 LLM 進行查詢意圖擴充與拼字修正，解決多語系向量偏移問題。系統會同時生成 `german_query` + `english_query` + `query_variants` 並對全部詞彙進行搜尋，以最大化召回率。
 - **Hybrid Search**：結合 **Dense Vector** (OpenAI `text-embedding-3-small`) 與 **Sparse BM25** 進行混合檢索，應用伺服器端 **Reciprocal Rank Fusion (RRF)** 進行分數融合。其中的 BM25 Sparse Encoder 採用基於雜湊 (Hash-based) 的自研零依賴 (Zero-dependency) 設計，不須依賴任何外部模型或訓練語料。
-- **Cross-Encoder Reranking**：檢索候選數 (`RETRIEVAL_TOP_K_HYBRID = 20`) 後，使用 Reranker（支援 Cohere、Jina 或 Mock 模式）進行語意重排，精煉提取 Top-10 (`RETRIEVAL_TOP_K_RERANKED = 10`) 丟給 LLM。
+- **Cross-Encoder Reranking**：檢索候選數 (`RETRIEVAL_TOP_K_HYBRID = 20`) 後，使用 Reranker（支援 Cohere、Jina 或 Mock 模式）進行語意重排，精煉提取 Top-10 (`RETRIEVAL_TOP_K_RERANKED = 10`) 丟給 LLM。此 `top_k` 參數可透過 `/query/ask` 或 `/v1/chat/completions` 為每個 Request 進行覆寫設定。
 - **簽證類型上下文過濾**：Retrieval 與 Prompt 會根據 UI 中選定的簽證類別動態調整——支援四種類型：**機會卡 (Chancenkarte)**、**歐盟藍卡 (EU Blue Card)**、**技術移民 (Skilled Worker / FEG 2.0)**、**學生簽證 (Student Visa)**。Prompt Builder 會為每種簽證注入對應的法律門檻（如存款要求、評分規則、語言等級強制條件）。
 - **時間感知與權威加權**：優先檢索官方 (`official`) 來源與最新抓取的法規文件，按 `official` > `semi_official` > `third_party` 分層加權。
 
@@ -47,7 +47,7 @@
 - **APScheduler 背景排程器**：`IngestionScheduler` 使用 APScheduler 在 API 進程內執行定時爬取任務，支援 seed URL 模式與自動發現模式，無需外部 Cron 服務即可完成基礎排程。
 - **Domain-Specific 爬蟲策略**：每個爬取目標網域皆有獨立的 `DomainCrawlStrategy`，可設定路徑白/黑名單、URL 相關性評分、語言前綴過濾（`/en/`、`/de/`）、Sitemap 自動發現，以及頁面層級的 Authority 指派。
 - **獨立 CLI 爬蟲腳本**：將 API 與 ETL (Extract, Transform, Load) 爬蟲解耦。提供專屬的 CLI 指令，完美適配 GCP Cloud Run Job 的 Serverless 排程架構，避免 CPU Throttling。
-- **OpenAI 相容 API**：完整實作 `POST /v1/chat/completions`，支援 SSE Streaming。
+- **OpenAI 相容 API**：完整實作 `POST /v1/chat/completions`，支援 SSE Streaming。`temperature` 與 `max_tokens` 會被直接轉發給底層模型；`top_k` 則負責控制檢索的候選數量。
 - **防禦性編程**：內建 Prompt Injection 偵測、全局例外處理 (Global Exception Handler)，以及 API 後端的固定窗口限流機制 (Fixed-Window Rate Limiter)。
 - **MLflow 可觀測性**：每次 Ingestion Run 與查詢結果皆記錄至 MLflow Tracking Server，追蹤文件處理數、Chunk 指標與每查詢成本，供實驗比較使用。
 
@@ -65,8 +65,9 @@ graph TB
     subgraph "API Gateway (FastAPI)"
         B1["/v1/chat/completions"]
         B2["/query/ask (RAG specific)"]
-        B3["/admin/ingest/* (管理 API)"]
+        B3["/admin/ingest/trigger, /single, /discover"]
         B4["/query/sources (知識庫瀏覽)"]
+        B5["/v1/health (公開) · /v1/health/detailed (授權層)"]
         EH["Global Exception Handler"]
     end
 
@@ -145,7 +146,8 @@ export PYTHONPATH=$PYTHONPATH:$(pwd) && python scripts/test_provider.py
 
 ```bash
 docker-compose up -d
-curl -H "X-API-Key: dev-key-12345" http://localhost:8080/v1/health
+curl http://localhost:8080/v1/health                                      # 公開的 Liveness Probe 健康檢查
+curl -H "X-API-Key: dev-key-12345" http://localhost:8080/v1/health/detailed  # 包含所有依賴元件的完整健康狀態 (需授權)
 ```
 
 已啟動服務：**API** (`:8080`)、**Qdrant** (`:6333`)、**Redis** (`:6379`)、**MLflow** (`:5000`)
@@ -165,8 +167,8 @@ python src/main.py
 
 若需要前端熱重載開發體驗，請在 `frontend/` 目錄內執行 `npm run dev`，開發伺服器將在 `http://localhost:5173` 啟動。
 
-### 5. 觸發資料導入（CLI 獨立腳本）
-本專案提供專業的 CLI 工具來執行資料爬取，適合打包為 Cronjob 或 Serverless Job：
+### 5. 觸發資料導入（CLI 或 API）
+本專案提供專業的 CLI 工具來觸發網頁爬蟲與 ETL 管線：
 ```bash
 # 抓取設定檔中的所有網址
 python -m src.ingestion.cli ingest
@@ -174,17 +176,41 @@ python -m src.ingestion.cli ingest
 # 啟用自動發現模式掃描全站網域並抓取
 python -m src.ingestion.cli ingest --auto-discover
 
-# 強制重新切片以套用最新的處理邏輯（覆蓋舊資料）
-python -m src.ingestion.cli ingest --auto-discover --force
+# 強制重新處理資料，並強制重新探索所有已發現的網域 URL
+python -m src.ingestion.cli ingest --auto-discover --force --force-discover
 
 # 僅抓取單一網址測試
 python -m src.ingestion.cli ingest --source "https://www.make-it-in-germany.com/en/"
 
-# 乾跑測試：僅執行網址發現而不進行爬取
+# 乾跑測試：僅執行單一網域下的網址發現而不進行爬取
 python -m src.ingestion.cli discover --domain "www.make-it-in-germany.com"
 
 # 查看目前資料庫內的導入統計數據
 python -m src.ingestion.cli status
+```
+
+所有的 CLI 操作也都有對應的 **Admin API 端點**（需附帶 `X-API-Key` 驗證）：
+
+| CLI 指令 | API 對應端點 |
+| :--- | :--- |
+| `ingest` | `POST /admin/ingest/trigger` |
+| `ingest --force --force-discover --auto-discover` | `POST /admin/ingest/trigger?force=true&force_discover=true&auto_discover=true` |
+| `ingest --source <url> --force` | `POST /admin/ingest/single?url=<url>&force=true` |
+| `discover --domain <domain>` | `POST /admin/discover?domain=<domain>` |
+| `status` | `GET /admin/ingest/stats` |
+
+```bash
+# 透過 API 觸發導入（等同於 --auto-discover --force --force-discover）
+curl -X POST -H "X-API-Key: dev-key-12345" \
+  "http://localhost:8080/admin/ingest/trigger?force=true&force_discover=true&auto_discover=true"
+
+# 導入單一頁面
+curl -X POST -H "X-API-Key: dev-key-12345" \
+  "http://localhost:8080/admin/ingest/single?url=https://www.make-it-in-germany.com/en/&force=true"
+
+# URL 探索乾跑測試
+curl -X POST -H "X-API-Key: dev-key-12345" \
+  "http://localhost:8080/admin/discover?domain=www.make-it-in-germany.com"
 ```
 
 ---
@@ -250,7 +276,7 @@ docker-compose exec api bash
 # 1. 執行單元與整合測試
 # 註：容器內可能未預裝 pytest，需先執行 pip install .[test]，
 # 或者直接在 Host 環境執行 .venv/bin/python -m pytest。
-# 系統目前包含 649 個測試（644 個 Unit tests 全 Mock、5 個 Integration tests 串接真實服務）。
+# 系統目前包含 682 個測試（644 個 Unit tests 全 Mock、5 個 Integration tests 串接真實服務）。
 pip install .[test]
 pytest tests/ -v --cov=src --cov-report=term-missing
 
@@ -265,7 +291,7 @@ python -m eval.ragas_evaluator eval/eval_dataset.json
 每次推送至 `main` 或 `develop` 分支，GitHub Actions 會自動執行以下流程：
 - 啟動真實的 **Qdrant** 與 **Redis** 服務容器（非 Mock）
 - 執行 **Black** 格式檢查、**Ruff** 靜態分析，以及 **mypy** 型別檢查
-- 執行完整的 649 個測試並生成覆蓋率報告
+- 執行完整的 682 個測試並生成覆蓋率報告
 - 將覆蓋率結果上傳至 **Codecov**
 
 ---

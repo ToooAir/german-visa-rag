@@ -32,7 +32,7 @@ I built this project to explore the engineering boundaries between **RAG systems
 ### 🔍 Advanced RAG Pipeline
 - **Query Transformation**: Utilizes a lightweight LLM for intent expansion and spell-checking to solve multi-lingual vector space misalignment. Generates `german_query`, `english_query`, and `query_variants` simultaneously, searching across all of them for maximum recall.
 - **Hybrid Search**: Combines **Dense Vectors** (OpenAI `text-embedding-3-small`) with **Sparse BM25** search via Qdrant, fused using server-side **Reciprocal Rank Fusion (RRF)**. The BM25 Sparse Encoder is custom-built and hash-based, serving as a zero-dependency design decision that doesn't rely on any external models or training corpora.
-- **Cross-Encoder Reranking**: Fetches Top-20 candidates (`RETRIEVAL_TOP_K_HYBRID=20`) and reranks them using a Cross-Encoder API (Cohere, Jina, or mock) to distill the precise Top-10 chunks (`RETRIEVAL_TOP_K_RERANKED=10`).
+- **Cross-Encoder Reranking**: Fetches Top-20 candidates (`RETRIEVAL_TOP_K_HYBRID=20`) and reranks them using a Cross-Encoder API (Cohere, Jina, or mock) to distill the precise Top-10 chunks (`RETRIEVAL_TOP_K_RERANKED=10`). The `top_k` parameter can be overridden per-request via `/query/ask` or `/v1/chat/completions`.
 - **Visa-Type Contextual Filtering**: Retrieval and prompt construction are dynamically scoped to one of four visa categories — **Chancenkarte**, **EU Blue Card**, **Skilled Worker (FEG 2.0)**, and **Student Visa** — based on the active UI context. The prompt builder injects category-specific legal thresholds (e.g., savings requirements, point scoring, language level hard-requirements) for each visa type.
 - **Time-Aware & Authority Weighting**: Prioritizes official government sources (`official` > `semi_official` > `third_party`) and recently fetched documents during retrieval scoring.
 
@@ -47,7 +47,7 @@ I built this project to explore the engineering boundaries between **RAG systems
 - **APScheduler Background Ingestion**: An async `IngestionScheduler` (APScheduler) runs periodic crawl jobs inside the API process, supporting both seed-URL mode and auto-discovery mode — no external cron required for basic deployments.
 - **Domain-Specific Crawl Strategies**: Each crawl target domain has a configurable `DomainCrawlStrategy` defining path allow/block patterns, relevance keyword scoring, language prefix filtering (`/en/`, `/de/`), sitemap auto-discovery, and per-page authority assignment.
 - **Standalone CLI Ingestion Script**: Decouples the ETL pipeline from the Web API. The CLI perfectly aligns with Serverless environments (e.g., GCP Cloud Run Jobs) to prevent CPU throttling during web crawling.
-- **OpenAI-Compatible API**: Fully implements the `POST /v1/chat/completions` endpoint with SSE Streaming support.
+- **OpenAI-Compatible API**: Fully implements the `POST /v1/chat/completions` endpoint with SSE Streaming support. `temperature` and `max_tokens` are forwarded to the underlying LLM; `top_k` controls retrieval candidate count.
 - **Defensive Programming**: Built-in Prompt Injection detection, a Global Exception Handler, and a Fixed-Window Rate Limiter for the API backend.
 - **MLflow Observability**: Ingestion runs and query results are logged to an MLflow Tracking Server, recording document counts, chunk metrics, and per-query cost for experiment comparison.
 
@@ -65,8 +65,9 @@ graph TB
     subgraph "API Gateway (FastAPI)"
         B1["/v1/chat/completions"]
         B2["/query/ask (RAG specific)"]
-        B3["/admin/ingest/* (Admin API)"]
+        B3["/admin/ingest/trigger, /single, /discover"]
         B4["/query/sources (KB Browser)"]
+        B5["/v1/health (public) · /v1/health/detailed (auth)"]
         EH["Global Exception Handler"]
     end
 
@@ -144,7 +145,8 @@ This script will tell you if your API key is valid and, if you are rate-limited,
 
 ```bash
 docker-compose up -d
-curl -H "X-API-Key: dev-key-12345" http://localhost:8080/v1/health
+curl http://localhost:8080/v1/health                                      # public liveness probe
+curl -H "X-API-Key: dev-key-12345" http://localhost:8080/v1/health/detailed  # full dependency status
 ```
 
 Services started: **API** (`:8080`), **Qdrant** (`:6333`), **Redis** (`:6379`), **MLflow** (`:5000`)
@@ -164,7 +166,7 @@ python src/main.py
 
 For live frontend development (hot reload), run `npm run dev` inside `frontend/` — the dev server starts at `http://localhost:5173`.
 
-### 5. Trigger Data Ingestion (CLI)
+### 5. Trigger Data Ingestion (CLI or API)
 Use the dedicated CLI tool to trigger the web crawler and ETL pipeline:
 ```bash
 # Ingest all URLs from config
@@ -173,8 +175,8 @@ python -m src.ingestion.cli ingest
 # Auto-discover and ingest all pages from defined domains
 python -m src.ingestion.cli ingest --auto-discover
 
-# Force re-ingestion and apply new processing logic to existing docs
-python -m src.ingestion.cli ingest --auto-discover --force
+# Force re-ingestion and force re-crawl of all discovered URLs
+python -m src.ingestion.cli ingest --auto-discover --force --force-discover
 
 # Test ingestion on a single URL
 python -m src.ingestion.cli ingest --source "https://www.make-it-in-germany.com/en/"
@@ -184,6 +186,30 @@ python -m src.ingestion.cli discover --domain "www.make-it-in-germany.com"
 
 # Check ingestion statistics
 python -m src.ingestion.cli status
+```
+
+All CLI operations are also available as **Admin API endpoints** (requires `X-API-Key`):
+
+| CLI command | API equivalent |
+| :--- | :--- |
+| `ingest` | `POST /admin/ingest/trigger` |
+| `ingest --force --force-discover --auto-discover` | `POST /admin/ingest/trigger?force=true&force_discover=true&auto_discover=true` |
+| `ingest --source <url> --force` | `POST /admin/ingest/single?url=<url>&force=true` |
+| `discover --domain <domain>` | `POST /admin/discover?domain=<domain>` |
+| `status` | `GET /admin/ingest/stats` |
+
+```bash
+# Trigger ingestion via API (equivalent to --auto-discover --force --force-discover)
+curl -X POST -H "X-API-Key: dev-key-12345" \
+  "http://localhost:8080/admin/ingest/trigger?force=true&force_discover=true&auto_discover=true"
+
+# Ingest a single page
+curl -X POST -H "X-API-Key: dev-key-12345" \
+  "http://localhost:8080/admin/ingest/single?url=https://www.make-it-in-germany.com/en/&force=true"
+
+# Dry-run URL discovery
+curl -X POST -H "X-API-Key: dev-key-12345" \
+  "http://localhost:8080/admin/discover?domain=www.make-it-in-germany.com"
 ```
 
 ---
@@ -248,7 +274,7 @@ docker-compose exec api bash
 
 # 1. Run Tests & Coverage
 # Note: Ensure pytest is installed in the container (pip install .[test]), or run directly on the host with .venv/bin/python -m pytest.
-# The test suite consists of 649 tests (644 unit tests with full mocking, 5 integration tests connecting to real services).
+# The test suite consists of 682 tests (644 unit tests with full mocking, 5 integration tests connecting to real services).
 pip install .[test]
 pytest tests/ -v --cov=src --cov-report=term-missing
 

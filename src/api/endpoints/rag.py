@@ -20,6 +20,12 @@ class QueryRequest(BaseModel):
     language: Optional[str] = Field(default="auto", description="Query language")
     visa_type: Optional[str] = Field(default=None, description="Active visa category context")
     requirements: Optional[List[Dict[str, str]]] = Field(default=None, description="Current UI checklist status")
+    top_k: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=50,
+        description="Number of candidate documents to retrieve before reranking (1–50). Defaults to server setting RETRIEVAL_TOP_K_HYBRID.",
+    )
 
 
 class QueryResponse(BaseModel):
@@ -58,7 +64,11 @@ async def ask_question(
     """Ask a question about German visa regulations."""
     logger.info("Query: %.100s, Visa: %s, Lang: %s", request.query, request.visa_type, request.language)
     result = await generator.generate_answer(
-        request.query, language=request.language, visa_type=request.visa_type, requirements=request.requirements
+        request.query,
+        language=request.language,
+        visa_type=request.visa_type,
+        requirements=request.requirements,
+        top_k=request.top_k,
     )
     return QueryResponse(**result)
 
@@ -72,6 +82,10 @@ async def ask_question_stream(
     """Ask a question with streaming response."""
     logger.info("Stream query: %.100s, Visa: %s, Lang: %s", request.query, request.visa_type, request.language)
     stream = generator.generate_answer_streaming(
-        request.query, language=request.language, visa_type=request.visa_type, requirements=request.requirements
+        request.query,
+        language=request.language,
+        visa_type=request.visa_type,
+        requirements=request.requirements,
+        top_k=request.top_k,
     )
     return create_sse_response(stream)

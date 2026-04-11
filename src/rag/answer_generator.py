@@ -124,6 +124,9 @@ class AnswerGenerator:
         language: str = "auto",
         visa_type: Optional[str] = None,
         requirements: Optional[list[dict[str, str]]] = None,
+        top_k: Optional[int] = None,
+        temperature: float = 0.3,
+        max_tokens: Optional[int] = None,
     ) -> dict[str, Any]:
         """Generate answer without streaming."""
         start_time = time.time()
@@ -150,13 +153,20 @@ class AnswerGenerator:
             logger.info("Step 2: Retrieving for queries: %s", search_queries)
 
             visa_types_filter = [visa_type] if visa_type else None
-            all_results = await self.retriever.retrieve_batch(queries=search_queries, visa_types=visa_types_filter)
+            all_results = await self.retriever.retrieve_batch(
+                queries=search_queries,
+                top_k=top_k or settings.retrieval_top_k_hybrid,
+                visa_types=visa_types_filter,
+            )
             retrieval_results = self._flatten_and_deduplicate(all_results)
 
             # Fallback: retry without visa filter if no results
             if not retrieval_results and visa_type:
                 logger.info("No results with visa_type filter, retrying with broad search")
-                all_results = await self.retriever.retrieve_batch(queries=search_queries)
+                all_results = await self.retriever.retrieve_batch(
+                    queries=search_queries,
+                    top_k=top_k or settings.retrieval_top_k_hybrid,
+                )
                 retrieval_results = self._flatten_and_deduplicate(all_results)
 
             if not retrieval_results:
@@ -194,8 +204,8 @@ class AnswerGenerator:
             logger.info("Step 5: Calling LLM (%s)", settings.openai_model)
             response_text = await self.llm.call_non_streaming(
                 messages=messages,
-                temperature=0.3,
-                max_tokens=settings.max_response_tokens,
+                temperature=temperature,
+                max_tokens=max_tokens or settings.max_response_tokens,
             )
 
             if len(response_text) > settings.max_response_chars:
@@ -250,6 +260,8 @@ class AnswerGenerator:
         visa_type: Optional[str] = None,
         requirements: Optional[list[dict[str, str]]] = None,
         top_k: Optional[int] = None,
+        temperature: float = 0.3,
+        max_tokens: Optional[int] = None,
     ) -> AsyncIterator[str]:
         """Generate answer with streaming response (SSE)."""
         request_id = str(uuid.uuid4())
@@ -364,8 +376,8 @@ class AnswerGenerator:
             try:
                 async for chunk in self.llm.call_streaming(
                     messages=messages,
-                    temperature=0.3,
-                    max_tokens=settings.max_response_tokens,
+                    temperature=temperature,
+                    max_tokens=max_tokens or settings.max_response_tokens,
                 ):
                     tag_buffer += chunk
 

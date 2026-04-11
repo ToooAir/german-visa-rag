@@ -203,6 +203,85 @@ gcloud run jobs execute german-visa-rag-job-prod
 
 如需深入了解 GCP 部署腳本，請參閱 `infra/` 和 `scripts/` 目錄。完整的 Cloud Run 服務配置位於 `infra/gcp_cloud_run_deploy.yaml`。
 
+### 透過 API 觸發導入作業
+
+除了直接執行 CLI 之外，你還可以透過管理端點（admin endpoints）來觸發資料導入。當 API 部署在遠端（例如 Cloud Run）且你無法存取終端機環境時，這非常實用。
+
+#### `POST /admin/ingest/trigger` — 完整管線
+
+```bash
+# 標準觸發（遵守去重快取，跳過已索引的內容）
+curl -X POST "https://your-api-url/admin/ingest/trigger" \
+  -H "X-API-Key: your-api-key"
+
+# 強制重新處理所有文檔（等同於 CLI --force）
+curl -X POST "https://your-api-url/admin/ingest/trigger?force=true" \
+  -H "X-API-Key: your-api-key"
+
+# 強制重新發現全新的 URL（等同於 CLI --force-discover）
+curl -X POST "https://your-api-url/admin/ingest/trigger?force_discover=true" \
+  -H "X-API-Key: your-api-key"
+
+# 全面重置：重新發現 URL 並重新處理所有內容
+# (等同於 CLI: python -m src.ingestion.cli ingest --auto-discover --force --force-discover)
+curl -X POST "https://your-api-url/admin/ingest/trigger?force=true&force_discover=true&auto_discover=true" \
+  -H "X-API-Key: your-api-key"
+
+# 僅為本次運行覆蓋自動尋路模式（無視 CRAWLER_DISCOVERY_ENABLED 環境變數）
+curl -X POST "https://your-api-url/admin/ingest/trigger?auto_discover=false" \
+  -H "X-API-Key: your-api-key"
+```
+
+| 參數 | 預設值 | 說明 |
+|---|---|---|
+| `force` | `false` | 即使內容 Hash 未改變也強制重新處理所有文檔 |
+| `force_discover` | `false` | 繞過已爬取的 URL 快取並重新探索所有路徑 |
+| `auto_discover` | *(env setting)* | 僅為本次運行覆蓋 `CRAWLER_DISCOVERY_ENABLED`。若省略則使用伺服器的環境變數設定 |
+
+#### `POST /admin/ingest/single` — 單一 URL
+
+```bash
+# 導入單個特定 URL（等同於 CLI --source）
+curl -X POST "https://your-api-url/admin/ingest/single?url=https://www.make-it-in-germany.com/en/visa/kinds-of-visa/opportunity-card" \
+  -H "X-API-Key: your-api-key"
+
+# 即使已建立索引也強制重新導入
+curl -X POST "https://your-api-url/admin/ingest/single?url=https://...&force=true" \
+  -H "X-API-Key: your-api-key"
+```
+
+| 參數 | 必填 | 說明 |
+|---|---|---|
+| `url` | ✅ | 要爬取並導入的 URL |
+| `force` | `false` | 即使此 URL 已經建立索引也強制重新處理 |
+
+#### `POST /admin/discover` — URL 探索演練 (Dry-run)
+
+```bash
+# 探索所有將被爬取的 URL（不進行導入）
+# (等同於 CLI: python -m src.ingestion.cli discover)
+curl -X POST "https://your-api-url/admin/discover" \
+  -H "X-API-Key: your-api-key"
+
+# 限制僅探索特定網域
+curl -X POST "https://your-api-url/admin/discover?domain=make-it-in-germany.com" \
+  -H "X-API-Key: your-api-key"
+```
+
+| 參數 | 預設值 | 說明 |
+|---|---|---|
+| `domain` | *(all domains)* | 將探索限制在特定網域。若省略則探索所有已配置的網域 |
+
+#### `GET /admin/ingest/stats` — 導入狀態統計
+
+```bash
+curl "https://your-api-url/admin/ingest/stats" \
+  -H "X-API-Key: your-api-key"
+```
+
+> [!NOTE]
+> 所有管理端點都需要 `X-API-Key` 標頭驗證。啟動伺服器後，可在 `/docs` 查看完整的互動式 API 參考手冊。
+
 ---
 
 ## 4. 生產環境檢查清單

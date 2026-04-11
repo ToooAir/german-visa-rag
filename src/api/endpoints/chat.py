@@ -51,8 +51,11 @@ async def chat_completions(
     generator: AnswerGenerator = Depends(get_generator),
     x_api_key: str = Depends(auth.verify_api_key),
 ):
-    """
-    OpenAI-compatible chat completions endpoint.
+    """OpenAI-compatible chat completions endpoint.
+
+    Supported fields: `model`, `messages`, `temperature`, `max_tokens`, `stream`.
+    Note: `top_p` is accepted for API compatibility but has no effect — the underlying
+    LLM clients do not expose a top_p parameter.
     """
     logger.info(
         "Chat completion request",
@@ -86,7 +89,11 @@ async def chat_completions(
             detail="No user message found",
         )
 
-    result = await generator.generate_answer(query)
+    result = await generator.generate_answer(
+        query,
+        temperature=request.temperature,
+        max_tokens=request.max_tokens,
+    )
 
     completion_tokens = counter.count_text(result["answer"])
 
@@ -126,5 +133,9 @@ async def generate_chat_stream(request: ChatCompletionRequest, generator: Answer
         return
 
     # Yield streaming response
-    async for chunk in generator.generate_answer_streaming(query):
+    async for chunk in generator.generate_answer_streaming(
+        query,
+        temperature=request.temperature,
+        max_tokens=request.max_tokens,
+    ):
         yield chunk

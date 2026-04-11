@@ -87,10 +87,14 @@ MAKE_IT_IN_GERMANY_STRATEGY = DomainCrawlStrategy(
         "/en/visa-residence/procedure/",
         "/en/visa-residence/skilled-immigration-act",
         "/en/working-in-germany/",
+        # Shortage occupation pages — fills Q9-type knowledge gap
+        "/en/jobs/shortage-occupations",
+        "/en/working-in-germany/job-and-career/",
         # German-language equivalents (often contain additional legal detail)
         "/de/visum-aufenthalt/",
         "/de/visum-aufenthalt/chancenkarte/chancenkarte-zur-jobsuche",
         "/de/visum-aufenthalt/fachkraefteeinwanderungsgesetz/",
+        "/de/arbeit-in-deutschland/job-beruf/mangelberufe",
     ],
     authority_level="official",
     default_visa_types=["general", "chancenkarte", "blue_card", "work_visa", "student_visa"],
@@ -99,6 +103,7 @@ MAKE_IT_IN_GERMANY_STRATEGY = DomainCrawlStrategy(
     allowed_path_patterns=[
         r"/en/visa-residence/",
         r"/en/working-in-germany/",
+        r"/en/jobs/shortage",
         r"/en/living-in-germany/",
         r"/de/visum-aufenthalt/",
         r"/de/arbeit-in-deutschland/",
@@ -282,6 +287,9 @@ BA_STRATEGY = DomainCrawlStrategy(
         "/en/",
         "/web/content/EN/findingajob/",
         "/web/content/EN/institutionunternehmen/",
+        # Positivliste / shortage occupations overview pages (HTML, not PDF)
+        "/en/institutionen/arbeitgeber-und-unternehmen/fachkraefte-aus-dem-ausland/",
+        "/web/content/EN/institutionunternehmen/internationalerarbeitsmarkt/",
     ],
     authority_level="official",
     default_visa_types=["work_visa", "blue_card"],
@@ -290,6 +298,7 @@ BA_STRATEGY = DomainCrawlStrategy(
     allowed_path_patterns=[
         r"/en/",
         r"/web/content/EN/",
+        r"/en/institutionen/",
     ],
     blocked_path_patterns=[
         r"/en/press/",  # press releases
@@ -371,6 +380,41 @@ KMK_STRATEGY = DomainCrawlStrategy(
 )
 
 
+GESETZE_STRATEGY = DomainCrawlStrategy(
+    domain="www.gesetze-im-internet.de",
+    # Official German federal law portal — authoritative source for BeschV § 6
+    # (Positivliste legal basis) and AufenthG (residence act)
+    seed_paths=[
+        "/beschv_2013/",  # Beschäftigungsverordnung — § 6 Positivliste
+        "/aufenthg_2004/",  # Aufenthaltsgesetz — residence act (Blue Card, FEG)
+    ],
+    authority_level="official",
+    default_visa_types=["work_visa", "blue_card", "chancenkarte", "skilled_worker"],
+    max_depth=2,
+    max_pages=40,
+    allowed_path_patterns=[
+        r"/beschv_2013/",
+        r"/aufenthg_2004/",
+    ],
+    blocked_path_patterns=[
+        r"\.(pdf|jpg|png|gif|svg|css|js)$",
+        r"/print$",
+        r"/BJNR",  # raw XML/print versions
+    ],
+    relevance_keywords=[
+        "beschv",
+        "aufenthg",
+        "positivliste",
+        "fachkraft",
+        "blaue-karte",
+        "zustimmung",
+        "arbeitserlaubnis",
+    ],
+    language_prefixes=[],  # no language prefix — German-only site
+    use_sitemap=False,
+)
+
+
 # ============================================
 # Strategy Registry
 # ============================================
@@ -394,6 +438,7 @@ class StrategyRegistry:
         self.register(BAMF_STRATEGY)
         self.register(BA_STRATEGY)
         self.register(KMK_STRATEGY)
+        self.register(GESETZE_STRATEGY)
 
     def load_from_yaml(self, path: Path):
         """Load domain configurations from a YAML file.

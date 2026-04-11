@@ -73,3 +73,6 @@ logs/
 
 # ── Drafts / Notes ────────────────────────────────────────────────────────────
 story.md
+
+# --- Eval Artifacts ---
+eval/results/

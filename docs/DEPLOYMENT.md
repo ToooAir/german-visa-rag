@@ -203,6 +203,85 @@ gcloud run jobs execute german-visa-rag-job-prod
 
 For a deep dive into the GCP deployment scripts, refer to the `infra/` and `scripts/` directories. The full Cloud Run service configuration is at `infra/gcp_cloud_run_deploy.yaml`.
 
+### Triggering Ingestion via API
+
+Instead of running the CLI directly, you can trigger ingestion through the admin endpoints. This is useful when the API is deployed remotely (e.g., on Cloud Run) and you don't have shell access.
+
+#### `POST /admin/ingest/trigger` — Full pipeline
+
+```bash
+# Standard trigger (respects dedup cache — skips already-indexed content)
+curl -X POST "https://your-api-url/admin/ingest/trigger" \
+  -H "X-API-Key: your-api-key"
+
+# Force re-process all documents (equivalent to CLI --force)
+curl -X POST "https://your-api-url/admin/ingest/trigger?force=true" \
+  -H "X-API-Key: your-api-key"
+
+# Force fresh URL discovery (equivalent to CLI --force-discover)
+curl -X POST "https://your-api-url/admin/ingest/trigger?force_discover=true" \
+  -H "X-API-Key: your-api-key"
+
+# Full reset — rediscover URLs AND re-process all content
+# (equivalent to CLI: python -m src.ingestion.cli ingest --auto-discover --force --force-discover)
+curl -X POST "https://your-api-url/admin/ingest/trigger?force=true&force_discover=true&auto_discover=true" \
+  -H "X-API-Key: your-api-key"
+
+# Override discovery mode for this run only (ignores CRAWLER_DISCOVERY_ENABLED env var)
+curl -X POST "https://your-api-url/admin/ingest/trigger?auto_discover=false" \
+  -H "X-API-Key: your-api-key"
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `force` | `false` | Re-process all documents even if content hash hasn't changed |
+| `force_discover` | `false` | Bypass the visited-URL cache and re-crawl all discovery paths |
+| `auto_discover` | *(env setting)* | Override `CRAWLER_DISCOVERY_ENABLED` for this run only. Omit to use the server's env setting |
+
+#### `POST /admin/ingest/single` — Single URL
+
+```bash
+# Ingest one specific URL (equivalent to CLI --source)
+curl -X POST "https://your-api-url/admin/ingest/single?url=https://www.make-it-in-germany.com/en/visa/kinds-of-visa/opportunity-card" \
+  -H "X-API-Key: your-api-key"
+
+# Force re-ingest even if already indexed
+curl -X POST "https://your-api-url/admin/ingest/single?url=https://...&force=true" \
+  -H "X-API-Key: your-api-key"
+```
+
+| Parameter | Required | Description |
+|---|---|---|
+| `url` | ✅ | The URL to crawl and ingest |
+| `force` | `false` | Re-process even if this URL was already indexed |
+
+#### `POST /admin/discover` — Dry-run URL discovery
+
+```bash
+# Discover all URLs that would be crawled (no ingestion)
+# (equivalent to CLI: python -m src.ingestion.cli discover)
+curl -X POST "https://your-api-url/admin/discover" \
+  -H "X-API-Key: your-api-key"
+
+# Limit to a single domain
+curl -X POST "https://your-api-url/admin/discover?domain=make-it-in-germany.com" \
+  -H "X-API-Key: your-api-key"
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `domain` | *(all domains)* | Limit discovery to a specific domain. Omit to discover all configured domains |
+
+#### `GET /admin/ingest/stats` — Ingestion state
+
+```bash
+curl "https://your-api-url/admin/ingest/stats" \
+  -H "X-API-Key: your-api-key"
+```
+
+> [!NOTE]
+> All admin endpoints require the `X-API-Key` header. The full interactive API reference is available at `/docs` when the server is running.
+
 ---
 
 ## 4. Production Checklist

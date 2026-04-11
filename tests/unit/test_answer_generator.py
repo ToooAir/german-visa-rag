@@ -374,6 +374,122 @@ def _mock_settings():
     return s
 
 
+class TestGenerateAnswerParams:
+    """Verify temperature, max_tokens, and top_k are correctly forwarded."""
+
+    @pytest.mark.asyncio
+    async def test_custom_temperature_passed_to_llm(self):
+        gen = _make_generator()
+        doc = _make_doc()
+        gen.retriever.retrieve_batch = AsyncMock(return_value=[[doc]])
+        gen.reranker.rerank = AsyncMock(return_value=[doc])
+
+        with (
+            patch("src.rag.answer_generator.query_cache") as mock_cache,
+            patch("src.rag.answer_generator.settings", _mock_settings()),
+        ):
+            mock_cache.get = AsyncMock(return_value=None)
+            mock_cache.set = AsyncMock()
+            await gen.generate_answer("test", temperature=0.9)
+
+        call_kwargs = gen.llm.call_non_streaming.call_args.kwargs
+        assert call_kwargs["temperature"] == 0.9
+
+    @pytest.mark.asyncio
+    async def test_default_temperature_is_0_3(self):
+        gen = _make_generator()
+        doc = _make_doc()
+        gen.retriever.retrieve_batch = AsyncMock(return_value=[[doc]])
+        gen.reranker.rerank = AsyncMock(return_value=[doc])
+
+        with (
+            patch("src.rag.answer_generator.query_cache") as mock_cache,
+            patch("src.rag.answer_generator.settings", _mock_settings()),
+        ):
+            mock_cache.get = AsyncMock(return_value=None)
+            mock_cache.set = AsyncMock()
+            await gen.generate_answer("test")
+
+        call_kwargs = gen.llm.call_non_streaming.call_args.kwargs
+        assert call_kwargs["temperature"] == 0.3
+
+    @pytest.mark.asyncio
+    async def test_custom_max_tokens_passed_to_llm(self):
+        gen = _make_generator()
+        doc = _make_doc()
+        gen.retriever.retrieve_batch = AsyncMock(return_value=[[doc]])
+        gen.reranker.rerank = AsyncMock(return_value=[doc])
+
+        with (
+            patch("src.rag.answer_generator.query_cache") as mock_cache,
+            patch("src.rag.answer_generator.settings", _mock_settings()),
+        ):
+            mock_cache.get = AsyncMock(return_value=None)
+            mock_cache.set = AsyncMock()
+            await gen.generate_answer("test", max_tokens=512)
+
+        call_kwargs = gen.llm.call_non_streaming.call_args.kwargs
+        assert call_kwargs["max_tokens"] == 512
+
+    @pytest.mark.asyncio
+    async def test_max_tokens_none_falls_back_to_settings(self):
+        gen = _make_generator()
+        doc = _make_doc()
+        gen.retriever.retrieve_batch = AsyncMock(return_value=[[doc]])
+        gen.reranker.rerank = AsyncMock(return_value=[doc])
+        s = _mock_settings()
+        s.max_response_tokens = 1500
+
+        with (
+            patch("src.rag.answer_generator.query_cache") as mock_cache,
+            patch("src.rag.answer_generator.settings", s),
+        ):
+            mock_cache.get = AsyncMock(return_value=None)
+            mock_cache.set = AsyncMock()
+            await gen.generate_answer("test", max_tokens=None)
+
+        call_kwargs = gen.llm.call_non_streaming.call_args.kwargs
+        assert call_kwargs["max_tokens"] == 1500
+
+    @pytest.mark.asyncio
+    async def test_top_k_passed_to_retriever(self):
+        gen = _make_generator()
+        doc = _make_doc()
+        gen.retriever.retrieve_batch = AsyncMock(return_value=[[doc]])
+        gen.reranker.rerank = AsyncMock(return_value=[doc])
+
+        with (
+            patch("src.rag.answer_generator.query_cache") as mock_cache,
+            patch("src.rag.answer_generator.settings", _mock_settings()),
+        ):
+            mock_cache.get = AsyncMock(return_value=None)
+            mock_cache.set = AsyncMock()
+            await gen.generate_answer("test", top_k=5)
+
+        call_kwargs = gen.retriever.retrieve_batch.call_args.kwargs
+        assert call_kwargs["top_k"] == 5
+
+    @pytest.mark.asyncio
+    async def test_top_k_none_falls_back_to_settings(self):
+        gen = _make_generator()
+        doc = _make_doc()
+        gen.retriever.retrieve_batch = AsyncMock(return_value=[[doc]])
+        gen.reranker.rerank = AsyncMock(return_value=[doc])
+        s = _mock_settings()
+        s.retrieval_top_k_hybrid = 20
+
+        with (
+            patch("src.rag.answer_generator.query_cache") as mock_cache,
+            patch("src.rag.answer_generator.settings", s),
+        ):
+            mock_cache.get = AsyncMock(return_value=None)
+            mock_cache.set = AsyncMock()
+            await gen.generate_answer("test", top_k=None)
+
+        call_kwargs = gen.retriever.retrieve_batch.call_args.kwargs
+        assert call_kwargs["top_k"] == 20
+
+
 class TestGenerateAnswerAdditional:
     @pytest.mark.asyncio
     async def test_visa_type_fallback_when_no_results_with_filter(self):

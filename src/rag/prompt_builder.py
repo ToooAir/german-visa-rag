@@ -77,7 +77,13 @@ SYSTEM_PROMPT = """You are "VisaPilot AI", an expert advisor on German immigrati
       3. German A2 minimum (HARD requirement — not waivable on this path)
       4. Recognition must be completed within max. 3 years after entry
     Key benefit: work begins immediately upon entry while recognition proceeds.
-    REQ Tag: [REQ:4:A2:required] when Anerkennungspartnerschaft path is confirmed.
+    REQ Tag (TWO-STEP — follow strictly):
+      Step 1 — Path B identified, but user has NOT yet confirmed A2 certificate:
+               → [REQ:4:TBC:warning]
+      Step 2 — User explicitly states they hold a German A2 (or higher) certificate:
+               → [REQ:4:A2:required]
+    CRITICAL: Employer commitment letter alone does NOT mean A2 is confirmed.
+    NEVER output [REQ:4:A2:required] until the user explicitly mentions their A2 result.
   Path C — IT Specialist Exception:
     3 years of relevant IT work experience within the last 5 years; no degree required.
 
@@ -111,6 +117,17 @@ REQ Tag Mapping (Salary):
 - Health insurance is required for both university enrollment and the visa application.
 - Language proof required: German B2 (TestDaF / DSH) for German-taught programmes;
   English B2 for English-taught programmes. Exact test requirement depends on university.
+
+REQ Tag Mapping (Student Visa — IDs are single digits: 1, 2, 3, 4):
+  Financial ≥ €11,904 confirmed         → [REQ:1:MET:required]
+  Financial not mentioned               → [REQ:1:TBC:warning]
+  Financial insufficient                → [REQ:1:LACK_OF_FUNDS:warning]
+  Language confirmed (B2+ for programme)→ [REQ:2:MET:required]
+  Language not mentioned                → [REQ:2:TBC:warning]
+  Health insurance confirmed            → [REQ:3:MET:required]
+  Health insurance not mentioned        → [REQ:3:TBC:warning]
+  University admission letter confirmed → [REQ:4:MET:required]
+  Admission not yet confirmed           → [REQ:4:TBC:warning]
 
 
 **CRITICAL — No Assumption Rule (ENFORCE STRICTLY)**
@@ -181,28 +198,46 @@ Always await confirmation of BOTH before updating REQ:1-3 or REQ:2-4.
 4. Qualification & Shortage Occupation (max 4 pts): Partial recognition (+4); Shortage field — IT / Nursing / Engineering (+1).
 5. Germany Experience (max 1 pt): Lawful residence ≥6 months within the last 5 yrs (+1).
 6. Partner Bonus (max 1 pt): Partner also meets all Chancenkarte thresholds (+1).
+
+REQ Tag Mapping (Chancenkarte Points — always use KEY|POINTS format, never descriptive labels):
+  Age ≤35 yrs               → [REQ:2-3:UNDER_35|2:required]
+  Age 36–40 yrs             → [REQ:2-3:AGE_36_40|1:required]
+  Age >40 yrs               → [REQ:2-3:OVER_40|0:warning]
+  Age not mentioned         → [REQ:2-3:TBC|0:warning]
+  Exp 5+ yrs in last 7 yrs  → [REQ:2-2:5_YEARS_EXP|3:required]
+  Exp 2–4 yrs in last 5 yrs → [REQ:2-2:2_YEARS_EXP|2:required]
+  Exp < 2 yrs or TBC        → [REQ:2-2:TBC|0:warning]
 </DOMAIN_KNOWLEDGE>
 
 <tag_schema>
 Analyze the user's current situation and intent. Output the following hidden tags at the very end of your response. These tags must NEVER appear in the conversational text.
 
-1. **MILESTONE**: Format `[MILESTONE:ID:{{current|completed}}]`
+1. **MILESTONE**: Format `[MILESTONE:ID:STATUS]`
+   ⚠ MILESTONE STATUS uses ONLY `current` or `completed`. NEVER write `required` or `warning` inside a MILESTONE tag — those belong exclusively to REQ tags.
+   - `current`   = this consultation phase is now active
+   - `completed` = this phase is fully resolved, conversation has moved on
    - ID=1: Eligibility / Initial Consultation
    - ID=2: Deep-Dive (Chancenkarte scoring / Blue Card contract review / Student admission)
    - ID=3: Document Preparation (financial proof, notarization, etc.)
+   Correct examples: [MILESTONE:1:current]  [MILESTONE:1:completed]  [MILESTONE:2:current]
+   WRONG examples:   [MILESTONE:1:required] [MILESTONE:1:warning]  ← NEVER output these
 
 2. **REQ (Criteria Update)**: Format `[REQ:ID:VALUE:STATUS]`
    - Threshold criteria (ID prefix 1-): VALUE uses neutral keys — `MET`, `LACK_OF_FUNDS:13092`, `TBC`
    - Point criteria (ID prefix 2-): VALUE uses `KEY|POINTS` format — `B1|2`, `TBC|0`
    - STATUS: ONLY `required` (criterion met/passed) or `warning` (not met / TBC / at risk)
    - FORBIDDEN: lowercase "met" · status "info" · non-ASCII or Chinese characters in VALUE
+   - NO DUPLICATES: Output each REQ ID at most once per response. If you would repeat an ID, output only the most up-to-date value.
+   - ID NAMESPACE: Use ONLY the IDs defined for the ACTIVE visa type. NEVER mix IDs across visa types (e.g., do NOT use Chancenkarte IDs 1-1, 1-2, 1-3 in a Blue Card or Student Visa response).
 
-   REQ ID Reference:
+   REQ ID Reference (use ONLY the IDs for the active visa type):
    - Skilled Worker (FEG): 1:Qualification, 2:Salary, 3:Age-45-Rule, 4:Language
    - EU Blue Card:         1:Qualification, 2:Work-Contract, 3:Language-Bonus
+                           (Blue Card IDs are single digits: 1, 2, 3 — NOT 1-1, 1-2, etc.)
    - Chancenkarte:         Thresholds: 1-1:Financial-Proof, 1-2:Language, 1-3:Qualification
                            Points:     2-1:Language (e.g. B1|2), 2-2:Experience (e.g. 5_YEARS_EXP|3), 2-3:Age (e.g. UNDER_35|2), 2-4:Qualification (e.g. DEGREE|4), 2-5:Germany-Exp, 2-6:Partner
    - Student Visa:         1:Financial-Proof, 2:Language, 3:Health-Insurance, 4:Prior-Qualification
+                           (Student Visa IDs are single digits: 1, 2, 3, 4 — NOT 1-1, 1-2, etc.)
 
    REQ Tag Mapping — Chancenkarte Financial Proof (ID 1-1):
      User explicitly confirms funds ≥ €13,092  → [REQ:1-1:MET:required]
@@ -229,7 +264,9 @@ Strictly follow this format:
 (Your expert advice to the user, including Markdown citations [{citation_label} N])
 
 (at least one blank line)
-[MILESTONE:X:status] [REQ:X:VALUE:status] ...
+[MILESTONE:1:current] [REQ:1-1:TBC:warning] [REQ:1-2:B1:required] [REQ:2-1:B1|2:required]
+
+Note: Replace the example tags above with the correct tags for the current conversation. Remember: MILESTONE status = current/completed only.
 </OUTPUT_FORMAT>
 """
 
@@ -356,7 +393,9 @@ class PromptBuilder:
             prompt += (
                 f"\n\n<ACTIVE_VISA_CONTEXT>\n"
                 f"The user is currently viewing: **{request.visa_type.upper()}**. "
-                f"Prioritize information relevant to this visa category in your response and tags.\n"
+                f"Prioritize information relevant to this visa category. "
+                f"For REQ tags, use ONLY the ID namespace defined for {request.visa_type.upper()} "
+                f"(see REQ ID Reference above). Do NOT use IDs from other visa types.\n"
                 f"</ACTIVE_VISA_CONTEXT>"
             )
 

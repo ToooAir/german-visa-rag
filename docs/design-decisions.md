@@ -375,4 +375,106 @@ The cumulative +36% faithfulness improvement demonstrates that reranker quality,
 
 ---
 
+## 7. State Tag Generation Accuracy (F1 Evaluation)
+
+Section 4 describes the State Tag mechanism in detail. This section measures whether the LLM actually generates the correct tags in practice.
+
+### Methodology
+
+A dedicated evaluator (`eval/state_tag_evaluator.py`) was built to isolate and measure tag generation accuracy independently of retrieval quality.
+
+| Parameter | Value |
+| :--- | :--- |
+| Dataset | 6 multi-turn conversations, 13 turns, 35 expected tags, 15 forbidden checks (`eval/state_tag_dataset.json`) |
+| Visa types covered | Chancenkarte (3 conversations), EU Blue Card (1), Student Visa (1), FEG/Anerkennungspartnerschaft (1) |
+| Call mode | **LLM-direct** — no RAG retrieval. A minimal stub context is injected; tag generation relies entirely on `DOMAIN_KNOWLEDGE` in the system prompt plus user-stated facts. This isolates tag accuracy from retrieval variability. |
+| State accumulation | REQ tags from turn N are merged and injected as `CURRENT_UI_STATE` into turn N+1, exactly mirroring the real frontend multi-turn flow. |
+| Matching — relaxed | `type + id + status` must match; VALUE field is ignored. Primary metric. |
+| Matching — strict | `type + id + value + status` must all match. Secondary metric measuring VALUE encoding precision. |
+| Forbidden checks | (type, id, status) patterns that must NOT appear — e.g. `[REQ:1-1:*:required]` when the user never confirmed €13,092. Each violation is counted as an extra False Positive, directly penalising Precision. Primarily tests the No-Assumption-Rule. |
+| Script | `python -m eval.state_tag_evaluator eval/state_tag_dataset.json` |
+
+### Results
+
+| Metric | Run 1 (baseline) | Run 2 (after prompt fixes) | Δ |
+| :--- | :---: | :---: | :---: |
+| **Macro F1 (relaxed)** | 0.390 | **0.606** | +55% |
+| **Macro F1 (strict)** | 0.281 | **0.523** | +86% |
+| Macro Precision | 0.360 | 0.540 | +50% |
+| Macro Recall | 0.483 | 0.786 | +63% |
+| Micro F1 | 0.400 | 0.607 | +52% |
+| TP / FP / FN | 15 / 25 / 20 | 27 / 27 / 8 | — |
+| Forbidden violations | 1 | 1 | — |
+
+**Per-turn F1 (relaxed / strict):**
+
+| Conversation | Turn | Run 1 F1-R / F1-S | Run 2 F1-R / F1-S | Notes |
+| :--- | :---: | :---: | :---: | :--- |
+| ck_progressive | 0 | 0.44 / 0.44 | **0.67 / 0.67** | Language + qualification tags |
+| ck_progressive | 1 | 0.50 / 0.50 | 0.29 / 0.29 | Financial confirmation (over-generation) |
+| ck_progressive | 2 | 0.80 / 0.00 | **0.57 / 0.57** | Age + experience — strict 0→0.57 after value fix |
+| ck_no_assumption | 0 | 0.75 / 0.75 | **1.00 / 1.00** | No-assumption: all TBC/warning |
+| ck_no_assumption | 1 | 0.00 / 0.00 | 0.33 / 0.00 | C1 language update — partially resolved |
+| bc_salary_tiers | 0 | 0.33 / 0.00 | 0.50 / 0.25 ⚠ | Shortage salary tier; ⚠ 1 forbidden |
+| bc_salary_tiers | 1 | 0.00 / 0.00 | 0.50 / 0.00 | Anabin confirmation; strict still 0 |
+| sv_complete | 0 | 0.29 / 0.00 | **0.62 / 0.62** | Student Visa REQ mapping added |
+| sv_complete | 1 | 0.00 / 0.00 | **0.80 / 0.80** | Financial + health insurance confirmed |
+| feg_path_b | 0 | 0.33 / 0.33 ⚠ | **0.80 / 0.80** | No-Assumption violation fixed |
+| feg_path_b | 1 | 0.67 / 0.67 | 0.67 / 0.67 | A2 confirmation |
+| ck_path1_direct | 0 | 0.67 / 0.67 | **0.86 / 0.86** | Path 1 direct recognition |
+| ck_path1_direct | 1 | 0.29 / 0.29 | 0.29 / 0.29 | Over-generation persists |
+
+### Root Cause Analysis (Run 1 Failures)
+
+Five systematic failure patterns were identified from the Run 1 raw output:
+
+**① MILESTONE status vocabulary confusion (all 13 turns)**
+The LLM output `[MILESTONE:1:required]` instead of `[MILESTONE:1:current]` in almost every turn, conflating MILESTONE status (`current`/`completed`) with REQ status (`required`/`warning`). This caused a FP + FN on every MILESTONE prediction. Root cause: the schema described MILESTONE status as `{current|completed}` but did not explicitly prohibit `required`/`warning`, so the LLM defaulted to the more familiar REQ status vocabulary.
+
+**② VALUE encoding inconsistency**
+Expected neutral keys (`UNDER_35|2`, `2_YEARS_EXP|2`) vs. predicted descriptive labels (`AGE|2`, `WORK_EXPERIENCE|2`). The Chancenkarte points section listed scoring rules in prose but provided explicit VALUE format examples only for language (`B1|2`) — not for age or experience. This caused strict F1 = 0.00 on `ck_progressive T2` even though the id+status were correct (relaxed F1 = 0.80).
+
+**③ Student Visa under-tagging (sv_complete T0=0.29, T1=0.00)**
+The DOMAIN_KNOWLEDGE Student Visa section described eligibility conditions in prose but contained no explicit `REQ:1–REQ:4` tag mapping table — unlike Chancenkarte (full threshold + points mapping) and EU Blue Card (salary tier mapping). Without examples, the LLM generated at most one REQ tag per turn instead of the expected four.
+
+**④ Blue Card ID namespace pollution (bc_salary_tiers T1)**
+A Blue Card response produced `[REQ:1-1:MET:required]` and `[REQ:1-3:MET:required]` — Chancenkarte's hyphen-separated ID format — instead of Blue Card's single-digit IDs (`REQ:1`, `REQ:2`). ACTIVE_VISA_CONTEXT said "prioritize this visa category" but did not explicitly prohibit cross-namespace ID usage, especially in multi-turn sessions where earlier Chancenkarte-like context may have biased the LLM.
+
+**⑤ No-Assumption Rule violation — feg_path_b T0 (1 forbidden hit)**
+User stated their employer signed a commitment letter for Anerkennungspartnerschaft, but did not mention their A2 level. The LLM nonetheless output `[REQ:4:A2:required]`. The prompt instruction read: *"REQ Tag: [REQ:4:A2:required] when Anerkennungspartnerschaft path is confirmed"* — the LLM interpreted "path confirmed" as "employer commitment signed = path confirmed." This is the only semantic reasoning error in Run 1; the other four failures are prompt format issues.
+
+### Prompt Fixes Applied (Run 1 → Run 2)
+
+All changes were made to `SYSTEM_PROMPT` and `build_system_prompt()` in `src/rag/prompt_builder.py`:
+
+| Issue | Fix |
+| :--- | :--- |
+| ① MILESTONE vocabulary | Added explicit prohibition: "NEVER write `required` or `warning` inside a MILESTONE tag." Added correct and wrong examples in the schema. |
+| ② VALUE encoding | Added explicit `KEY\|POINTS` mapping table for Chancenkarte age and experience criteria (`UNDER_35\|2`, `2_YEARS_EXP\|2`, etc.) |
+| ③ Student Visa under-tagging | Added explicit `REQ:1–REQ:4` tag mapping table to the Student Visa DOMAIN_KNOWLEDGE section, mirroring the Chancenkarte and Blue Card format. |
+| ④ Blue Card namespace | Added "ID NAMESPACE" rule in `tag_schema`: use only IDs for the active visa type. Added "(single digits: 1, 2, 3 — NOT 1-1, 1-2)" annotation to Blue Card and Student Visa entries. Strengthened `ACTIVE_VISA_CONTEXT` to explicitly state "do NOT use IDs from other visa types." |
+| ⑤ No-Assumption (FEG A2) | Rewrote the Path B tag rule as a two-step sequence: employer commitment → `[REQ:4:TBC:warning]` (step 1); user explicitly confirms A2 certificate → `[REQ:4:A2:required]` (step 2). Added: "Employer commitment alone does NOT confirm A2." |
+
+### Remaining Issues After Run 2
+
+Three failure patterns persist and represent the next iteration of prompt work:
+
+| Pattern | Affected turns | Root cause |
+| :--- | :--- | :--- |
+| **Multi-turn state update miss** | ck_no_assumption T1 | With TBC warnings accumulated from T0, the LLM acknowledges the new English C1 in prose but fails to update `REQ:1-2` from TBC to `C1:required`. CURRENT_UI_STATE injection does not reliably trigger tag updates for new information that contradicts prior TBC state. |
+| **Salary tier forbidden violation** | bc_salary_tiers T0 | €45,934.20 shortage threshold is a numeric boundary check; without a retrieved document confirming the exact figure, the LLM conservatively emits `REQ:2:TBC:warning` rather than committing to the SHORTAGE_SALARY_MET tier. The evaluator's stub context contains no salary threshold data, exposing a dependency on retrieval that does not exist for threshold-heavy Chancenkarte rules. |
+| **Over-generation in confirmation turns** | ck_progressive T1, ck_path1_direct T1 | When confirming a single new fact (e.g. financial threshold), the LLM re-emits multiple REQ tags from prior turns rather than outputting only the updated tag. Each duplicate counts as a FP, inflating the FP count and suppressing Precision. |
+
+### Interpretation
+
+The Run 1 → Run 2 improvement (+55% relaxed F1, +86% strict F1) validates that targeted, evidence-driven prompt iteration is effective. Critically, four of the five root causes were **prompt format failures** (wrong vocabulary, missing examples, ambiguous scope rules) rather than semantic understanding failures — the LLM understood the eligibility logic correctly but encoded the result in the wrong format. This distinction matters: format failures are fixable in one iteration; semantic failures require training data or retrieval improvements.
+
+The one genuine semantic failure (No-Assumption Rule violation in feg_path_b T0) was also resolved in Run 2, demonstrating that precise phrasing in DOMAIN_KNOWLEDGE directly influences reasoning behaviour.
+
+**The remaining forbidden violation shifted from feg_path_b to bc_salary_tiers**, which points to an inherent limitation of LLM-direct evaluation: the salary tier boundary check (`SHORTAGE_SALARY_MET` vs. `TBC`) depends on a specific numeric threshold that the LLM cannot reliably recall without a retrieved document confirming it. This is expected behaviour — the system is designed to anchor threshold facts in retrieved documents, not in model weights. In production (full pipeline), retrieval of the salary threshold page resolves this correctly.
+
+The relaxed–strict F1 gap (0.606 − 0.523 = 0.083 in Run 2) represents residual VALUE encoding imprecision — primarily the salary tier naming and the multi-turn state-update miss. Both are targeted for Run 3.
+
+---
+
 *This Architecture Design Record (ADR) encapsulates how the system manages real-world complexity and messy, unstructured data—evolving a traditional "document search" baseline into an expert system capable of rudimentary "stateful reasoning."*

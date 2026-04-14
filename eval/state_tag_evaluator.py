@@ -143,6 +143,40 @@ def _is_forbidden_hit(predicted: ParsedTag, forbidden: dict) -> bool:
     )
 
 
+def _build_confirmed_state(
+    accumulated_reqs: list[dict],
+    accumulated_milestones: dict[str, str],
+) -> set[ParsedTag]:
+    """
+    Build the set of tags already confirmed in prior turns.
+    Used by _filter_idempotent_reemissions to identify re-emitted tags.
+    """
+    confirmed: set[ParsedTag] = set()
+    for r in accumulated_reqs:
+        confirmed.add(ParsedTag(tag_type="REQ", id=r["id"], value=r["value"], status=r["status"]))
+    for m_id, m_status in accumulated_milestones.items():
+        confirmed.add(ParsedTag(tag_type="MILESTONE", id=m_id, value=m_status, status=m_status))
+    return confirmed
+
+
+def _filter_idempotent_reemissions(
+    predicted: list[ParsedTag],
+    confirmed_state: set[ParsedTag],
+) -> list[ParsedTag]:
+    """
+    Remove predicted tags that are identical to already-confirmed state
+    (type + id + status + value all match).
+
+    LLM defensive re-emission of already-confirmed tags is correct behaviour
+    for state reconstructibility and must not be penalised as False Positive.
+
+    Phase-transition failures are still penalised: e.g. predicting
+    [MILESTONE:1:current] when [MILESTONE:2:current] is expected is NOT
+    filtered because the id differs.
+    """
+    return [tag for tag in predicted if tag not in confirmed_state]
+
+
 # ─── F1 computation ───────────────────────────────────────────────────────────
 
 
@@ -256,6 +290,7 @@ class StateTagEvaluator:
         turns: list[dict] = conversation["turns"]
 
         accumulated_requirements: list[dict] = []
+        accumulated_milestones: dict[str, str] = {}  # milestone_id → status
         results: list[TurnResult] = []
 
         for turn in turns:
@@ -295,12 +330,18 @@ class StateTagEvaluator:
 
             predicted = _parse_tags(raw_response)
 
+            # Filter idempotent re-emissions before scoring.
+            # Tags identical to already-confirmed prior-turn state are correct
+            # LLM behaviour (state reconstructibility) and must not count as FP.
+            confirmed_state = _build_confirmed_state(accumulated_requirements, accumulated_milestones)
+            scored_predicted = _filter_idempotent_reemissions(predicted, confirmed_state)
+
             # ── Relaxed F1 ──────────────────────────────────────────────────
             tp, fp, fn, precision, recall, f1, forbidden_hits = _compute_f1(
-                predicted, expected_tags, forbidden_tags, strict=False
+                scored_predicted, expected_tags, forbidden_tags, strict=False
             )
             # ── Strict F1 ───────────────────────────────────────────────────
-            s_tp, _, _, _, _, s_f1, _ = _compute_f1(predicted, expected_tags, forbidden_tags, strict=True)
+            s_tp, _, _, _, _, s_f1, _ = _compute_f1(scored_predicted, expected_tags, forbidden_tags, strict=True)
 
             result = TurnResult(
                 conversation_id=conv_id,
@@ -322,8 +363,12 @@ class StateTagEvaluator:
             )
             results.append(result)
 
-            # Accumulate state for next turn
+            # Accumulate state for next turn (use raw predicted, not filtered,
+            # so the full LLM state is carried forward regardless of scoring).
             accumulated_requirements = _merge_requirements(accumulated_requirements, predicted)
+            for tag in predicted:
+                if tag.tag_type == "MILESTONE":
+                    accumulated_milestones[tag.id] = tag.status
 
         return results
 
@@ -457,6 +502,113 @@ class StateTagEvaluator:
             logger.warning("MLflow logging failed: %s", exc)
 
 
+# ─── Retroactive rescore ──────────────────────────────────────────────────────
+
+
+def rescore_report(report_path: str, output_dir: str = "eval/results") -> dict:
+    """
+    Re-score an existing report JSON using the current evaluator logic
+    (including the idempotent re-emission filter) without making new LLM calls.
+
+    Reads predicted_tags from each turn, simulates multi-turn state accumulation,
+    applies _filter_idempotent_reemissions, and recomputes F1 metrics.
+
+    Args:
+        report_path: Path to an existing state_tag_report_*.json file.
+        output_dir:  Directory for the revised report (suffix: _revised).
+
+    Returns:
+        Revised report dict (also written to disk).
+    """
+    with open(report_path, "r", encoding="utf-8") as f:
+        old_report = json.load(f)
+
+    # Group turns by conversation_id, preserving turn order
+    conv_turns: dict[str, list[dict]] = {}
+    for turn in old_report["turns"]:
+        cid = turn["conversation_id"]
+        conv_turns.setdefault(cid, []).append(turn)
+
+    revised_turns: list[TurnResult] = []
+    conv_count = len(conv_turns)
+
+    for cid, turns in conv_turns.items():
+        accumulated_requirements: list[dict] = []
+        accumulated_milestones: dict[str, str] = {}
+
+        for turn in sorted(turns, key=lambda t: t["turn_index"]):
+            # Reconstruct ParsedTag list from stored dict representation
+            predicted: list[ParsedTag] = [
+                ParsedTag(
+                    tag_type=t["type"],
+                    id=t["id"],
+                    value=t["value"],
+                    status=t["status"],
+                )
+                for t in turn.get("predicted_tags", [])
+            ]
+            expected_tags: list[dict] = turn.get("expected_tags", [])
+            forbidden_tags: list[dict] = turn.get("forbidden_tags", [])
+
+            # Apply idempotent re-emission filter
+            confirmed_state = _build_confirmed_state(accumulated_requirements, accumulated_milestones)
+            scored_predicted = _filter_idempotent_reemissions(predicted, confirmed_state)
+
+            # Recompute F1 with filtered predictions
+            tp, fp, fn, precision, recall, f1, forbidden_hits = _compute_f1(
+                scored_predicted, expected_tags, forbidden_tags, strict=False
+            )
+            s_tp, _, _, _, _, s_f1, _ = _compute_f1(scored_predicted, expected_tags, forbidden_tags, strict=True)
+
+            revised_turns.append(
+                TurnResult(
+                    conversation_id=cid,
+                    turn_index=turn["turn_index"],
+                    user_message=turn.get("user_message", ""),
+                    predicted_tags=scored_predicted,
+                    expected_tags=expected_tags,
+                    forbidden_tags=forbidden_tags,
+                    raw_response="",  # not re-stored; original report has raw_response_tail
+                    tp=tp,
+                    fp=fp,
+                    fn=fn,
+                    precision=precision,
+                    recall=recall,
+                    f1=f1,
+                    strict_tp=s_tp,
+                    strict_f1=s_f1,
+                    forbidden_violations=forbidden_hits,
+                )
+            )
+
+            # Advance accumulated state (use raw predicted, not filtered)
+            accumulated_requirements = _merge_requirements(accumulated_requirements, predicted)
+            for tag in predicted:
+                if tag.tag_type == "MILESTONE":
+                    accumulated_milestones[tag.id] = tag.status
+
+    aggregate = StateTagEvaluator._aggregate(revised_turns, conv_count)
+    turn_details = [StateTagEvaluator._serialise_turn(r) for r in revised_turns]
+
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    source_stem = Path(report_path).stem
+    output_path = f"{output_dir}/{source_stem}_revised.json"
+
+    report = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "source_report": report_path,
+        "rescore_note": "Retroactive rescore: idempotent re-emission filter applied. No new LLM calls.",
+        "aggregate": aggregate,
+        "turns": turn_details,
+    }
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2, ensure_ascii=False)
+
+    logger.info("Revised report saved to %s", output_path)
+    return report
+
+
 # ─── CLI entry point ──────────────────────────────────────────────────────────
 
 
@@ -497,8 +649,21 @@ def _print_report(report: dict) -> None:
 
 
 async def main() -> None:
-    dataset_path = sys.argv[1] if len(sys.argv) > 1 else "eval/state_tag_dataset.json"
+    args = sys.argv[1:]
 
+    # --rescore <report.json> [<report2.json> ...] — retroactive rescore mode
+    if args and args[0] == "--rescore":
+        report_paths = args[1:] if len(args) > 1 else []
+        if not report_paths:
+            print("Usage: python -m eval.state_tag_evaluator --rescore <report.json> [...]")
+            sys.exit(1)
+        for path in report_paths:
+            print(f"\nRescoring: {path}")
+            report = rescore_report(path)
+            _print_report(report)
+        return
+
+    dataset_path = args[0] if args else "eval/state_tag_dataset.json"
     evaluator = StateTagEvaluator()
     report = await evaluator.evaluate_all(dataset_path)
     _print_report(report)

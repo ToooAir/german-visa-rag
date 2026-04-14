@@ -475,6 +475,95 @@ The one genuine semantic failure (No-Assumption Rule violation in feg_path_b T0)
 
 The relaxed–strict F1 gap (0.606 − 0.523 = 0.083 in Run 2) represents residual VALUE encoding imprecision — primarily the salary tier naming and the multi-turn state-update miss. Both are targeted for Run 3.
 
+### Evaluator Enhancement — Idempotent Re-emission Filter (Run 3 Prerequisite)
+
+Before executing Run 3, the evaluator logic was extended and revised baselines were established.
+
+**Problem:** The LLM's defensive behaviour of re-emitting already-confirmed tags (e.g. `[REQ:1-2:B1:required]` in turn 2 when it was already confirmed in turn 1) is semantically correct — it ensures downstream consumers can reconstruct state from a single turn. However, the original evaluator penalised every such re-emission as a False Positive, artificially suppressing Precision across almost every multi-turn conversation.
+
+**Fix (`eval/state_tag_evaluator.py`):** A `_filter_idempotent_reemissions()` function was added. Before `_compute_f1()` is called, any predicted tag that is **identical** (type + id + status + value) to an already-confirmed tag in `CURRENT_UI_STATE` is removed from the scored set. MILESTONE state is now tracked separately via `accumulated_milestones`. Phase-transition failures (e.g. predicting `[MILESTONE:1:current]` when `[MILESTONE:2:current]` is expected) are intentionally **not** filtered because the id differs.
+
+**Retroactive rescore (`--rescore` CLI flag):** Both existing reports were re-scored using the new filter without new LLM calls, establishing comparable revised baselines:
+
+| Metric | Run 1 revised | Run 2 revised |
+| :--- | :---: | :---: |
+| Macro F1 (relaxed) | 0.338 | **0.641** |
+| Macro F1 (strict) | 0.229 | **0.584** |
+| Macro Precision | 0.322 | 0.660 |
+| Macro Recall | 0.406 | 0.709 |
+| TP / FP / FN | 14 / 19 / 21 | 25 / 15 / 10 |
+| Forbidden violations | 1 | 1 |
+
+The filter confirmed that most of Run 2's 27 FPs were genuine re-emission artefacts: after filtering, FP dropped from 27 to 15. `feg_path_b T1` improved from 0.667 to 1.000 under the revised metric — validating that the LLM was correct all along, and the evaluator was penalising correct behaviour.
+
+### Run 3 — After Plan A–H Prompt and Evaluator Revisions (2026-04-14)
+
+**Changes applied (all in `src/rag/prompt_builder.py` unless noted):**
+
+| Plan | Change | Target |
+| :--- | :--- | :--- |
+| A | REQ:2-4 disambiguation — explicitly restricted to `bedingt vergleichbar` only; CORRECT/WRONG examples added | ck_progressive T0/T1 regression |
+| B | REQ ID Reference: `2:Work-Contract` → `2:Salary` for Blue Card | bc_salary_tiers duplicate REQ:2 |
+| C | Blue Card REQ:1 qualification mapping table added (TBC/MET/PARTIAL/H_MINUS/ZAB_PENDING) | bc_salary_tiers VALUE encoding |
+| D | Chancenkarte language tag complete table (A1–C2, English B2/C1) + Path 1 Fachkräfte exemption (§ 18 Abs. 3 AufenthG) | ck_no_assumption T1 |
+| E | STATE UPDATE RULE: explicit `resolves` definition + PRESERVE rule (no downgrade of `required` tags) | multi-turn state update + PRESERVE |
+| F | Evaluator idempotent re-emission filter (described above) | FP inflation across all turns |
+| G | `src/rag/constants.py` created — Blue Card salary thresholds with 2026 label, previous-year annotation, recent graduate (≤3 yrs) third tier; injected dynamically into SYSTEM_PROMPT | maintenance + bc_salary_tiers |
+| H | FEG Path B TWO-STEP extended: Step 1 now emits both `[REQ:4:TBC:warning]` and `[REQ:1:TBC:warning]` | feg_path_b T0 FN |
+
+**Results (against revised Run 2 baseline):**
+
+| Metric | Run 2 revised (baseline) | **Run 3** | Δ |
+| :--- | :---: | :---: | :---: |
+| **Macro F1 (relaxed)** | 0.641 | **0.590** | −0.051 ⚠ |
+| **Macro F1 (strict)** | 0.584 | **0.564** | −0.020 |
+| Macro Precision | 0.660 | 0.551 | −0.109 |
+| Macro Recall | 0.709 | **0.722** | +0.013 |
+| TP / FP / FN | 25 / 15 / 10 | 25 / 18 / 10 | FP +3 |
+| Forbidden violations | 1 | **0** ✅ | −1 |
+
+**Per-turn F1 (relaxed / strict):**
+
+| Conversation | Turn | Run 2 rev F1-R/S | Run 3 F1-R/S | Change | Notes |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| ck_progressive | 0 | 0.667 / 0.667 | 0.545 / 0.545 | ↓ | within-turn dup; REQ:1-3:MET still missing |
+| ck_progressive | 1 | 0.667 / 0.667 | 0.667 / 0.667 | = | 1 within-turn dup remains |
+| ck_progressive | 2 | 0.667 / 0.667 | 0.667 / 0.667 | = | 2 within-turn dups remain |
+| ck_no_assumption | 0 | 1.000 / 1.000 | 1.000 / 1.000 | = ✅ | stable |
+| ck_no_assumption | 1 | 0.500 / 0.000 | **0.000 / 0.000** | ↓↓ | STATE UPDATE rule had no effect; all predictions filtered as re-emissions |
+| bc_salary_tiers | 0 | 0.500 / 0.250 ⚠ | **0.667 / 0.333** | ↑ ✅ | forbidden violation eliminated (Plan B) |
+| bc_salary_tiers | 1 | 0.000 / 0.000 | 0.000 / 0.000 | = | T0 wrong REQ:1:MET cascades into T1 |
+| sv_complete | 0 | 0.615 / 0.615 | **0.667 / 0.667** | ↑ ✅ | |
+| sv_complete | 1 | 0.667 / 0.667 | 0.571 / 0.571 | ↓ | PRESERVE rule failed; LLM downgraded confirmed tags |
+| feg_path_b | 0 | 0.800 / 0.800 | 0.750 / 0.750 | ↓ | Plan H effective (REQ:1:TBC now present) but within-turn dups add FP |
+| feg_path_b | 1 | 1.000 / 1.000 | 0.667 / 0.667 | ↓ | single within-turn dup on REQ:4:A2 causes FP |
+| ck_path1_direct | 0 | 0.857 / 0.857 | 0.800 / 0.800 | ↓ | REQ:1-3:MET still not emitted |
+| ck_path1_direct | 1 | 0.400 / 0.400 | **0.667 / 0.667** | ↑ ✅ | |
+
+### Run 3 Analysis
+
+The macro F1 regression (−0.051) is dominated by a single new failure pattern introduced by the prompt revisions: **within-turn tag duplication**. In 7 of 13 turns, the LLM emits the same tag twice in a single response, likely because Plans D and E created competing output pressures (D says "always emit BOTH tags together"; E says "emit updated tags that resolve TBC"). The regex parser captures both instances, inflating FP by an estimated 8 counts. Eliminating this alone would push Run 3 well above the revised Run 2 baseline.
+
+**What genuinely improved:**
+- Forbidden violations: 1 → 0 (Plan B eliminated the duplicate REQ:2 / label-as-value error)
+- bc_salary_tiers T0 relaxed F1: 0.500 → 0.667
+- sv_complete T0: 0.615 → 0.667
+- ck_path1_direct T1: 0.400 → 0.667
+- feg_path_b T0 now correctly emits REQ:1:TBC:warning (Plan H validated)
+
+**Remaining failure patterns (Run 4 targets):**
+
+| Priority | Pattern | Affected turns | Root cause |
+| :--- | :--- | :--- | :--- |
+| **P0** | Within-turn tag duplication | 7 turns | LLM outputs same tag in prose AND in tag section; evaluator dedup needed |
+| P1 | STATE UPDATE rule non-functional | ck_no_assumption T1 | LLM re-emits full T0 state unchanged; all filtered as re-emissions → FP=0 FN=3 |
+| P2 | Chancenkarte REQ:1-3:MET not emitted | ck_progressive T0, ck_path1_direct T0 | No positive trigger example for qualification threshold tag |
+| P3 | bc_salary_tiers REQ:1 wrong (TBC vs MET) | bc_salary_tiers T0→T1 cascade | LLM assumes degree verified without anabin confirmation |
+| P4 | MILESTONE:2 phase transition | bc_salary_tiers T1, ck_path1_direct T1 | No explicit rule defining when to advance MILESTONE |
+| P5 | PRESERVE rule failure | sv_complete T1 | LLM re-derives and downgrades confirmed REQ:2, REQ:4 from MET to TBC |
+
+P0 is a pure evaluator fix requiring no LLM calls. The remaining failures (P1–P5) are prompt engineering tasks to be addressed in Run 4.
+
 ---
 
 *This Architecture Design Record (ADR) encapsulates how the system manages real-world complexity and messy, unstructured data—evolving a traditional "document search" baseline into an expert system capable of rudimentary "stateful reasoning."*

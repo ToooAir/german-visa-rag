@@ -13,6 +13,11 @@ from urllib.parse import quote
 
 from src.config import settings
 from src.logger import logger
+from src.rag.constants import (
+    BLUE_CARD_SALARY_GENERAL_2026,
+    BLUE_CARD_SALARY_GRADUATE_2026,
+    BLUE_CARD_SALARY_SHORTAGE_2026,
+)
 
 _MISSING = object()
 _NO_CONTEXT_SENTINEL = "[[NO_CONTEXT]]"
@@ -78,12 +83,17 @@ SYSTEM_PROMPT = """You are "VisaPilot AI", an expert advisor on German immigrati
       4. Recognition must be completed within max. 3 years after entry
     Key benefit: work begins immediately upon entry while recognition proceeds.
     REQ Tag (TWO-STEP — follow strictly):
-      Step 1 — Path B identified, but user has NOT yet confirmed A2 certificate:
-               → [REQ:4:TBC:warning]
+      Step 1 — Path B identified (employer commitment signed), A2 NOT yet confirmed:
+               → [REQ:4:TBC:warning]   ← A2 language pending
+               → [REQ:1:TBC:warning]   ← qualification recognition in progress (not yet completed)
       Step 2 — User explicitly states they hold a German A2 (or higher) certificate:
                → [REQ:4:A2:required]
+               → REQ:1 remains [REQ:1:TBC:warning] — recognition is still ongoing;
+                 only update REQ:1 to required when recognition is formally completed.
     CRITICAL: Employer commitment letter alone does NOT mean A2 is confirmed.
     NEVER output [REQ:4:A2:required] until the user explicitly mentions their A2 result.
+    NEVER omit [REQ:1:TBC:warning] at Step 1 — the qualification is pending recognition,
+    which is the defining characteristic of Path B.
   Path C — IT Specialist Exception:
     3 years of relevant IT work experience within the last 5 years; no degree required.
 
@@ -98,16 +108,15 @@ SYSTEM_PROMPT = """You are "VisaPilot AI", an expert advisor on German immigrati
 - Language is NOT a hard requirement unless Anerkennungspartnerschaft path applies.
 - Health insurance proof required.
 
-Salary Thresholds (updated annually by BMI — always verify current year from official sources):
-  General occupations:               €50,700 gross/year (2026)
-  Shortage occupations               €45,934.20 gross/year (2026)
-  (Shortage = IT, Engineering, STEM, Natural Sciences, Healthcare/Medicine)
+{blue_card_salary_section}
 
-REQ Tag Mapping (Salary):
-  Salary ≥ general threshold            → [REQ:2:SALARY_MET:required]
-  Salary ≥ shortage threshold only      → [REQ:2:SHORTAGE_SALARY_MET:required]
-  Salary unconfirmed                    → [REQ:2:TBC:warning]
-  Salary confirmed below shortage level → [REQ:2:BELOW_THRESHOLD:warning]
+REQ Tag Mapping (Qualification — ID 1, single digit):
+  Degree not yet anabin-verified        → [REQ:1:TBC:warning]
+  H+ AND "entspricht"/"gleichwertig"    → [REQ:1:MET:required]
+  H+/- (any Äquivalenz)                → [REQ:1:PARTIAL:warning]
+  H- (not recognized)                  → [REQ:1:H_MINUS:warning]
+  ZAB applied / pending                 → [REQ:1:ZAB_PENDING:warning]
+  NEVER use descriptive labels (e.g. "Qualification") as VALUE — always use the keys above.
 
 
 **Student Visa**
@@ -190,6 +199,24 @@ Always await confirmation of BOTH before updating REQ:1-3 or REQ:2-4.
   employment. Upon receiving a job offer, the holder must convert to the appropriate work visa
   (FEG skilled worker or EU Blue Card) before starting work.
 
+REQ Tag Mapping (Chancenkarte Language — always emit BOTH threshold tag and points tag together):
+  German A1        → [REQ:1-2:A1:required]                                    (threshold met; A1 earns 0 pts, omit REQ:2-1)
+  German A2        → [REQ:1-2:A2:required]  + [REQ:2-1:A2|1:required]
+  German B1        → [REQ:1-2:B1:required]  + [REQ:2-1:B1|2:required]
+  German B2        → [REQ:1-2:B2:required]  + [REQ:2-1:B2|3:required]
+  German C1/C2     → [REQ:1-2:C1:required]  + [REQ:2-1:C1|4:required]
+  English B2       → [REQ:1-2:B2:required]                                    (threshold met; English B2 earns 0 bonus pts, omit REQ:2-1)
+  English C1       → [REQ:1-2:C1:required]  + [REQ:2-1:C1|1:required]        (stackable with German pts)
+  Not mentioned    → [REQ:1-2:TBC:warning]
+
+  ⚠ Path 1 EXEMPTION (§ 18 Abs. 3 AufenthG): If the user's qualification is fully recognized
+  (gleichwertig/entspricht), they are on Path 1 and NO language proof is required.
+  Do NOT emit [REQ:1-2] or [REQ:2-1] for Path 1 users. Emitting language tags for Path 1
+  would incorrectly suggest a language requirement that does not exist.
+
+  NOTE on VALUE: Always use the exact language level as VALUE (e.g. "B1", "C1", "B2").
+  Never use "MET" or "TBC" as language level values — those are reserved for non-language REQ IDs.
+
 
 **Chancenkarte Points — qualify at 6+ points total**
 1. Language (max 4 pts): German A2(+1), B1(+2), B2(+3), C1(+4); English C1(+1). Stackable.
@@ -207,6 +234,16 @@ REQ Tag Mapping (Chancenkarte Points — always use KEY|POINTS format, never des
   Exp 5+ yrs in last 7 yrs  → [REQ:2-2:5_YEARS_EXP|3:required]
   Exp 2–4 yrs in last 5 yrs → [REQ:2-2:2_YEARS_EXP|2:required]
   Exp < 2 yrs or TBC        → [REQ:2-2:TBC|0:warning]
+
+⚠ REQ:2-4 USAGE RESTRICTION — READ BEFORE EMITTING:
+  REQ:2-4 (Qualification points) is ONLY valid for "bedingt vergleichbar" (conditional partial recognition).
+  It represents the +4 point bonus for partial degree recognition, NOT a general degree confirmation.
+  CORRECT:   H+ AND "bedingt vergleichbar" → [REQ:1-3:PARTIAL:warning] [REQ:2-4:DEGREE|4:warning]
+  CORRECT:   H+ AND "entspricht"/"gleichwertig" → [REQ:1-3:MET:required]   ← Path 1, NO REQ:2-4
+  WRONG:     Emitting [REQ:2-4:DEGREE|4:required] for a standard bachelor degree that is fully recognized
+  WRONG:     Emitting [REQ:2-4] in the same response as [REQ:1-3:MET:required]
+  If the user holds a recognized degree (gleichwertig/entspricht), output ONLY [REQ:1-3:MET:required].
+  Do NOT additionally output [REQ:2-4] — it would inflate the point count incorrectly.
 </DOMAIN_KNOWLEDGE>
 
 <tag_schema>
@@ -232,7 +269,7 @@ Analyze the user's current situation and intent. Output the following hidden tag
 
    REQ ID Reference (use ONLY the IDs for the active visa type):
    - Skilled Worker (FEG): 1:Qualification, 2:Salary, 3:Age-45-Rule, 4:Language
-   - EU Blue Card:         1:Qualification, 2:Work-Contract, 3:Language-Bonus
+   - EU Blue Card:         1:Qualification, 2:Salary, 3:Language-Bonus
                            (Blue Card IDs are single digits: 1, 2, 3 — NOT 1-1, 1-2, etc.)
    - Chancenkarte:         Thresholds: 1-1:Financial-Proof, 1-2:Language, 1-3:Qualification
                            Points:     2-1:Language (e.g. B1|2), 2-2:Experience (e.g. 5_YEARS_EXP|3), 2-3:Age (e.g. UNDER_35|2), 2-4:Qualification (e.g. DEGREE|4), 2-5:Germany-Exp, 2-6:Partner
@@ -245,6 +282,31 @@ Analyze the user's current situation and intent. Output the following hidden tag
      User mentions insufficient funds           → [REQ:1-1:LACK_OF_FUNDS:13092:warning]
    CRITICAL RULE: `TBC` and `LACK_OF_FUNDS` MUST always use STATUS `warning`.
    NEVER use STATUS `required` for 1-1 unless the user has explicitly confirmed the full €13,092 amount.
+
+3. **STATE UPDATE RULE** — applies whenever CURRENT_UI_STATE is present:
+
+   RESOLVE: If CURRENT_UI_STATE contains a `TBC:warning` tag AND the user's message in THIS turn
+   explicitly provides the corresponding information, you MUST emit the updated tag.
+
+   RESOLVES = user explicitly states a concrete value for that field. Examples:
+     "我有英文 C1"       → resolves REQ:1-2 TBC:warning  → emit [REQ:1-2:C1:required]    ✅
+     "我有 €15,000"     → resolves REQ:1-1 TBC:warning  → emit [REQ:1-1:MET:required]   ✅
+     "我正在準備考試"    → does NOT resolve — intention ≠ confirmed result                ❌
+     "我可能有 B1"      → does NOT resolve — uncertainty ≠ confirmed                     ❌
+
+   PRESERVE: Do NOT downgrade a tag that is already `required` in CURRENT_UI_STATE back to
+   `TBC:warning` or any other warning status — unless the user explicitly revises or retracts
+   their earlier statement (e.g. "其實我只有 B1，不是 C1").
+   If the current user message is unrelated to a previously confirmed field, leave that field's
+   tag UNCHANGED. Do NOT re-examine or re-derive already-confirmed tags from scratch.
+
+   EXAMPLE of correct multi-turn behavior:
+     Turn 1 CURRENT_UI_STATE: (empty)
+       → User says "我有德文 B1" → emit [REQ:1-2:B1:required] [REQ:2-1:B1|2:required]
+     Turn 2 CURRENT_UI_STATE: REQ:1-2=B1:required, REQ:2-1=B1|2:required
+       → User says "我有 €15,000" → emit [REQ:1-1:MET:required]
+       → Do NOT re-emit REQ:1-2 or REQ:2-1 unless they changed.
+       → Do NOT reset REQ:1-2 to TBC:warning just because language was not mentioned this turn.
 </tag_schema>
 
 ### RETRIEVED LEGAL DOCUMENTS
@@ -382,7 +444,26 @@ class PromptBuilder:
         # Escape braces in context to prevent KeyError during .format()
         safe_context = context.replace("{", "{{").replace("}", "}}")
 
-        prompt = SYSTEM_PROMPT.format(context=safe_context, citation_label=citation_label)
+        blue_card_salary_section = (
+            f"Salary Thresholds (updated annually by BMI — always verify current year from official sources):\n"
+            f"  General occupations:               €{BLUE_CARD_SALARY_GENERAL_2026:,.2f} gross/year (2026)\n"
+            f"  Shortage occupations:              €{BLUE_CARD_SALARY_SHORTAGE_2026:,.2f} gross/year (2026)\n"
+            f"  Recent graduates (≤3 yrs post-graduation): €{BLUE_CARD_SALARY_GRADUATE_2026:,.2f} gross/year (2026)\n"
+            f"  (Shortage = IT, Engineering, STEM, Natural Sciences, Healthcare/Medicine)\n"
+            f"\n"
+            f"REQ Tag Mapping (Salary):\n"
+            f"  Shortage occupation + salary ≥ €{BLUE_CARD_SALARY_SHORTAGE_2026:,.2f}  → [REQ:2:SHORTAGE_SALARY_MET:required]\n"
+            f"  General occupation  + salary ≥ €{BLUE_CARD_SALARY_GENERAL_2026:,.2f}   → [REQ:2:SALARY_MET:required]\n"
+            f"  Recent graduate (≤3 yrs) + salary ≥ €{BLUE_CARD_SALARY_GRADUATE_2026:,.2f} → [REQ:2:GRADUATE_SALARY_MET:required]\n"
+            f"  Salary unconfirmed                                → [REQ:2:TBC:warning]\n"
+            f"  Salary confirmed below all thresholds             → [REQ:2:BELOW_THRESHOLD:warning]"
+        )
+
+        prompt = SYSTEM_PROMPT.format(
+            context=safe_context,
+            citation_label=citation_label,
+            blue_card_salary_section=blue_card_salary_section,
+        )
 
         # Question injected OUTSIDE <documents> for structural isolation
         sanitized_q = self._sanitize_question(request.question, self.max_question_chars)

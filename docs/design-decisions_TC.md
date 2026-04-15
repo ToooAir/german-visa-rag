@@ -368,6 +368,267 @@ V1 與 V2 一樣受到 `<documents>` 隔離機制的保護，但 V2 需要在**�
 
 累計高達 +36% 的 Faithfulness 提升，證實了「Reranker 品質」、「Prompt 生成限制」與「知識庫完整度」是三個可以疊加且能獨立衡量的操控槓桿——這也正是本管線採用模組化架構的設計初衷。
 
+## 7. State Tag 產生準確度 (F1 評測)
+
+第 4 節詳細說明了 State Tag 的機制。本節則是在實務上測量 LLM 是否準確產生了正確的 Tag。
+
+### 方法論 (Methodology)
+
+我們建立了一個獨立的評測腳本 (`eval/state_tag_evaluator.py`)，將 Tag 產生的準確度獨立出來測量，不受檢索品質影響。
+
+| 參數 | 數值 |
+| :--- | :--- |
+| Dataset (資料集) | 6 個多輪對話、共 13 輪，35 個預期 Tag、15 項禁止事項檢查 (`eval/state_tag_dataset.json`) |
+| 涵蓋的簽證類型 | Chancenkarte (機遇卡, 3 個對話), EU Blue Card (歐盟藍卡, 1), Student Visa (學生簽證, 1), FEG/Anerkennungspartnerschaft (技術移民, 1) |
+| 呼叫模式 | **直接呼叫 LLM (LLM-direct)** — 無 RAG 檢索。注入最小化的假 Context；Tag 的產生完全依賴 System prompt 中的 `DOMAIN_KNOWLEDGE` 與使用者提供的事實。此舉排除了檢索變異對正確率的干擾。 |
+| 狀態累積 | 將第 N 輪出現的 REQ tag 合併，並作為 `CURRENT_UI_STATE` 注入第 N+1 輪中，完全還原真實前端多輪對話的流程。 |
+| 放寬比對 (Relaxed) | `type + id + status` 必須吻合；忽略 VALUE 欄位。此為主要衡量指標。 |
+| 嚴格比對 (Strict) | `type + id + value + status` 全部必須吻合。此為次要衡量指標，用來衡量 VALUE 編碼的精確度。 |
+| 禁止事項檢查 | (type, id, status) 絕對不能出現的組合 — 例如：當使用者從未確認過 €13,092，卻出現 `[REQ:1-1:*:required]`。每次違規都會額外計為一次 False Positive (誤報)，直接懲罰 Precision 分數。這主要用來測試「無預設假設規則」(No-Assumption-Rule)。 |
+| 腳本 | `python -m eval.state_tag_evaluator eval/state_tag_dataset.json` |
+
+### 評測結果
+
+| 指標 | Run 1 (基準線) | Run 2 (Prompt 修正後) | Δ |
+| :--- | :---: | :---: | :---: |
+| **Macro F1 (放寬)** | 0.390 | **0.606** | +55% |
+| **Macro F1 (嚴格)** | 0.281 | **0.523** | +86% |
+| Macro Precision | 0.360 | 0.540 | +50% |
+| Macro Recall | 0.483 | 0.786 | +63% |
+| Micro F1 | 0.400 | 0.607 | +52% |
+| TP / FP / FN | 15 / 25 / 20 | 27 / 27 / 8 | — |
+| Forbidden 違規次數 | 1 | 1 | — |
+
+### 根本原因分析 (Run 1 失敗案例)
+
+找出了五種系統性的失敗模式 (Failure patterns)：
+
+| # | 問題點 | 根本原因 |
+| :--- | :--- | :--- |
+| ① | MILESTONE 詞彙混淆 | 將 MILESTONE 狀態 (`current`) 與 REQ 狀態 (`required`) 混為一談。 |
+| ② | VALUE 編碼不一致 | LLM 產生了敘述性的標籤，而非精準且中立的 key 值。 |
+| ③ | 學生簽證標籤短缺 | `DOMAIN_KNOWLEDGE` 中缺乏明確的 `REQ:1-4` 映射表 (Mapping table)。 |
+| ④ | 歐盟藍卡 ID 命名空間污染 | 將 Chancenkarte 的 ID 格式 (`1-1`) 誤用於歐盟藍卡規則中。 |
+| ⑤ | 違反 No-Assumption Rule | 直接將雇主承諾信與 A2 語言能力確認畫上等號。 |
+
+### 已套用的 Prompt 修正 (Run 1 → Run 2)
+
+所有變更皆實作於 `src/rag/prompt_builder.py` 中的 `SYSTEM_PROMPT` 與 `build_system_prompt()`：
+
+| 問題點 | 修復方式 |
+| :--- | :--- |
+| ① MILESTONE 詞彙 | 新增嚴格禁止事項：「絕不在 MILESTONE tag 中寫 `required` 或 `warning`」。並在 Schema 中加入正確與錯誤的範例。 |
+| ② VALUE 編碼 | 針對 Chancenkarte 年齡與經驗標準，加入明確的 `KEY\|POINTS` 映射表（例如：`UNDER_35\|2`, `2_YEARS_EXP\|2` 等）。 |
+| ③ 學生簽證標籤短缺 | 於學生簽證 DOMAIN_KNOWLEDGE 區塊新增明確的 `REQ:1–REQ:4` tag 映射表，比照 Chancenkarte 與歐盟藍卡的格式辦理。 |
+| ④ 歐盟藍卡命名空間 | 於 `tag_schema` 中新增「ID 命名空間」規則：只可使用當前活動簽證類型的 ID。在歐盟藍卡與學生簽證項目加註「(單一數字：1, 2, 3 — 絕非 1-1, 1-2)」。同時強化 `ACTIVE_VISA_CONTEXT` 明確指示「禁止使用其他簽證的 ID」。 |
+| ⑤ No-Assumption (FEG A2) | 將技術移民 (Path B) 標籤規則改寫為兩步流程：雇主承諾 → `[REQ:4:TBC:warning]` (第一步)；使用者明確確認 A2 證明 → `[REQ:4:A2:required]` (第二步)。補充說明：「僅憑雇主承諾不代表已獲得 A2 認證。」 |
+
+### 數據解讀
+
+Run 1 → Run 2 的大幅進步證實了精準的 Prompt 疊代非常有效。關鍵在於，**格式錯誤** (詞彙錯誤、缺乏範例) 是可以在一次疊代中修復的，而依賴 Context 的檢查 (例如嚴格的薪金門檻) 則正確反映出 LLM 是依賴檢索出來的文件內容，而非模型內部固有的知識。
+
+### 評測工具強化 — 冪等重發過濾器 (Idempotent Re-emission Filter) (Run 3 前置任務)
+
+在執行 Run 3 之前，擴充了評測工具的邏輯，並建立了新的改版基準線。
+
+**問題：** LLM 將已經確認過的 Tag 再次輸出 (如在第 2 輪吐出在第 1 輪已確認過的 `[REQ:1-2:B1:required]`)，就語義上這是防禦性且正確的行為 — 確保下游只需看當前這一輪就能重建狀態。然而，原本的 Evaluator 會把每一次重發都當作一個 False Positive (誤報)，導致每一個多輪對話的 Precision 分數都被嚴重人為壓低。
+
+**解法 (`eval/state_tag_evaluator.py`)：** 增加了 `_filter_idempotent_reemissions()` 函式。在叫用 `_compute_f1()` 之前，如果預測的 Tag 與 `CURRENT_UI_STATE` 內已確認的 Tag **完全吻合** (type + id + status + value) ，就會從計分名單上剔除。MILESTONE 狀態現在改由 `accumulated_milestones` 分開追蹤。若發生階段轉換錯誤 (如預期 `[MILESTONE:2:current]` 卻預測出 `[MILESTONE:1:current]`) 則刻意**不會**被剔除，因為兩者 id 不同。
+
+**回溯重新計分 (Retroactive rescore)：** 加入過濾器後，Run 2 的 FP 直接從 27 降到 15，建立出 **Run 2 修訂後基準線：Macro F1(放寬) 0.641、Macro F1(嚴格) 0.584**。這證實了大部分 FP 其實是正確但冗餘的重發結果。
+
+### Run 3 — 套用 Plan A–H 的 Prompt 與 Evaluator 修訂 (2026-04-14)
+
+**套用的變更 (除非另有說明，皆位於 `src/rag/prompt_builder.py`)：**
+
+| 方案 | 變更 | 目標對象 |
+| :--- | :--- | :--- |
+| A | REQ:2-4 消歧義 — 明確將範圍限制在 `bedingt vergleichbar` (有條件等同)；新增正確 / 錯誤範例 | ck_progressive T0/T1 分數倒退 |
+| B | REQ ID 修訂：歐盟藍卡由 `2:Work-Contract` 改為 `2:Salary` | bc_salary_tiers 中重複的 REQ:2 |
+| C | 歐盟藍卡 REQ:1 資格映射表新增 (TBC/MET/PARTIAL/H_MINUS/ZAB_PENDING) | bc_salary_tiers VALUE 編碼 |
+| D | Chancenkarte 語言標籤完整對應表 (A1–C2, 英文 B2/C1) + Path 1 針對專才 (Fachkräfte) 的豁免條款 (§ 18 Abs. 3 AufenthG) | ck_no_assumption T1 |
+| E | 狀態更新規則 (STATE UPDATE RULE)：明確定義 `resolves` (解決) 動作 + 新增 PRESERVE (保留) 規則 (不得自行將 `required` 的標籤降級) | 多輪對話狀態更新 + PRESERVE |
+| F | Evaluator 冪等重發過濾器 (如上所述) | 每一輪 FP 異常暴增 |
+| G | 建立 `src/rag/constants.py` — 帶有 2026 年標籤的歐盟藍卡門檻，並標註前一年數字，以及應屆畢業生 (≤3 年) 的第三層級；動態注入 SYSTEM_PROMPT | 後續維護 + bc_salary_tiers |
+| H | 技術移民 Path B 兩步式擴展：步驟 1 改為同時吐出 `[REQ:4:TBC:warning]` 與 `[REQ:1:TBC:warning]` | feg_path_b T0 FN (漏報) |
+
+**評測結果 (對比修訂後的 Run 2 基準線)：**
+
+| 指標 | Run 2 修訂版 (基準線) | **Run 3** | Δ |
+| :--- | :---: | :---: | :---: |
+| **Macro F1 (放寬)** | 0.641 | **0.590** | −0.051 ⚠ |
+| **Macro F1 (嚴格)** | 0.584 | **0.564** | −0.020 |
+| Macro Precision | 0.660 | 0.551 | −0.109 |
+| Macro Recall | 0.709 | **0.722** | +0.013 |
+| TP / FP / FN | 25 / 15 / 10 | 25 / 18 / 10 | FP +3 |
+| Forbidden 違規次數 | 1 | **0** ✅ | −1 |
+
+### Run 3 分析
+
+Macro F1 的衰退 (−0.051) 起因於一個新的失敗模式：**單輪對話內標籤重複 (within-turn tag duplication)**。在 13 輪對話中就有 7 輪出現，LLM 冗餘地在文字段落與標籤區塊都各吐出了一遍相同的 Tag，導致 FP 大增。即便如此，違規事件已經清零 (1 → 0)，且數個個別對話輪次都有顯著進步。
+
+**剩餘的失敗模式 (Run 4 目標)：**
+
+| 優先級 | 模式 | 影響輪次 | 根本原因 |
+| :--- | :--- | :--- | :--- |
+| **P0** | 單一輪次標籤重複 | 7 輪 | LLM 在文字段落及標籤區段都輸出了同一個 tag；需要將 Evaluator 進行去重複化 (dedup) |
+| P1 | STATE UPDATE 規則無效 | ck_no_assumption T1 | LLM 直接將 T0 的狀態一字不漏重發；全部被判斷為重發而被過濾掉 → FP=0 FN=3 |
+| P2 | Chancenkarte 漏掉 REQ:1-3:MET | ck_progressive T0, ck_path1_direct T0 | 資格門檻標籤缺乏被觸發的正面範例 |
+| P3 | bc_salary_tiers REQ:1 狀態錯誤 (TBC 與 MET) | bc_salary_tiers T0→T1 骨牌效應 | LLM 認為就算沒有 anabin 確認，學歷也等同被驗證 |
+| P4 | MILESTONE:2 階段切換失敗 | bc_salary_tiers T1, ck_path1_direct T1 | 缺乏明確規則定義何時要邁入下一個 MILESTONE |
+| P5 | 違反 PRESERVE 保留規則 | sv_complete T1 | LLM 重新推導，將已經是 MET 狀態的 REQ:2、REQ:4 自行降級回 TBC |
+
+P0 純粹是評測工具的修正，不需呼叫 LLM。剩餘的缺失 (P1–P5) 則是要在 Run 4 解決的 Prompt 工程課題。
+
+### Run 4 — 套用 P0–P5 Prompt 與 Evaluator 修訂 (2026-04-14)
+
+**套用的變更：**
+
+| 項目 | 檔案 | 變更 | 目標對象 |
+| :--- | :--- | :--- | :--- |
+| P0a | `eval/state_tag_evaluator.py` | 實作 `_dedup_tags()`，使用完美符合的 `(type, id, status, value)` 作為 key — 在計分之前先去除單輪內的重複項 | 因文字與標籤區重複輸出造成的 FP 膨脹 |
+| P0b | `src/rag/prompt_builder.py` | OUTPUT_FORMAT：「Tags 只准在 tag 區塊輸出一次；絕不可將 REQ tags 寫在一般會話題詞內」 | 單輪對話內標籤重複的根本原因 |
+| P1 | `src/rag/prompt_builder.py` | 改寫 STATE UPDATE RULE 狀態更新規則：制定 SCAN→RESOLVE→OMIT (掃描→解決→省略) 三步驟，配上 ck_no_assumption T1 範例；加入文意與系統標籤的一致性規則 | ck_no_assumption T1 狀態更新完全失敗問題 |
+| P2 | `src/rag/prompt_builder.py` | 新增 Chancenkarte 資格 REQ 標籤對應表 (REQ:1-3)：大學學歷 → 立即設為 `MET:required`；建立「立刻發送 (EMIT IMMEDIATELY)」規則；無須等待 anabin 即可通過該特定門檻 | ck_progressive T0, ck_path1_direct T0 的 REQ:1-3:MET FN 缺失 |
+| P3a | `src/rag/prompt_builder.py` | 歐盟藍卡 NO-ASSUMPTION RULE 嚴格化：「說出『我有學位』≠ 等同 anabin 驗證；必須要 H+ 等級與 entspricht/gleichwertig (等同) 都具備才能給 MET；加入錯誤/正確範例」 | bc_salary_tiers T0 對 REQ:1:MET 的過度肯定 |
+| P3b | `src/rag/prompt_builder.py` | 歐盟藍卡薪金區塊：缺工職業職稱列表 (如軟體工程師、開發者等)；實施兩步驟分類流程 (先判定職業再查薪水門檻)；加入以歐元金額舉例的實際推演案例 | bc_salary_tiers T0 的 SHORTAGE_SALARY_MET 判定 |
+| P4 | `src/rag/prompt_builder.py` | 將 PRESERVE RULE 獨立升級為 tag_schema 中的 第 4 點：將「鎖定語言 (LOCKED language)」、「唯有改變才輸出 (EMIT ONLY WHAT CHANGED)」；加入具有具體 ID 的嚴禁模式；sv_complete 學生簽證範例 | sv_complete T1 由「已定案」遭降級回「TBC」的問題 |
+| P5 | `src/rag/prompt_builder.py` | 將 MILESTONE:2 前進觸發器 (Advancement Trigger) 加進第 1 點中：依照各簽證種類設立 AND-logic 的觸發條件；加入 Path 1 的語言豁免；建立「首度獲得確認 (first become confirmed)」規則；bc_salary_tiers 推演案例 | MILESTONE:2 永遠不會達成問題 |
+
+**評測結果：**
+
+| 指標 | Run 3 | Run 3+P0a (回溯計分) | **Run 4** | 對比 R3+P0a 差異 |
+| :--- | :---: | :---: | :---: | :---: |
+| **Macro F1 (放寬)** | 0.590 | 0.726 | **0.783** | +0.057 ↑ |
+| **Macro F1 (嚴格)** | 0.564 | — | **0.768** | — |
+| Macro Precision | 0.551 | — | **0.788** | — |
+| Macro Recall | 0.722 | — | **0.788** | — |
+| TP / FP / FN | 25 / 18 / 10 | — | **28 / 5 / 7** | FP大幅減少 −13 ↓↓ |
+| Forbidden 違規次數 | 0 | 0 | **0** ✅ | = |
+
+### Run 4 分析
+
+Run 4 取得了迄今最佳的 F1 表現 (**放寬下 0.783，嚴格下 0.768**)，主要的功勞是由於 Evaluator 去除重複標籤，使 FP 從 18 大幅降至 5。重新設計的 STATE UPDATE 與 SHORTAGE (缺工領域) 類別判斷規則成效顯著，讓多達六個對話輪次得到了完美的 1.0 分數。
+
+**剩餘的失敗模式 (Run 5 目標)：**
+
+| 優先級 | 模式 | 影響輪次 | 根本原因 |
+| :--- | :--- | :--- | :--- |
+| **P0** | Evaluator 重發過濾器過激 | ck_no_assumption T1 | 當預期的 TBC 標籤 (REQ:1-3) 與 T0 狀態一致時，過濾器會將其直接刪除；解法：若該標籤列於 `expected_tags` 中，則免除過濾 |
+| P1 | bc_salary_tiers 無視 P3a No-Assumption | bc_salary_tiers T0, T1 骨牌效應 | LLM 認定「我有學歷」就等同於是透過 anabin 驗證的；單純的正確/錯誤範例不足夠；需要更強的定錨框架 (例如：將「聲明學歷」視同「聲明薪金」 — 要等待官方確認) |
+| P2 | ck_path1_direct T1 違反 Path 1 語言豁免 | ck_path1_direct T1 | LLM 對於 Path 1 用戶仍輸出了 REQ:1-2:TBC:warning；DOMAIN_KNOWLEDGE 的 Path 1 豁免並未與 tag_schema 交叉參照 |
+| P3 | Chancenkarte Path 1 沒有觸發 MILESTONE:2 | ck_path1_direct T1 | 當剩下的 TBC 項目只有財力證明之一時，未能吻合 tag_schema 第 1 項目下的觸發條件 |
+| P4 | sv_complete T1 只實作了部分 PRESERVE — REQ:2 被降級 | sv_complete T1 | LLM 從學生簽證的情境重新推敲出語言能力不足；需要更為明確的：「T0 的 REQ:2 = 鎖住 (LOCKED)」範例 |
+| P5 | ck_progressive T0 沒有輸出 REQ:1-3 | ck_progressive T0 | 「EMIT IMMEDIATELY」只會在有具體提到 anabin 時生效，單憑一句「我有學歷」不夠；這可能需要回頭審視這是否算是資料集設計的問題 (LLM發射 REQ:1-1:TBC 是錯報還是真的資料有瑕疵？) |
+
+### Run 5 — 套用 P0–P4 Prompt 與 Evaluator 修訂 (2026-04-14)
+
+**套用的變更：**
+
+| 項目 | 檔案 | 變更 | 目標對象 |
+| :--- | :--- | :--- | :--- |
+| P0 | `eval/state_tag_evaluator.py` | `_compute_f1()` 將 FP/FN 分流計算：FP 採用過濾後的預測，FN 採用原始未過濾預測——若重發的 tag 原本就位於 `expected_tags` 中，將不再計入 FN 懲罰 | 評測工具的重發過濾器在正常標定為預期的 TBC tag 上產生不合理的 FN 懲罰 |
+| P1 | `src/rag/prompt_builder.py` | 歐盟藍卡的 NO-ASSUMPTION RULE 利用「聲明學歷 = 聲明薪金」的類比錨點做強化：「薪金：用戶宣稱 50,000 歐元 → 需等待門檻核對；學歷：用戶宣稱有學士學位 → 需等待 anabin」；針對僅有 H+ (缺乏 Äquivalenz/等效性) 的案例增加 WRONG 模式 | bc_salary_tiers 的 No-Assumption 完全失效；純範例缺乏強制力 |
+| P2 | `src/rag/prompt_builder.py` + `eval/state_tag_dataset.json` | 修正 Chancenkarte REQ:1-3 映射表：移除「大學學歷 → MET:required」及「2年專職 → MET:required」這兩行；移除「EMIT IMMEDIATELY — 不用等 anabin」指令；新增「提及大學/專科學位，但 anabin 仍在處理 → TBC:warning」，並借鏡歐盟藍卡概念建立 WRONG/CORRECT 示範區塊。資料集 ck_progressive T0: REQ:1-3 更新為 TBC，新增 REQ:1-1:TBC 為預期，將 REQ:1-3:required 放入禁止名單 | 因為 Run 4 中 P2 的映射表勘誤 — Chancenkarte 的 REQ:1-3:MET 門檻其實跟藍卡一樣需要同具 anabin 的 H+ 及 entspricht/gleichwertig 判定 |
+| P3 | `src/rag/prompt_builder.py` | Path 1 豁免升級為 PATH 1 完整協議： RULE 1 (每一回合皆享有語言豁免，請檢查 CURRENT_UI_STATE 是否有 REQ:1-3:MET)； RULE 2 (MILESTONE:2 觸發要件 = 只要達到 REQ:1-1:MET 及 REQ:1-3:MET 即可)；提供連續回合 T0/T1 推演案例。 tag_schema MILESTONE:2 Path 1 觸發機制加入指向 DOMAIN_KNOWLEDGE 的參考，附加「豁免 (WAIVED) — 不要等待、不可釋出」 | ck_path1_direct T1: 無視 Path 1 的身份依舊輸出 REQ:1-2；未能觸發 MILESTONE:2 |
+| P4 | `src/rag/prompt_builder.py` | 學生簽證 REQ Tag 映射表：在語言類別後補上 MULTI-TURN 註解 — 「倘若 CURRENT_UI_STATE 已經顯示 REQ:2:MET:required，絕對不得再以任何形式重發 REQ:2；新增以『完全省略』作為指令的 WRONG/CORRECT 範例」 | sv_complete T1 REQ:2 違反 PRESERVE 保留規則；領域推測覆蓋了全域的 tag_schema 規範 |
+
+**評測結果：**
+
+| 指標 | Run 4 | **Run 5** | Δ |
+| :--- | :---: | :---: | :---: |
+| **Macro F1 (放寬)** | 0.783 | **0.861** | +0.078 ↑ |
+| **Macro F1 (嚴格)** | 0.768 | **0.861** | +0.093 ↑ |
+| Macro Precision | 0.788 | **0.859** | +0.071 |
+| Macro Recall | 0.788 | **0.869** | +0.081 |
+| TP / FP / FN | 28 / 5 / 7 | **31 / 2 / 4** | FP −3, FN −3 |
+| Forbidden 違規次數 | 0 | **0** ✅ | = |
+
+### Run 5 分析
+
+Run 5 獲得 **0.861 的放寬 F1 與 0.861 嚴格 F1** —— 這是放寬分數與嚴格分數首次取得一致，證明所有預測 Tag 在 VALUE 編碼上已達到完美的精細度。透過將 No-Assumption 規則加上「學歷聲明視同薪金考量」的動態類比，展現了強大的成效，一口氣將先前失敗的輪次拉滿至 1.0 滿分。唯一嚴重的退步（Regression）出現在 `ck_no_assumption` T1 (0.800 → 0.000)，此問題值得針對性除錯。
+
+### 資料集 Bugs 修正 (2026-04-14, 於 Run 5 之後)
+
+在建立 Run 6 基準線之前，發現並修復了 `eval/state_tag_dataset.json` 中的兩個結構性 bug。
+
+**Bug 1 — sv_complete T1: 遺漏了 MILESTONE:2 (計分影響：拉升了天花板)**
+
+在單一回合內確認所有條件的對話都會預期出現 MILESTONE:2:current (如 bc_salary_tiers T1, ck_path1_direct T1)，而 sv_complete T1 是唯一的例外 — 這是一個內部的不一致性。如果 LLM 其實已經答對並正確給出 MILESTONE:2，它會被判為 FP (誤報)，導致分數的天花板被不合理地死扣。解法：在 sv_complete T1 的 expected_tags 內加上 `{"type": "MILESTONE", "id": "2", "value": "current", "status": "current"}`。
+
+**Bug 2 — ck_path1_direct T0 + T1: REQ:1-2 並不在 forbidden_tags 中 (嚴重性被低估)**
+
+這個對話場景的明確目標是測試如果申請者走 Path 1 流程，就永遠不該被要求語言能力證明。LLM 在 Run 3–5 時不斷反覆釋出 `[REQ:1-2:TBC:warning]`，這在以前只被當作一般 FP 計算，未列為一個嚴重的違規事件。後台報告會分開追蹤 forbidden 事件判定違規嚴重程度。解法：於 T0 與 T1 雙邊都加入對 REQ:1-2 的 `warning` 及 `required` 狀態違規禁令。
+
+**Run 5 修訂版基準 (Run 5 corrected baseline)：** 在修正上述 Bug 後重新為整個資料集計分，建立修訂後的基準：**Macro F1 (放寬) 0.843**，準確指出了遺漏的 MILESTONE 以及切實發生的 Path 1 語言邊界禁例。
+
+### ck_no_assumption T1 衰退 (Regression) 分析 (2026-04-14)
+
+透過一個 2×2 的交叉分析矩陣，目標釐清 `ck_no_assumption` T1 F1 狂跌 (0.800 → 0.000) 問題，是出在 P0 的評測機制，還是 LLM 的異常判斷。
+
+**預測的 Tags：**
+- Run 4: `[REQ:1-2:C1:required] [REQ:2-1:C1|1:required] [REQ:1-3:TBC:warning]` ← 正確的狀態更新
+- Run 5: `[REQ:1-2:TBC:warning] [REQ:1-3:TBC:warning]` ← 徹底重演了 T0 時的僵局
+
+| | 舊版 Evaluator (FP/FN 不分流) | 新版 Evaluator (FP/FN 分流計算) |
+| :--- | :---: | :---: |
+| **Run 4 預言** | F1 = 0.800 | F1 = **1.000** |
+| **Run 5 預言** | F1 = **0.000** | F1 = **0.000** |
+
+**結論：本次衰退 100% 肇因於 LLM 行為。無論哪個版本的評量工都在 Run 5 發揮了 0.000 計分判定。** P0 的評測工具改版不是主因。
+
+找出的誘發起因：在 Run 5 的 P3 階段 (PATH 1 完整協議)，增列了大量「禁止輸出 REQ:1-2」的語言相關限制。在 ck_no_assumption T1 此回合，LLM 的本文敘述露出明確的 OR-logic 條件誤判：*"英文 C1 確認，但德文未滿足要求，因為至少需要德文 A1 或英文 B2 的水平"* — 這代表 LLM 雖然知曉使用者具備英文 C1 等級，但還是誤判為未達門檻；因為它錯將要求解讀成「必須同時擁有德文 A1 *與* 英文 B2」而非 *「二擇一」*。這等錯誤並未發生在 Run 4 中，故高機率是 P3 所添加的各種限制規章無端綁架了 LLM 思維。
+
+**剩餘的失敗模式 (Run 6 目標 — 回顧 Run 5 後再確認)：**
+
+| 優先範圍 | 模式 | 受波及輪段 | 根本原因 | 改善方針 |
+| :--- | :--- | :--- | :--- | :--- |
+| **R6-1** | 系統未能從 CURRENT_UI_STATE 偵測出 Path 1 | ck_path1_direct T1 | 對路徑判定與 STATE UPDATE 這兩個部分發生牽連；明明預載的狀態已經有 REQ:1-3:MET，LLM 還是發言 "語言證照未通過" | 切分開修補：(1) 直接靠 DOMAIN_KNOWLEDGE 實做一塊針對 PATH；(2) 完整保留 STATE UPDATE RULE 區 |
+| **R6-2** | Chancenkarte 語言能力的 OR 邏輯破功 (P3 的衰退) | ck_no_assumption T1 | LLM 把「德語 A1 或英文 B2」當作兩項兼具；P3 在限制標記發送時讓 LLM 把重點看擰了 | 補貼直觀的 OR-logic 判定式句型："English C1 ≥ English B2 → threshold MET regardless of German level" (擁有英文 C1 即可直接及格過關); 同時強調 P3 RULE 1 是只為 Path 1 族群專用的法則 |
+| **R6-3** | 全局面的 PRESERVE RULE 保留規則 (捨棄補丁打法) | sv_complete T1 (REQ:4) | 指著千篇一律的 REQ 去加 MULTI-TURN NOTE 未免太不 Scalable；更遑論 P4 中還遺留了 REQ:4 成了漏網之魚 | 把原本打散在各項裡的 NOTE 納編進 tag_schema 當中變更為一條明確的高級指令：「凡是出現 required 於當前 CURRENT_UI_STATE 中的標籤，若非獲得使用者口語表明退回修改，絕不容許退步為 warning 發出」 |
+| **R6-4** | 大學學歷提出卻丟不出 REQ:1-3:TBC (敘述本文與 tag 分道揚鑣) | ck_progressive T0 | 接連試著塞了好幾手硬性指令卻都無法啟動；LLM 口上言之成理就是不生那支 tag | 加載 Chain-of-thought (思想鏈條) 進行把關自核：於 OUTPUT_FORMAT 尾端附上機制「在關起 tag 段準備遞交前，請自行複核，確保每個於本文提出說嘴的申辦資格審案皆實質關聯在特定的 REQ tag 表單內」 |
+
+### Run 6 — 實踐 Plan R6-1~R6-4 解決方案 (2026-04-15)
+
+- Report: `eval/results/state_tag_report_20260415_194547.json`
+- Macro F1 (放寬): **0.912** | Macro F1 (嚴格): **0.874**
+- TP/FP/FN: 32/3/4 | Forbidden: 1 (ck_path1_direct T0)
+
+**所套用的變更 (R6-1 ~ R6-4):**
+
+| # | 目標 | 說明 |
+| :--- | :--- | :--- |
+| R6-1 | sv_complete T0 REQ:4 轉譯改善 | 添加詳細規則與中文對照供「入學通知書 → REQ:4:MET:required EMIT IMMEDIATELY」一例使用 |
+| R6-2 | sv_complete T1 加減問題除錯 | 新增這行例句表示 "€12,000 > €11,904 → REQ:1:MET:required" ；絕對不准學生簽證中亂入使用到 13092 的條件 |
+| R6-3 | ck_no_assumption T1 REQ:2-1 | 放上明確標定 STATE UPDATE 使用到的 WRONG (錯示) 例句表達：「如果通過英文判定就同時綁定 REQ:1-2 AND REQ:2-1」不准 |
+| R6-4 | MILESTONE:2 觸發與 MILESTONE:1 汰換 | 加註解「MILESTONE:1 被 MILESTONE:2 取代，禁止同時出現」；並於 SELF-CHECK 自驗條款補進第八項目 |
+
+**Run 6 各回合表現明細：**
+
+| 會話題型 | 輪次 T | F1-R (放寬) | F1-S (嚴格) | TP | FP | FN | 備註說明 |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| ck_progressive | 0 | 0.889 | 0.889 | 4 | 0 | 1 | REQ:1-3:TBC 未初啟連線 (待解) |
+| ck_progressive | 1 | 1.000 | 1.000 | 1 | 0 | 0 | ✅ |
+| ck_progressive | 2 | 1.000 | 1.000 | 2 | 0 | 0 | ✅ |
+| ck_no_assumption | 0 | 1.000 | 1.000 | 4 | 0 | 0 | ✅ |
+| ck_no_assumption | 1 | 1.000 | 0.500 | 2 | 0 | 0 | 放寬下 ✅; 嚴格值 0.500: REQ:2-1 因為 VALUE 的格式寫法問題 |
+| bc_salary_tiers | 0 | 1.000 | 1.000 | 3 | 0 | 0 | ✅ |
+| bc_salary_tiers | 1 | 1.000 | 1.000 | 2 | 0 | 0 | ✅ MILESTONE:2 觸發修復順遂 |
+| sv_complete | 0 | 1.000 | 1.000 | 5 | 0 | 0 | ✅ REQ:4 入學信牽線排除阻礙 |
+| sv_complete | 1 | 0.800 | 0.800 | 2 | 0 | 1 | MILESTONE:2 仍舊不見觸動 (待解) |
+| feg_path_b | 0 | 1.000 | 1.000 | 3 | 0 | 0 | ✅ |
+| feg_path_b | 1 | 1.000 | 1.000 | 1 | 0 | 0 | ✅ |
+| ck_path1_direct | 0 | 0.500 | 0.500 | 2 | 3 | 1 | REQ:1-3:MET 不見彈回；伴隨釋放 forbidden 的 REQ:1-2 (待解) |
+| ck_path1_direct | 1 | 0.667 | 0.667 | 1 | 0 | 1 | MILESTONE:2 缺席 (受制於 T0 問題一併牽連) |
+
+### 待解決問題清單 (Run 7 開工目標)
+
+| # | 議題方向 | 波及輪段 | 說明 |
+| :--- | :--- | :--- | :--- |
+| R7-1 | ck_progressive T0: REQ:1-3 TBC 無法發動宣告 | T0 | 單說具有學士學歷卻無從牽動 TBC 告誡標籤 (本文敘述與標籤脫鉤現象) |
+| R7-2 | sv_complete T1: MILESTONE:2 觸發罷工 | T1 | 全項目 4 個 REQs 給足了 MET，LLM 依舊未前推抵達 MILESTONE:2 |
+| R7-3 | ck_path1_direct T0/T1: REQ:1-3:MET 失蹤 + 打臉發送嚴禁的 REQ:1-2 | T0+T1 | 在陳述內容明指 Path 1 沒錯卻無法如願轉換成儲存標籤；後續隨之牽連摧毀 T1 |
+
 ---
 
-*這份架構決策紀錄（ADR）展示了系統如何處理真實世界的複雜業務邏輯與非標準格式資料，將傳統的單純「文件檢索」轉變為一個初步具備「狀態推理」的專家系統。*
+*此份系統架構決策紀錄 (ADR) 完整展現如何讓核心系統駕馭現實商務中雜亂無章的繁雜條件，成功將尋常的「文件檢索」基準線躍現為具備基礎「狀態推理」的專家系統引擎。*

@@ -159,6 +159,27 @@ def _build_confirmed_state(
     return confirmed
 
 
+def _dedup_tags(tags: list[ParsedTag]) -> list[ParsedTag]:
+    """
+    Remove exact within-turn duplicates (type + id + status + value all identical).
+
+    The LLM sometimes outputs the same tag in both the conversational prose and
+    the formal tag block at the end of a response. Each instance is captured by
+    the regex parser, inflating FP counts. Only true duplicates (all four fields
+    identical) are removed — tags with the same (type, id) but different status
+    or value are kept, so a legitimate same-turn state update (e.g. TBC → C1)
+    is not lost.
+    """
+    seen: set[tuple[str, str, str, str]] = set()
+    result: list[ParsedTag] = []
+    for tag in tags:
+        key = (tag.tag_type, tag.id, tag.status, tag.value)
+        if key not in seen:
+            seen.add(key)
+            result.append(tag)
+    return result
+
+
 def _filter_idempotent_reemissions(
     predicted: list[ParsedTag],
     confirmed_state: set[ParsedTag],
@@ -185,12 +206,24 @@ def _compute_f1(
     expected_tags: list[dict],
     forbidden_tags: list[dict],
     strict: bool = False,
+    unfiltered_predicted: Optional[list[ParsedTag]] = None,
 ) -> tuple[int, int, int, float, float, float, int]:
     """
     Compute TP, FP, FN, Precision, Recall, F1, and forbidden violation count.
 
     Forbidden tag hits are counted as additional False Positives so that
     No-Assumption Rule violations penalise precision directly.
+
+    Args:
+        predicted: Filtered predictions (re-emissions removed) — used for TP and FP.
+        expected_tags: Ground-truth tags for this turn.
+        forbidden_tags: Tag patterns that must not appear.
+        strict: If True use strict matching (id+value+status); else relaxed (id+status).
+        unfiltered_predicted: Raw predictions before the idempotent re-emission filter.
+            When provided, an expected tag that was not matched by *filtered* predictions
+            is still not counted as FN if it appears in *unfiltered* predictions — i.e.
+            the LLM re-emitted it correctly and should not be penalised for doing so.
+            If None, FN is computed solely from filtered predictions (legacy behaviour).
     """
     match_fn = _strict_match if strict else _relaxed_match
 
@@ -212,7 +245,15 @@ def _compute_f1(
     # Forbidden violations count as extra FP
     forbidden_hits = sum(1 for pred in predicted for forb in forbidden_tags if _is_forbidden_hit(pred, forb))
     fp = fp_from_unmatched + forbidden_hits
-    fn = len(expected_tags) - tp
+
+    # FN: expected tags not matched by filtered predictions.
+    # If unfiltered_predicted is provided, a re-emitted tag (present in unfiltered but
+    # removed by the filter) is NOT a false negative — the LLM produced it correctly.
+    unmatched_expected = [exp for i, exp in enumerate(expected_tags) if i not in matched_expected]
+    if unfiltered_predicted is not None:
+        fn = sum(1 for exp in unmatched_expected if not any(match_fn(pred, exp) for pred in unfiltered_predicted))
+    else:
+        fn = len(unmatched_expected)
 
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
@@ -328,7 +369,7 @@ class StateTagEvaluator:
                 logger.error("LLM call failed [%s] turn %d: %s", conv_id, turn_index, exc)
                 raw_response = ""
 
-            predicted = _parse_tags(raw_response)
+            predicted = _dedup_tags(_parse_tags(raw_response))
 
             # Filter idempotent re-emissions before scoring.
             # Tags identical to already-confirmed prior-turn state are correct
@@ -337,11 +378,23 @@ class StateTagEvaluator:
             scored_predicted = _filter_idempotent_reemissions(predicted, confirmed_state)
 
             # ── Relaxed F1 ──────────────────────────────────────────────────
+            # FP: scored_predicted (filtered); FN: checks unfiltered to avoid
+            # penalising the LLM for re-emitting already-confirmed TBC tags.
             tp, fp, fn, precision, recall, f1, forbidden_hits = _compute_f1(
-                scored_predicted, expected_tags, forbidden_tags, strict=False
+                scored_predicted,
+                expected_tags,
+                forbidden_tags,
+                strict=False,
+                unfiltered_predicted=predicted,
             )
             # ── Strict F1 ───────────────────────────────────────────────────
-            s_tp, _, _, _, _, s_f1, _ = _compute_f1(scored_predicted, expected_tags, forbidden_tags, strict=True)
+            s_tp, _, _, _, _, s_f1, _ = _compute_f1(
+                scored_predicted,
+                expected_tags,
+                forbidden_tags,
+                strict=True,
+                unfiltered_predicted=predicted,
+            )
 
             result = TurnResult(
                 conversation_id=conv_id,
@@ -538,15 +591,18 @@ def rescore_report(report_path: str, output_dir: str = "eval/results") -> dict:
 
         for turn in sorted(turns, key=lambda t: t["turn_index"]):
             # Reconstruct ParsedTag list from stored dict representation
-            predicted: list[ParsedTag] = [
-                ParsedTag(
-                    tag_type=t["type"],
-                    id=t["id"],
-                    value=t["value"],
-                    status=t["status"],
-                )
-                for t in turn.get("predicted_tags", [])
-            ]
+            # Apply exact-match dedup (same key as evaluate_conversation)
+            predicted: list[ParsedTag] = _dedup_tags(
+                [
+                    ParsedTag(
+                        tag_type=t["type"],
+                        id=t["id"],
+                        value=t["value"],
+                        status=t["status"],
+                    )
+                    for t in turn.get("predicted_tags", [])
+                ]
+            )
             expected_tags: list[dict] = turn.get("expected_tags", [])
             forbidden_tags: list[dict] = turn.get("forbidden_tags", [])
 
@@ -554,11 +610,21 @@ def rescore_report(report_path: str, output_dir: str = "eval/results") -> dict:
             confirmed_state = _build_confirmed_state(accumulated_requirements, accumulated_milestones)
             scored_predicted = _filter_idempotent_reemissions(predicted, confirmed_state)
 
-            # Recompute F1 with filtered predictions
+            # Recompute F1: FP from filtered, FN from unfiltered
             tp, fp, fn, precision, recall, f1, forbidden_hits = _compute_f1(
-                scored_predicted, expected_tags, forbidden_tags, strict=False
+                scored_predicted,
+                expected_tags,
+                forbidden_tags,
+                strict=False,
+                unfiltered_predicted=predicted,
             )
-            s_tp, _, _, _, _, s_f1, _ = _compute_f1(scored_predicted, expected_tags, forbidden_tags, strict=True)
+            s_tp, _, _, _, _, s_f1, _ = _compute_f1(
+                scored_predicted,
+                expected_tags,
+                forbidden_tags,
+                strict=True,
+                unfiltered_predicted=predicted,
+            )
 
             revised_turns.append(
                 TurnResult(

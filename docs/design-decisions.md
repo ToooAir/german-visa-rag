@@ -406,42 +406,17 @@ A dedicated evaluator (`eval/state_tag_evaluator.py`) was built to isolate and m
 | TP / FP / FN | 15 / 25 / 20 | 27 / 27 / 8 | — |
 | Forbidden violations | 1 | 1 | — |
 
-**Per-turn F1 (relaxed / strict):**
-
-| Conversation | Turn | Run 1 F1-R / F1-S | Run 2 F1-R / F1-S | Notes |
-| :--- | :---: | :---: | :---: | :--- |
-| ck_progressive | 0 | 0.44 / 0.44 | **0.67 / 0.67** | Language + qualification tags |
-| ck_progressive | 1 | 0.50 / 0.50 | 0.29 / 0.29 | Financial confirmation (over-generation) |
-| ck_progressive | 2 | 0.80 / 0.00 | **0.57 / 0.57** | Age + experience — strict 0→0.57 after value fix |
-| ck_no_assumption | 0 | 0.75 / 0.75 | **1.00 / 1.00** | No-assumption: all TBC/warning |
-| ck_no_assumption | 1 | 0.00 / 0.00 | 0.33 / 0.00 | C1 language update — partially resolved |
-| bc_salary_tiers | 0 | 0.33 / 0.00 | 0.50 / 0.25 ⚠ | Shortage salary tier; ⚠ 1 forbidden |
-| bc_salary_tiers | 1 | 0.00 / 0.00 | 0.50 / 0.00 | Anabin confirmation; strict still 0 |
-| sv_complete | 0 | 0.29 / 0.00 | **0.62 / 0.62** | Student Visa REQ mapping added |
-| sv_complete | 1 | 0.00 / 0.00 | **0.80 / 0.80** | Financial + health insurance confirmed |
-| feg_path_b | 0 | 0.33 / 0.33 ⚠ | **0.80 / 0.80** | No-Assumption violation fixed |
-| feg_path_b | 1 | 0.67 / 0.67 | 0.67 / 0.67 | A2 confirmation |
-| ck_path1_direct | 0 | 0.67 / 0.67 | **0.86 / 0.86** | Path 1 direct recognition |
-| ck_path1_direct | 1 | 0.29 / 0.29 | 0.29 / 0.29 | Over-generation persists |
-
 ### Root Cause Analysis (Run 1 Failures)
 
-Five systematic failure patterns were identified from the Run 1 raw output:
+Five systematic failure patterns were identified:
 
-**① MILESTONE status vocabulary confusion (all 13 turns)**
-The LLM output `[MILESTONE:1:required]` instead of `[MILESTONE:1:current]` in almost every turn, conflating MILESTONE status (`current`/`completed`) with REQ status (`required`/`warning`). This caused a FP + FN on every MILESTONE prediction. Root cause: the schema described MILESTONE status as `{current|completed}` but did not explicitly prohibit `required`/`warning`, so the LLM defaulted to the more familiar REQ status vocabulary.
-
-**② VALUE encoding inconsistency**
-Expected neutral keys (`UNDER_35|2`, `2_YEARS_EXP|2`) vs. predicted descriptive labels (`AGE|2`, `WORK_EXPERIENCE|2`). The Chancenkarte points section listed scoring rules in prose but provided explicit VALUE format examples only for language (`B1|2`) — not for age or experience. This caused strict F1 = 0.00 on `ck_progressive T2` even though the id+status were correct (relaxed F1 = 0.80).
-
-**③ Student Visa under-tagging (sv_complete T0=0.29, T1=0.00)**
-The DOMAIN_KNOWLEDGE Student Visa section described eligibility conditions in prose but contained no explicit `REQ:1–REQ:4` tag mapping table — unlike Chancenkarte (full threshold + points mapping) and EU Blue Card (salary tier mapping). Without examples, the LLM generated at most one REQ tag per turn instead of the expected four.
-
-**④ Blue Card ID namespace pollution (bc_salary_tiers T1)**
-A Blue Card response produced `[REQ:1-1:MET:required]` and `[REQ:1-3:MET:required]` — Chancenkarte's hyphen-separated ID format — instead of Blue Card's single-digit IDs (`REQ:1`, `REQ:2`). ACTIVE_VISA_CONTEXT said "prioritize this visa category" but did not explicitly prohibit cross-namespace ID usage, especially in multi-turn sessions where earlier Chancenkarte-like context may have biased the LLM.
-
-**⑤ No-Assumption Rule violation — feg_path_b T0 (1 forbidden hit)**
-User stated their employer signed a commitment letter for Anerkennungspartnerschaft, but did not mention their A2 level. The LLM nonetheless output `[REQ:4:A2:required]`. The prompt instruction read: *"REQ Tag: [REQ:4:A2:required] when Anerkennungspartnerschaft path is confirmed"* — the LLM interpreted "path confirmed" as "employer commitment signed = path confirmed." This is the only semantic reasoning error in Run 1; the other four failures are prompt format issues.
+| # | Issue | Root Cause |
+| :--- | :--- | :--- |
+| ① | MILESTONE vocabulary confusion | Conflated MILESTONE status (`current`) with REQ status (`required`). |
+| ② | VALUE encoding inconsistency | Generated descriptive labels instead of exact neutral keys. |
+| ③ | Student Visa under-tagging | Missing explicit mapping table for `REQ:1-4` in DOMAIN_KNOWLEDGE. |
+| ④ | Blue Card ID namespace pollution | Reused Chancenkarte ID format (`1-1`) for Blue Card rules. |
+| ⑤ | No-Assumption Rule violation | Equated employer commitment directly with A2 confirmation. |
 
 ### Prompt Fixes Applied (Run 1 → Run 2)
 
@@ -467,13 +442,7 @@ Three failure patterns persist and represent the next iteration of prompt work:
 
 ### Interpretation
 
-The Run 1 → Run 2 improvement (+55% relaxed F1, +86% strict F1) validates that targeted, evidence-driven prompt iteration is effective. Critically, four of the five root causes were **prompt format failures** (wrong vocabulary, missing examples, ambiguous scope rules) rather than semantic understanding failures — the LLM understood the eligibility logic correctly but encoded the result in the wrong format. This distinction matters: format failures are fixable in one iteration; semantic failures require training data or retrieval improvements.
-
-The one genuine semantic failure (No-Assumption Rule violation in feg_path_b T0) was also resolved in Run 2, demonstrating that precise phrasing in DOMAIN_KNOWLEDGE directly influences reasoning behaviour.
-
-**The remaining forbidden violation shifted from feg_path_b to bc_salary_tiers**, which points to an inherent limitation of LLM-direct evaluation: the salary tier boundary check (`SHORTAGE_SALARY_MET` vs. `TBC`) depends on a specific numeric threshold that the LLM cannot reliably recall without a retrieved document confirming it. This is expected behaviour — the system is designed to anchor threshold facts in retrieved documents, not in model weights. In production (full pipeline), retrieval of the salary threshold page resolves this correctly.
-
-The relaxed–strict F1 gap (0.606 − 0.523 = 0.083 in Run 2) represents residual VALUE encoding imprecision — primarily the salary tier naming and the multi-turn state-update miss. Both are targeted for Run 3.
+The Run 1 → Run 2 improvement validates that targeted prompt iteration is effective. Critically, **format failures** (wrong vocabulary, missing examples) are fixable in one iteration, whereas context-dependent checks (like strict salary boundaries) correctly reflect the LLM's dependency on retrieved documents rather than internal weights.
 
 ### Evaluator Enhancement — Idempotent Re-emission Filter (Run 3 Prerequisite)
 
@@ -483,18 +452,7 @@ Before executing Run 3, the evaluator logic was extended and revised baselines w
 
 **Fix (`eval/state_tag_evaluator.py`):** A `_filter_idempotent_reemissions()` function was added. Before `_compute_f1()` is called, any predicted tag that is **identical** (type + id + status + value) to an already-confirmed tag in `CURRENT_UI_STATE` is removed from the scored set. MILESTONE state is now tracked separately via `accumulated_milestones`. Phase-transition failures (e.g. predicting `[MILESTONE:1:current]` when `[MILESTONE:2:current]` is expected) are intentionally **not** filtered because the id differs.
 
-**Retroactive rescore (`--rescore` CLI flag):** Both existing reports were re-scored using the new filter without new LLM calls, establishing comparable revised baselines:
-
-| Metric | Run 1 revised | Run 2 revised |
-| :--- | :---: | :---: |
-| Macro F1 (relaxed) | 0.338 | **0.641** |
-| Macro F1 (strict) | 0.229 | **0.584** |
-| Macro Precision | 0.322 | 0.660 |
-| Macro Recall | 0.406 | 0.709 |
-| TP / FP / FN | 14 / 19 / 21 | 25 / 15 / 10 |
-| Forbidden violations | 1 | 1 |
-
-The filter confirmed that most of Run 2's 27 FPs were genuine re-emission artefacts: after filtering, FP dropped from 27 to 15. `feg_path_b T1` improved from 0.667 to 1.000 under the revised metric — validating that the LLM was correct all along, and the evaluator was penalising correct behaviour.
+**Retroactive rescore:** After adding the filter, Run 2's FP dropped from 27 to 15, establishing a **revised Run 2 baseline of 0.641 (relaxed F1) and 0.584 (strict F1)**. This validated that most FPs were simply correct but redundant re-emissions.
 
 ### Run 3 — After Plan A–H Prompt and Evaluator Revisions (2026-04-14)
 
@@ -522,34 +480,9 @@ The filter confirmed that most of Run 2's 27 FPs were genuine re-emission artefa
 | TP / FP / FN | 25 / 15 / 10 | 25 / 18 / 10 | FP +3 |
 | Forbidden violations | 1 | **0** ✅ | −1 |
 
-**Per-turn F1 (relaxed / strict):**
-
-| Conversation | Turn | Run 2 rev F1-R/S | Run 3 F1-R/S | Change | Notes |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| ck_progressive | 0 | 0.667 / 0.667 | 0.545 / 0.545 | ↓ | within-turn dup; REQ:1-3:MET still missing |
-| ck_progressive | 1 | 0.667 / 0.667 | 0.667 / 0.667 | = | 1 within-turn dup remains |
-| ck_progressive | 2 | 0.667 / 0.667 | 0.667 / 0.667 | = | 2 within-turn dups remain |
-| ck_no_assumption | 0 | 1.000 / 1.000 | 1.000 / 1.000 | = ✅ | stable |
-| ck_no_assumption | 1 | 0.500 / 0.000 | **0.000 / 0.000** | ↓↓ | STATE UPDATE rule had no effect; all predictions filtered as re-emissions |
-| bc_salary_tiers | 0 | 0.500 / 0.250 ⚠ | **0.667 / 0.333** | ↑ ✅ | forbidden violation eliminated (Plan B) |
-| bc_salary_tiers | 1 | 0.000 / 0.000 | 0.000 / 0.000 | = | T0 wrong REQ:1:MET cascades into T1 |
-| sv_complete | 0 | 0.615 / 0.615 | **0.667 / 0.667** | ↑ ✅ | |
-| sv_complete | 1 | 0.667 / 0.667 | 0.571 / 0.571 | ↓ | PRESERVE rule failed; LLM downgraded confirmed tags |
-| feg_path_b | 0 | 0.800 / 0.800 | 0.750 / 0.750 | ↓ | Plan H effective (REQ:1:TBC now present) but within-turn dups add FP |
-| feg_path_b | 1 | 1.000 / 1.000 | 0.667 / 0.667 | ↓ | single within-turn dup on REQ:4:A2 causes FP |
-| ck_path1_direct | 0 | 0.857 / 0.857 | 0.800 / 0.800 | ↓ | REQ:1-3:MET still not emitted |
-| ck_path1_direct | 1 | 0.400 / 0.400 | **0.667 / 0.667** | ↑ ✅ | |
-
 ### Run 3 Analysis
 
-The macro F1 regression (−0.051) is dominated by a single new failure pattern introduced by the prompt revisions: **within-turn tag duplication**. In 7 of 13 turns, the LLM emits the same tag twice in a single response, likely because Plans D and E created competing output pressures (D says "always emit BOTH tags together"; E says "emit updated tags that resolve TBC"). The regex parser captures both instances, inflating FP by an estimated 8 counts. Eliminating this alone would push Run 3 well above the revised Run 2 baseline.
-
-**What genuinely improved:**
-- Forbidden violations: 1 → 0 (Plan B eliminated the duplicate REQ:2 / label-as-value error)
-- bc_salary_tiers T0 relaxed F1: 0.500 → 0.667
-- sv_complete T0: 0.615 → 0.667
-- ck_path1_direct T1: 0.400 → 0.667
-- feg_path_b T0 now correctly emits REQ:1:TBC:warning (Plan H validated)
+The macro F1 regression (−0.051) is dominated by a single new failure pattern: **within-turn tag duplication**. In 7 of 13 turns, the LLM redundantly emitted the same tag in both prose and the tag block, inflating FP counts. Despite this, forbidden violations were eliminated (1 → 0), and several individual turns materially improved.
 
 **Remaining failure patterns (Run 4 targets):**
 
@@ -563,6 +496,156 @@ The macro F1 regression (−0.051) is dominated by a single new failure pattern 
 | P5 | PRESERVE rule failure | sv_complete T1 | LLM re-derives and downgrades confirmed REQ:2, REQ:4 from MET to TBC |
 
 P0 is a pure evaluator fix requiring no LLM calls. The remaining failures (P1–P5) are prompt engineering tasks to be addressed in Run 4.
+
+### Run 4 — After P0–P5 Prompt and Evaluator Revisions (2026-04-14)
+
+**Changes applied:**
+
+| Item | File | Change | Target |
+| :--- | :--- | :--- | :--- |
+| P0a | `eval/state_tag_evaluator.py` | `_dedup_tags()` with exact-match key `(type, id, status, value)` — within-turn duplicate removal before scoring | FP inflation from prose+tag-block double emission |
+| P0b | `src/rag/prompt_builder.py` | OUTPUT_FORMAT: "output tags only once, in the tag block; NEVER write REQ tags inside conversational text" | Within-turn duplicate root cause |
+| P1 | `src/rag/prompt_builder.py` | STATE UPDATE RULE rewritten: 3-step SCAN→RESOLVE→OMIT with ck_no_assumption T1 example; added prose/tag consistency rule | ck_no_assumption T1 STATE UPDATE complete failure |
+| P2 | `src/rag/prompt_builder.py` | Chancenkarte Qualification REQ Tag Mapping table added (REQ:1-3): university degree → `MET:required` immediately; "EMIT IMMEDIATELY" rule; no anabin wait for threshold | ck_progressive T0, ck_path1_direct T0 REQ:1-3:MET FN |
+| P3a | `src/rag/prompt_builder.py` | Blue Card NO-ASSUMPTION RULE: "stating 'I have a degree' ≠ anabin-verified; BOTH H+ rating AND entspricht/gleichwertig required for MET; WRONG/CORRECT examples" | bc_salary_tiers T0 REQ:1:MET over-confirmation |
+| P3b | `src/rag/prompt_builder.py` | Blue Card salary section: shortage occupation job title list (Software Engineer, Developer, etc.); 2-step classification flow (classify occupation first → check threshold); worked examples with actual euro amounts | bc_salary_tiers T0 SHORTAGE_SALARY_MET classification |
+| P4 | `src/rag/prompt_builder.py` | PRESERVE RULE promoted to dedicated item 4 in tag_schema: LOCKED language; "EMIT ONLY WHAT CHANGED"; PROHIBITED patterns with concrete IDs; sv_complete Student Visa example | sv_complete T1 confirmed→TBC downgrade |
+| P5 | `src/rag/prompt_builder.py` | MILESTONE:2 Advancement Trigger added to item 1: per-visa-type AND-logic trigger conditions; Path 1 language exemption; "first become confirmed" rule; bc_salary_tiers worked example | MILESTONE:2 never reached |
+
+**Results:**
+
+| Metric | Run 3 | Run 3+P0a (retroactive) | **Run 4** | Δ vs R3+P0a |
+| :--- | :---: | :---: | :---: | :---: |
+| **Macro F1 (relaxed)** | 0.590 | 0.726 | **0.783** | +0.057 ↑ |
+| **Macro F1 (strict)** | 0.564 | — | **0.768** | — |
+| Macro Precision | 0.551 | — | **0.788** | — |
+| Macro Recall | 0.722 | — | **0.788** | — |
+| TP / FP / FN | 25 / 18 / 10 | — | **28 / 5 / 7** | FP −13 ↓↓ |
+| Forbidden violations | 0 | 0 | **0** ✅ | = |
+
+### Run 4 Analysis
+
+Run 4 achieved the highest F1 to date (**0.783 relaxed, 0.768 strict**) with FP collapsing from 18 to 5, heavily driven by the evaluator dedup fix removing within-turn duplicates. The redesigned STATE UPDATE and SHORTAGE classification rules were fully effective, leading to six turns achieving perfect 1.0 scores.
+
+**Remaining failure patterns (Run 5 targets):**
+
+| Priority | Pattern | Affected turns | Root cause |
+| :--- | :--- | :--- | :--- |
+| **P0** | Evaluator re-emission filter too aggressive | ck_no_assumption T1 | Filter removes expected TBC tag (REQ:1-3) when identical to T0 state; fix: exempt tags that appear in `expected_tags` from filtering |
+| P1 | bc_salary_tiers P3a No-Assumption ignored | bc_salary_tiers T0, T1 cascade | LLM treats "I have a degree" as anabin-verified; WRONG/CORRECT examples insufficient; needs stronger framing (e.g., treat degree claim same as salary claim — wait for official confirmation) |
+| P2 | ck_path1_direct T1 Path 1 language exemption violated | ck_path1_direct T1 | LLM emits REQ:1-2:TBC:warning for Path 1 user; Path 1 exemption in DOMAIN_KNOWLEDGE not cross-referenced in tag_schema |
+| P3 | MILESTONE:2 not triggered for Chancenkarte Path 1 | ck_path1_direct T1 | Trigger condition in tag_schema item 1 not applied when remaining TBC is financial only |
+| P4 | sv_complete T1 PRESERVE partial — REQ:2 downgraded | sv_complete T1 | LLM re-derives language from Student Visa context; needs explicit "REQ:2 confirmed in T0 = LOCKED" example |
+| P5 | ck_progressive T0 REQ:1-3 not emitted | ck_progressive T0 | "EMIT IMMEDIATELY" rule works for explicit anabin but not for bare degree statement; may need dataset-level review (is emitting REQ:1-1:TBC FP or correct dataset gap?) |
+
+### Run 5 — After P0–P4 Prompt and Evaluator Revisions (2026-04-14)
+
+**Changes applied:**
+
+| Item | File | Change | Target |
+| :--- | :--- | :--- | :--- |
+| P0 | `eval/state_tag_evaluator.py` | `_compute_f1()` split FP/FN: FP computed from filtered predictions; FN computed from unfiltered predictions — re-emitted tags that appear in `expected_tags` no longer counted as FN | Evaluator re-emission filter causing spurious FN on expected TBC tags |
+| P1 | `src/rag/prompt_builder.py` | Blue Card NO-ASSUMPTION RULE strengthened with "degree claim = salary claim" analogy anchor: "Salary: user says €50,000 → wait for threshold check; Degree: user says bachelor's → wait for anabin"; added WRONG pattern for H+-only-without-Äquivalenz | bc_salary_tiers No-Assumption complete failure; WRONG/CORRECT examples alone insufficient |
+| P2 | `src/rag/prompt_builder.py` + `eval/state_tag_dataset.json` | Chancenkarte REQ:1-3 mapping table corrected: removed "University degree → MET:required" and "2-year vocational → MET:required" rows; removed "EMIT IMMEDIATELY — do NOT wait for anabin"; added "University/vocational degree stated, anabin pending → TBC:warning" with Blue Card analogy WRONG/CORRECT block. Dataset ck_progressive T0: REQ:1-3 MET→TBC, added REQ:1-1:TBC to expected, added REQ:1-3:required to forbidden | Run 4 P2 mapping table was incorrect — Chancenkarte REQ:1-3:MET requires same anabin H+ + entspricht/gleichwertig as Blue Card |
+| P3 | `src/rag/prompt_builder.py` | Path 1 EXEMPTION expanded to PATH 1 COMPLETE PROTOCOL: RULE 1 (language exempt in every turn, check CURRENT_UI_STATE for REQ:1-3:MET); RULE 2 (MILESTONE:2 trigger = REQ:1-1:MET AND REQ:1-3:MET only); two-turn worked example T0/T1. tag_schema MILESTONE:2 Path 1 trigger: added cross-reference to DOMAIN_KNOWLEDGE + "WAIVED — do NOT wait for it, do NOT emit it" | ck_path1_direct T1: REQ:1-2 emitted despite Path 1; MILESTONE:2 not triggered |
+| P4 | `src/rag/prompt_builder.py` | Student Visa REQ Tag Mapping: MULTI-TURN NOTE added directly after language rows — "if CURRENT_UI_STATE shows REQ:2:MET:required, do NOT re-emit REQ:2 in any form; WRONG/CORRECT example with omit-entirely instruction" | sv_complete T1 REQ:2 PRESERVE violation; domain-level inference overriding global tag_schema rule |
+
+**Results:**
+
+| Metric | Run 4 | **Run 5** | Δ |
+| :--- | :---: | :---: | :---: |
+| **Macro F1 (relaxed)** | 0.783 | **0.861** | +0.078 ↑ |
+| **Macro F1 (strict)** | 0.768 | **0.861** | +0.093 ↑ |
+| Macro Precision | 0.788 | **0.859** | +0.071 |
+| Macro Recall | 0.788 | **0.869** | +0.081 |
+| TP / FP / FN | 28 / 5 / 7 | **31 / 2 / 4** | FP −3, FN −3 |
+| Forbidden violations | 0 | **0** ✅ | = |
+
+### Run 5 Analysis
+
+Run 5 achieved **0.861 relaxed F1 and 0.861 strict F1** — the first time relaxed and strict scores aligned, proving VALUE encodings are now accurate across all predicted tags. Strengthening the No-Assumption rule dynamically via analogies ("degree claim = salary claim") proved highly effective, boosting previously failing turns to 1.0. The sole major regression was in `ck_no_assumption` T1 (0.800 → 0.000), warranting targeted debugging.
+
+### Dataset Bug Fixes (2026-04-14, post-Run-5)
+
+Two structural bugs in `eval/state_tag_dataset.json` were identified and corrected before establishing the Run 6 baseline.
+
+**Bug 1 — sv_complete T1: missing MILESTONE:2 (scoring impact: ceiling raised)**
+
+All other conversations that confirm all criteria in a single turn expect MILESTONE:2:current (bc_salary_tiers T1, ck_path1_direct T1). sv_complete T1 was the only exception — an internal inconsistency. If the LLM correctly emitted MILESTONE:2, it was penalised as FP, artificially suppressing the score ceiling. Fix: added `{"type": "MILESTONE", "id": "2", "value": "current", "status": "current"}` to sv_complete T1 expected_tags.
+
+**Bug 2 — ck_path1_direct T0 + T1: REQ:1-2 not in forbidden_tags (severity under-reported)**
+
+The conversation's stated design goal is to test that Path 1 users are never asked for language proof. The LLM persistently emitted `[REQ:1-2:TBC:warning]` across Run 3–5, but this was only counted as a regular FP, not a forbidden violation. The forbidden violation counter is tracked separately in reports and used to assess rule-compliance severity. Fix: added REQ:1-2 forbidden checks for both `warning` and `required` status to T0 and T1.
+
+**Run 5 corrected baseline:** Re-scoring the dataset after these bug fixes established a revised baseline of **0.843 relaxed F1**, which accurately revealed one missing MILESTONE and a properly tracked forbidden violation on Path 1 language boundaries.
+
+### ck_no_assumption T1 Regression Analysis (2026-04-14)
+
+A 2×2 matrix test was run to isolate whether the F1 drop (0.800 → 0.000) on ck_no_assumption T1 was caused by the P0 evaluator redesign or by LLM behaviour change.
+
+**Predicted tags:**
+- Run 4: `[REQ:1-2:C1:required] [REQ:2-1:C1|1:required] [REQ:1-3:TBC:warning]` ← correct STATE UPDATE
+- Run 5: `[REQ:1-2:TBC:warning] [REQ:1-3:TBC:warning]` ← full T0 state replay
+
+| | Old evaluator (no FP/FN split) | New evaluator (FP/FN split) |
+| :--- | :---: | :---: |
+| **Run 4 predicted** | F1 = 0.800 | F1 = **1.000** |
+| **Run 5 predicted** | F1 = **0.000** | F1 = **0.000** |
+
+**Conclusion: the regression is 100% LLM behaviour. Both evaluator versions score Run 5's predictions at F1=0.000.** The P0 evaluator change is not a confound.
+
+Identified inducing cause: Run 5 P3 (PATH 1 COMPLETE PROTOCOL) added extensive "do NOT emit REQ:1-2" language rules. In ck_no_assumption T1, the LLM prose shows a specific OR-logic error: *"英文 C1 確認，但德文未滿足要求，因為至少需要德文 A1 或英文 B2 的水平"* — the LLM knows the user has English C1 but incorrectly concludes the language threshold is unmet, because it appears to treat the requirement as requiring *both* German A1 *and* English B2 rather than *either*. This error did not appear in Run 4 and is most likely a side-effect of P3's language-suppression rules confusing the LLM about when language tags are permitted.
+
+
+**Remaining failure patterns (Run 6 targets — revised after post-Run-5 analysis):**
+
+| Priority | Pattern | Affected turns | Root cause | Fix direction |
+| :--- | :--- | :--- | :--- | :--- |
+| **R6-1** | Path 1 not detected from CURRENT_UI_STATE | ck_path1_direct T1 | Path detection and STATE UPDATE are coupled; LLM prose says "language not confirmed" despite REQ:1-3:MET in state | Two-layer fix: (1) PATH DETECTION block in DOMAIN_KNOWLEDGE; (2) STATE UPDATE RULE unchanged |
+| **R6-2** | Chancenkarte language OR-logic error (P3 regression) | ck_no_assumption T1 | LLM treats "German A1 OR English B2" as requiring both; P3 language-suppression rules created confusion | Explicit OR-logic example: "English C1 ≥ English B2 → threshold MET regardless of German level"; clarify P3 RULE 1 applies only to Path 1 users |
+| **R6-3** | Global PRESERVE RULE (patch architecture) | sv_complete T1 (REQ:4) | Per-REQ MULTI-TURN NOTEs don't scale; REQ:4 missed by P4 | Replace per-REQ NOTEs with single global PRESERVE RULE in tag_schema: "if REQ appears with required in CURRENT_UI_STATE, NEVER re-emit as warning unless user explicitly retracts" |
+| **R6-4** | REQ:1-3:TBC not emitted for bare degree (prose↔tag decoupling) | ck_progressive T0 | Three rounds of stronger imperative commands failed; LLM reasons correctly in prose but omits tag | Chain-of-thought self-check in OUTPUT_FORMAT: "before closing tag block, verify each eligibility condition mentioned in prose has a corresponding REQ tag" |
+
+### Run 6 — Applying Plan R6-1~R6-4 (2026-04-15)
+
+- Report: `eval/results/state_tag_report_20260415_194547.json`
+- Macro F1 (relaxed): **0.912** | Macro F1 (strict): **0.874**
+- TP/FP/FN: 32/3/4 | Forbidden: 1 (ck_path1_direct T0)
+
+**Changes applied (R6-1 ~ R6-4):**
+
+| # | Target | Description |
+| :--- | :--- | :--- |
+| R6-1 | sv_complete T0 REQ:4 mapping | Added explicit rule and Chinese example for "Admission Letter → REQ:4:MET:required EMIT IMMEDIATELY" |
+| R6-2 | sv_complete T1 math correction | Added example "€12,000 > €11,904 → REQ:1:MET:required"; prohibited the use of 13092 for Student Visa |
+| R6-3 | ck_no_assumption T1 REQ:2-1 | Added a WRONG example in STATE UPDATE that states "English confirmation requires simultaneous output of REQ:1-2 AND REQ:2-1" |
+| R6-4 | MILESTONE:2 trigger + MILESTONE:1 replacement | Added "MILESTONE:1 is replaced by MILESTONE:2, forbidden to appear simultaneously"; appended item 8 to SELF-CHECK |
+
+**Run 6 per-turn results:**
+
+| Conversation | T | F1-R | F1-S | TP | FP | FN | Notes |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| ck_progressive | 0 | 0.889 | 0.889 | 4 | 0 | 1 | REQ:1-3:TBC not initialized (pending resolution) |
+| ck_progressive | 1 | 1.000 | 1.000 | 1 | 0 | 0 | ✅ |
+| ck_progressive | 2 | 1.000 | 1.000 | 2 | 0 | 0 | ✅ |
+| ck_no_assumption | 0 | 1.000 | 1.000 | 4 | 0 | 0 | ✅ |
+| ck_no_assumption | 1 | 1.000 | 0.500 | 2 | 0 | 0 | Relaxed ✅; Strict 0.500: REQ:2-1 VALUE format difference |
+| bc_salary_tiers | 0 | 1.000 | 1.000 | 3 | 0 | 0 | ✅ |
+| bc_salary_tiers | 1 | 1.000 | 1.000 | 2 | 0 | 0 | ✅ MILESTONE:2 trigger resolved |
+| sv_complete | 0 | 1.000 | 1.000 | 5 | 0 | 0 | ✅ REQ:4 Admission letter mapping resolved |
+| sv_complete | 1 | 0.800 | 0.800 | 2 | 0 | 1 | MILESTONE:2 still not triggered (pending resolution) |
+| feg_path_b | 0 | 1.000 | 1.000 | 3 | 0 | 0 | ✅ |
+| feg_path_b | 1 | 1.000 | 1.000 | 1 | 0 | 0 | ✅ |
+| ck_path1_direct | 0 | 0.500 | 0.500 | 2 | 3 | 1 | REQ:1-3:MET missing; REQ:1-2 forbidden (pending resolution) |
+| ck_path1_direct | 1 | 0.667 | 0.667 | 1 | 0 | 1 | MILESTONE:2 missing (cascade from T0 issue) |
+
+### Remaining Issues (Run 7 Targets)
+
+| # | Issue | Affected turns | Description |
+| :--- | :--- | :--- | :--- |
+| R7-1 | ck_progressive T0: REQ:1-3 TBC not initialized | T0 | Bachelor's degree mentioned but failed to trigger TBC warning (prose↔tag decoupling issue) |
+| R7-2 | sv_complete T1: MILESTONE:2 not triggered | T1 | All 4 REQs are MET, but LLM does not advance to MILESTONE:2 |
+| R7-3 | ck_path1_direct T0/T1: REQ:1-3:MET missing + forbidden REQ:1-2 emitted | T0+T1 | Path 1 detection is correct in prose but not converted to tag; cascades to T1 |
 
 ---
 

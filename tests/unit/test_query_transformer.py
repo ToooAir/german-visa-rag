@@ -76,7 +76,7 @@ async def test_spell_correction(mock_llm_client):
 
 
 def _make_transformer() -> QueryTransformer:
-    with patch("src.rag.query_transformer.get_llm_client"):
+    with patch("src.rag.query_transformer.OpenAIClient"):
         t = QueryTransformer()
     t.llm = AsyncMock()
     return t
@@ -280,7 +280,7 @@ class TestGetSearchQueriesVariantAdded:
 class TestSingletonExtended:
     def test_returns_same_instance(self):
         qt_module._transformer = None
-        with patch("src.rag.query_transformer.get_llm_client"):
+        with patch("src.rag.query_transformer.OpenAIClient"):
             a = get_query_transformer()
             b = get_query_transformer()
         assert a is b

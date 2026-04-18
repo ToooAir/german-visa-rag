@@ -30,7 +30,7 @@
 ## ✨ 核心特色
 
 ### 🔍 進階 RAG 檢索管線
-- **Query Transformation**：使用輕量 LLM 進行查詢意圖擴充與拼字修正，解決多語系向量偏移問題。系統會同時生成 `german_query` + `english_query` + `query_variants` 並對全部詞彙進行搜尋，以最大化召回率。
+- **Query Transformation**：使用專用的輕量化 LLM（可透過 `QUERY_TRANSFORM_MODEL` / `AZURE_QUERY_TRANSFORM_DEPLOYMENT` 設定，預設為 nano 等級）進行查詢意圖擴充與拼字修正，解決多語系向量空間偏移問題。Transformer 與負責回答的 LLM 運行於不同的模型上——在確保回答品質的同時，能有效降低推理成本。系統會同時生成 `german_query`、`english_query` 與 `query_variants` 並對全部目標進行搜尋，以最大化召回率。
 - **Hybrid Search**：結合 **Dense Vector** (OpenAI `text-embedding-3-small`) 與 **Sparse BM25** 進行混合檢索，應用伺服器端 **Reciprocal Rank Fusion (RRF)** 進行分數融合。其中的 BM25 Sparse Encoder 採用基於雜湊 (Hash-based) 的自研零依賴 (Zero-dependency) 設計，不須依賴任何外部模型或訓練語料。
 - **Cross-Encoder Reranking**：檢索候選數 (`RETRIEVAL_TOP_K_HYBRID = 20`) 後，使用 Reranker（支援 Cohere、Jina 或 Mock 模式）進行語意重排，精煉提取 Top-10 (`RETRIEVAL_TOP_K_RERANKED = 10`) 丟給 LLM。此 `top_k` 參數可透過 `/query/ask` 或 `/v1/chat/completions` 為每個 Request 進行覆寫設定。
 - **簽證類型上下文過濾**：Retrieval 與 Prompt 會根據 UI 中選定的簽證類別動態調整——支援四種類型：**機會卡 (Chancenkarte)**、**歐盟藍卡 (EU Blue Card)**、**技術移民 (Skilled Worker / FEG 2.0)**、**學生簽證 (Student Visa)**。Prompt Builder 會為每種簽證注入對應的法律門檻（如存款要求、評分規則、語言等級強制條件）。
@@ -42,7 +42,7 @@
 - **進階 Parent-Child Chunking**：實作「由小到大」策略，並內建 **標題內容注入 (Title Context Injection)** 與 **自動去噪 (Noise Removal)**，確保 80% 更乾淨的 RAG 上下文。
 
 ### 🛠️ 工程最佳實踐 (Engineering Excellence)
-- **LLM Factory Pattern（多 Provider 支援）**：透過單一 `USE_AZURE_OPENAI` 開關，無縫切換 **OpenAI** 與 **Azure OpenAI**。若主要 Provider 離線，系統可自動降級至本地 **Ollama** 模型，兼顧彈性與韌性。
+- **LLM Factory Pattern（多 Provider 支援）**：透過單一 `USE_AZURE_OPENAI` 開關，無縫切換 **OpenAI** 與 **Azure OpenAI**。管線採用**雙模型路由 (Dual-model routing)**：回答用的 LLM (`OPENAI_MODEL` / `AZURE_LLM_DEPLOYMENT`) 與查詢轉換用的 LLM (`QUERY_TRANSFORM_MODEL` / `AZURE_QUERY_TRANSFORM_DEPLOYMENT`) 可獨立配置。這允許使用經濟的 nano 等級模型處理分類與轉換，並使用更強大的模型產生回答。若主要 Provider 離線，系統可無縫降級至本地 **Ollama** 模型（非常適合進行本地韌性測試）。
 - **Circuit Breaker + Exponential Backoff**：所有 API 呼叫均包裝 `CircuitBreaker`（達到失敗次數閾值後自動熔斷）與 `tenacity` 指數退避重試邏輯，防止 API 故障時的連鎖崩潰。
 - **APScheduler 背景排程器**：`IngestionScheduler` 使用 APScheduler 在 API 進程內執行定時爬取任務，支援 seed URL 模式與自動發現模式，無需外部 Cron 服務即可完成基礎排程。
 - **Domain-Specific 爬蟲策略**：每個爬取目標網域皆有獨立的 `DomainCrawlStrategy`，可設定路徑白/黑名單、URL 相關性評分、語言前綴過濾（`/en/`、`/de/`）、Sitemap 自動發現，以及頁面層級的 Authority 指派。

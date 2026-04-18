@@ -46,8 +46,8 @@ def mock_llm_client(monkeypatch):
       "confidence": 0.95
     }
     """
-    monkeypatch.setattr("src.rag.query_transformer.get_llm_client", lambda: mock)
-    # Reset the singleton so a new instance is created with the patched get_llm_client
+    monkeypatch.setattr("src.rag.query_transformer.OpenAIClient", lambda *args, **kwargs: mock)
+    # Reset the singleton so a new instance is created with the patched OpenAIClient
     qt_module._transformer = None
     yield mock
     qt_module._transformer = None

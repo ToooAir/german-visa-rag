@@ -810,9 +810,41 @@ To select the Answer LLM for the next production deployment, three Azure-hosted 
 
 4. **Zero forbidden violations:** No tag suppression rules violated.
 
+**Deeper analysis:**
+
+**A. gpt-4.1-mini's true ceiling is obscured by a single schema failure.**
+Looking at raw TP counts: gpt-4.1-mini produced TP=33 vs gpt-4o-mini's TP=32 — the model actually recalled *more* correct tags in absolute terms. FN counts are identical (4). The macro F1 gap is entirely driven by FP over-emission (9 vs 5) compounded by the `feg_path_b` zeroing. If `feg_path_b` is excluded, gpt-4.1-mini's F1 would likely exceed the gpt-4o-mini raw baseline. The failure is a prompt schema coverage gap, not a model capability regression.
+
+**B. Zero forbidden violations reveals a different strength profile.**
+gpt-4.1-mini violated zero forbidden constraints (vs 2 for gpt-4o-mini). The model is better at honouring *negative* rules ("never emit X") but weaker on *positive* schema recall ("emit Y for this visa type"). This is consistent with a prompt coverage problem for FEG rather than general instruction-following degradation.
+
+**C. The `feg_path_b` collapse is likely a prompt coverage gap.**
+The FEG Fachkräfteeinwanderungsgesetz visa type has less prominent coverage in the existing `DOMAIN_KNOWLEDGE` section than Chancenkarte or Blue Card. gpt-4.1-mini's failure to emit any tags in T0 suggests the model did not recognise the visa type as requiring a REQ tag schema, rather than failing to follow tag format rules (which it executed correctly on other turns).
+
 **Conclusion:**
 
-gpt-4.1-mini (Prod F1 **0.825**) falls below the Run 8 baseline (Prod F1 **0.932**). The `feg_path_b` total collapse is the decisive regression. **gpt-4o-mini with post-processing filters remains the production baseline.** gpt-4.1-mini is not adopted.
+gpt-4.1-mini (Prod F1 **0.825**) falls below the Run 8 baseline (Prod F1 **0.932**). The immediate cause is `feg_path_b` schema recognition failure — not a general capability regression. **gpt-4o-mini with post-processing filters remains the production baseline.** gpt-4.1-mini is not adopted in this state; a targeted prompt fix for FEG Path B positive examples followed by Run 10 is the recommended next step before a final adoption decision.
+
+### ADR Note: Production Filter — Model Coupling (2026-04-19)
+
+The Run 8 vs Run 9 comparison exposed a structural risk in the current architecture:
+
+> **The post-processing filters in `src/rag/tag_filter.py` are calibrated to gpt-4o-mini's specific failure modes.** When the underlying model changes, filter effectiveness drops to zero — or the filters may mask new failure modes that require different rules.
+
+| Model | Filter delta (Prod − Raw F1) | Filter status |
+| :--- | :---: | :--- |
+| gpt-4o-mini (Run 8) | **+0.045** | Effective — fixes two known failure patterns |
+| gpt-4.1-mini (Run 9) | **+0.000** | No-op — model doesn't trigger filter conditions |
+
+**Implications:**
+
+1. **Swapping the model is not a one-line `.env` change.** It simultaneously requires re-evaluating whether existing filters still apply, and whether new model-specific failure patterns need new filter rules.
+
+2. **F1 gains from post-processing are not portable.** The 0.932 production baseline cannot be assumed to transfer to a new model without a dedicated evaluation run.
+
+3. **Filter logic encodes model-specific behaviour at the code layer.** Any future prompt improvements must be tested on both raw and production F1 to distinguish genuine prompt gains from filter compensation.
+
+**Recommended practice:** When evaluating a new model, always run the full 13-turn evaluator and inspect whether `prod_f1 > raw_f1`. A flat delta (as seen in Run 9) is a signal to audit which existing filters have become dead code and whether new failure patterns require new filter rules.
 
 ---
 

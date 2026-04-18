@@ -62,6 +62,9 @@ interface ChatState {
   newSession: () => void;
 }
 
+// PRESERVE RULE: milestones may only advance, never regress
+const MILESTONE_ORDER: Record<string, number> = { pending: 0, current: 1, completed: 2 };
+
 export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => ({
@@ -189,6 +192,10 @@ export const useChatStore = create<ChatState>()(
   updateMilestone: (id, status, autoDetected = true) => {
     set((state) => {
       const item = state.checklist.find(i => i.id === id);
+
+      // PRESERVE RULE: milestones only advance (pending → current → completed)
+      if (item && MILESTONE_ORDER[item.status] >= MILESTONE_ORDER[status]) return state;
+
       const isStatusChanged = item && item.status !== status;
 
       // Fire notification if status changed and feature is enabled
@@ -229,9 +236,12 @@ export const useChatStore = create<ChatState>()(
 
   updateRequirement: (id, value, status) => {
     set((state) => ({
-      requirements: state.requirements.map(req =>
-        req.id === id ? { ...req, value, status } : req
-      )
+      requirements: state.requirements.map(req => {
+        if (req.id !== id) return req;
+        // PRESERVE RULE: once required (confirmed), cannot be downgraded to warning
+        if (req.status === 'required' && status === 'warning') return req;
+        return { ...req, value, status };
+      })
     }));
   },
 

@@ -20,6 +20,7 @@ from src.rag.hybrid_retriever import HybridRetriever
 from src.rag.prompt_builder import PromptRequest, get_prompt_builder
 from src.rag.query_transformer import get_query_transformer
 from src.rag.reranker import get_reranker
+from src.rag.tag_filter import apply_milestone2_filter, apply_path1_filter
 from src.storage.redis_cache import query_cache
 
 # Fallback messages when no retrieval results are found.
@@ -361,8 +362,9 @@ class AnswerGenerator:
             # 5. Stream LLM response
             yield self._format_status_chunk("synthesizing")
             full_response = ""
-            achieved_milestones = []
-            updated_requirements = []
+            # Raw (pre-filter) tag lists — collected during stream
+            raw_milestones: list[dict] = []
+            raw_requirements: list[dict] = []
 
             # Broad strip patterns catch malformed tags; strict patterns update UI state only
             strip_milestone = re.compile(r"\[MILESTONE:[^\]]+\]")
@@ -383,14 +385,10 @@ class AnswerGenerator:
 
                     if "[" in tag_buffer:
                         for m_id, m_status in extract_milestone.findall(tag_buffer):
-                            logger.info("Triggering milestone: %s=%s", m_id, m_status)
-                            achieved_milestones.append({"id": m_id, "status": m_status})
-                            yield self._format_milestone_chunk(m_id, m_status)
+                            raw_milestones.append({"id": m_id, "status": m_status})
 
                         for r_id, r_val, r_status in extract_req.findall(tag_buffer):
-                            logger.info("Updating requirement: %s=%s (%s)", r_id, r_val, r_status)
-                            updated_requirements.append({"id": r_id, "value": r_val, "status": r_status})
-                            yield self._format_req_chunk(r_id, r_val, r_status)
+                            raw_requirements.append({"id": r_id, "value": r_val, "status": r_status})
 
                         tag_buffer = strip_milestone.sub("", tag_buffer)
                         tag_buffer = strip_req.sub("", tag_buffer)
@@ -426,20 +424,36 @@ class AnswerGenerator:
                 # Flush remaining buffer
                 if tag_buffer and not _size_limit_hit:
                     for m_id, m_status in extract_milestone.findall(tag_buffer):
-                        achieved_milestones.append({"id": m_id, "status": m_status})
-                        yield self._format_milestone_chunk(m_id, m_status)
+                        raw_milestones.append({"id": m_id, "status": m_status})
                     for r_id, r_val, r_status in extract_req.findall(tag_buffer):
-                        updated_requirements.append({"id": r_id, "value": r_val, "status": r_status})
-                        yield self._format_req_chunk(r_id, r_val, r_status)
+                        raw_requirements.append({"id": r_id, "value": r_val, "status": r_status})
 
                     clean_last = strip_milestone.sub("", strip_req.sub("", tag_buffer))
                     if clean_last:
                         yield self._format_sse_chunk(clean_last)
                         full_response += clean_last
 
+                # Apply post-processing filters and emit tag events
+                state_reqs: list[dict] = requirements or []
+                filtered_reqs = apply_path1_filter(visa_type, state_reqs, raw_requirements)
+                filtered_milestones = apply_milestone2_filter(visa_type, state_reqs, [], filtered_reqs, raw_milestones)
+
+                for r in filtered_reqs:
+                    logger.info("Updating requirement: %s=%s (%s)", r["id"], r["value"], r["status"])
+                    yield self._format_req_chunk(r["id"], r["value"], r["status"])
+                for m in filtered_milestones:
+                    logger.info("Triggering milestone: %s=%s", m["id"], m["status"])
+                    yield self._format_milestone_chunk(m["id"], m["status"])
+
+                # Expose filtered results for cache / observability
+                achieved_milestones = filtered_milestones
+                updated_requirements = filtered_reqs
+
             except Exception as e:
                 logger.error("LLM streaming failed: %s (request_id=%s)", e, request_id)
                 yield self._format_sse_chunk(f"\n\n[Generation interrupted: {e}]")
+                achieved_milestones = []
+                updated_requirements = []
 
             # 6. Observability + cache
             output_tokens = self.token_counter.count_text(full_response)

@@ -647,6 +647,88 @@ Identified inducing cause: Run 5 P3 (PATH 1 COMPLETE PROTOCOL) added extensive "
 | R7-2 | sv_complete T1: MILESTONE:2 not triggered | T1 | All 4 REQs are MET, but LLM does not advance to MILESTONE:2 |
 | R7-3 | ck_path1_direct T0/T1: REQ:1-3:MET missing + forbidden REQ:1-2 emitted | T0+T1 | Path 1 detection is correct in prose but not converted to tag; cascades to T1 |
 
+### Run 7 — Attempted Prompt Changes, Rolled Back (2026-04-16)
+
+Four prompt changes were designed to address R7-1, R7-2, and R7-3 simultaneously and applied to `src/rag/prompt_builder.py`:
+
+| # | Change | Target |
+| :--- | :--- | :--- |
+| R7-1 | PATH 1 DETECTION block rewritten as "TWO SEPARATE ACTIONS": (1) emit REQ:1-3:MET; (2) suppress REQ:1-2 | ck_path1_direct T0 REQ:1-3 FN + forbidden REQ:1-2 |
+| R7-2 | MILESTONE:2 section: added "PRESERVE" clarification note distinguishing first-emission from re-emission | sv_complete T1 MILESTONE:2 not triggered |
+| R7-3 | SELF-CHECK item 1: added "MANDATORY CORRECTION" sub-rule for confirmed-required demotions | sv_complete T1 PRESERVE rule miss |
+| R7-4 | SELF-CHECK: added items 9 and 10 as regression guards | General compliance check |
+
+**Results — Attempt 1 (all 4 changes applied simultaneously):**
+
+Macro F1 (relaxed) dropped from 0.912 to **0.837** (FP +1, FN +3). Multiple previously-passing turns regressed simultaneously — a pattern consistent with **attention dilution**: adding new rules shifts the LLM's attention away from existing working rules. Specifically, the `MANDATORY CORRECTION` sub-rule conflicted with the PRESERVE RULE, causing a confirmed requirement to be downgraded in `sv_complete T1`.
+
+**Attempt 2 (prompt adjustments applied):** F1 dropped further to **0.779**, confirming regressions were compounding.
+
+**Single-variable test (PATH 1 TWO ACTIONS only):**
+To isolate the changes, all Run 7 changes were reverted except the PATH 1 detection rewrite. While `ck_path1_direct T0` reached F1 1.000 (success), three other turns drastically regressed (0.853 overall F1). The pre-stated rollback condition ("any previously passing turn's F1 drops") was triggered.
+
+**Conclusion — Direction A (post-Run-7 decision):**
+
+> The forbidden violation on `ck_path1_direct T0` **cannot be reliably fixed via prompt instructions** without triggering systemic regressions. By adding complex structural rules, the LLM redistributes its attention and fails on previously stable turns.
+>
+> **Decision:** Accept Run 6 (0.912) as the final prompt baseline. Implement a deterministic post-processing code layer to handle the Path 1 forbidden violation and MILESTONE:2 auto-injection.
+
+### Post-Processing Filter Design (2026-04-16)
+
+A new module `src/rag/tag_filter.py` applies deterministic code-layer rules after the LLM's complete response is generated.
+
+**Design rationale:**
+Code-layer rules are strictly required for conditions with **cross-turn accumulation and cross-tag dependency**, as the LLM struggles to guarantee absolute logic consistency when inspecting its streaming output against accumulated multi-turn states without diluting prompt attention.
+
+**Filter 1 — `apply_path1_filter`:**
+Suppresses `REQ:1-2` if `REQ:1-3:MET` is present in either past states or newly generated tags (Guaranteeing language requirements are waived for Path 1 users).
+
+**Filter 2 — `apply_milestone2_filter`:**
+Auto-injects `MILESTONE:2:current` (and removes `MILESTONE:1`) when all required criteria for the active visa type are met.
+
+Trigger conditions per visa type:
+
+| Visa type | Trigger condition |
+| :--- | :--- |
+| `chancenkarte` Path 1 | `REQ:1-1:MET:required` AND `REQ:1-3:MET:required` (language waived) |
+| `chancenkarte` Path 2 | `REQ:1-1:MET:required` AND `REQ:1-2:*:required` (not TBC) AND `REQ:1-3:MET:required` |
+| `blue_card` | `REQ:1:MET:required` AND `REQ:2` in `{MET, SALARY_MET, SHORTAGE_SALARY_MET, GRADUATE_SALARY_MET}:required` |
+| `student` | `REQ:1` through `REQ:4` all `MET:required` |
+| `skilled_worker` | `REQ:1:*:required` AND `REQ:2:*:required` (any confirmed status) |
+
+**Integration points:**
+- `eval/state_tag_evaluator.py`: Produces both **production F1** (filtered) and **raw F1** (raw prompt quality).
+- `src/rag/answer_generator.py`: SSE stream now buffers tag events, filters them en masse, and then yields to the client.
+
+### Run 8 — Post-Processing Filter Integration (2026-04-16)
+
+- Run 6 prompt state (no prompt changes from Run 8 onwards)
+
+**Results:**
+
+| Metric | Run 6 (prompt baseline) | Run 8 Raw LLM | Run 8 Production (filtered) |
+| :--- | :---: | :---: | :---: |
+| **Macro F1 (relaxed)** | 0.912 | 0.887 | **0.932** |
+| **Macro F1 (strict)** | 0.874 | 0.849 | **0.894** |
+| Micro F1 | — | 0.873 | **0.914** |
+| TP / FP / FN | 32 / 3 / 4 | 31 / 5 / 4 | **32 / 3 / 3** |
+| Forbidden violations | 1 | 2 | **1** |
+
+The raw LLM F1 (0.887) is slightly below the Run 6 baseline due to standard LLM non-determinism, but **Production F1 (0.932)** explicitly confirms the deterministic effectiveness of the filters:
+
+**Per-turn filter impact:**
+
+| Turn | Raw F1-R | Prod F1-R | Change | Cause |
+| :--- | :---: | :---: | :---: | :--- |
+| ck_path1_direct T0 | 0.750 ⚠Forb | **1.000** ✅ | +0.250 | Path 1 filter removed REQ:1-2; forbidden violation eliminated |
+| ck_path1_direct T1 | 0.667 | **1.000** ✅ | +0.333 | MILESTONE:2 filter injected; cascade FN resolved |
+| sv_complete T0 | 0.727 ⚠Forb | 0.727 | = | New forbidden tag this run; outside filter scope (LLM non-determinism) |
+| ck_no_assumption T1 | 0.500 | 0.500 | = | FN problem (missing REQ:2-1); not addressable by filter |
+| All other turns | ≥ 1.000 | ≥ 1.000 | = | No change — filters are no-ops when conditions not triggered |
+
+**Conclusion:**
+Production F1 **0.932** is the highest score achieved. The filter handles logic that prompt instructions cannot, whilst limitations explicitly tied to missing tags (False Negatives that cannot be filtered) remain accepted. The evaluation framework now tracks raw F1 (prompt capability) and production F1 (user-facing accuracy) to benchmark future improvements.
+
 ---
 
 *This Architecture Design Record (ADR) encapsulates how the system manages real-world complexity and messy, unstructured data—evolving a traditional "document search" baseline into an expert system capable of rudimentary "stateful reasoning."*

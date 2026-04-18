@@ -39,6 +39,7 @@ from src.llm import get_llm_client
 from src.logger import logger
 from src.observability.mlflow_tracker import get_mlflow_tracker
 from src.rag.prompt_builder import PromptRequest, get_prompt_builder
+from src.rag.tag_filter import apply_milestone2_filter, apply_path1_filter
 
 # ─── Tag parsing (mirrors answer_generator.py) ────────────────────────────────
 
@@ -97,6 +98,13 @@ class TurnResult:
     strict_f1: float = 0.0
     # Forbidden tags that incorrectly appeared
     forbidden_violations: int = 0
+    # Production F1 (after post-processing filter applied)
+    prod_f1: float = 0.0
+    prod_strict_f1: float = 0.0
+    prod_tp: int = 0
+    prod_fp: int = 0
+    prod_fn: int = 0
+    prod_forbidden_violations: int = 0
 
 
 # ─── Tag parsing ──────────────────────────────────────────────────────────────
@@ -396,6 +404,32 @@ class StateTagEvaluator:
                 unfiltered_predicted=predicted,
             )
 
+            # ── Production F1 (post-processing filters applied) ─────────────
+            state_reqs = [{"id": r["id"], "value": r["value"], "status": r["status"]} for r in accumulated_requirements]
+            state_milestones_list = [{"id": k, "status": v} for k, v in accumulated_milestones.items()]
+            pred_req_dicts = [
+                {"id": t.id, "value": t.value, "status": t.status} for t in predicted if t.tag_type == "REQ"
+            ]
+            pred_milestone_dicts = [{"id": t.id, "status": t.status} for t in predicted if t.tag_type == "MILESTONE"]
+            filtered_reqs = apply_path1_filter(visa_type, state_reqs, pred_req_dicts)
+            filtered_milestones = apply_milestone2_filter(
+                visa_type, state_reqs, state_milestones_list, filtered_reqs, pred_milestone_dicts
+            )
+            prod_predicted = _dedup_tags(
+                [ParsedTag(tag_type="REQ", id=r["id"], value=r["value"], status=r["status"]) for r in filtered_reqs]
+                + [
+                    ParsedTag(tag_type="MILESTONE", id=m["id"], value=m["status"], status=m["status"])
+                    for m in filtered_milestones
+                ]
+            )
+            prod_scored = _filter_idempotent_reemissions(prod_predicted, confirmed_state)
+            p_tp, p_fp, p_fn, _, _, p_f1, p_forb = _compute_f1(
+                prod_scored, expected_tags, forbidden_tags, strict=False, unfiltered_predicted=prod_predicted
+            )
+            _, _, _, _, _, ps_f1, _ = _compute_f1(
+                prod_scored, expected_tags, forbidden_tags, strict=True, unfiltered_predicted=prod_predicted
+            )
+
             result = TurnResult(
                 conversation_id=conv_id,
                 turn_index=turn_index,
@@ -413,6 +447,12 @@ class StateTagEvaluator:
                 strict_tp=s_tp,
                 strict_f1=s_f1,
                 forbidden_violations=forbidden_hits,
+                prod_f1=p_f1,
+                prod_strict_f1=ps_f1,
+                prod_tp=p_tp,
+                prod_fp=p_fp,
+                prod_fn=p_fn,
+                prod_forbidden_violations=p_forb,
             )
             results.append(result)
 
@@ -502,6 +542,21 @@ class StateTagEvaluator:
             else 0.0
         )
 
+        # Production (post-filter) aggregate
+        macro_prod_f1 = sum(r.prod_f1 for r in results) / n
+        macro_prod_strict_f1 = sum(r.prod_strict_f1 for r in results) / n
+        prod_tp = sum(r.prod_tp for r in results)
+        prod_fp = sum(r.prod_fp for r in results)
+        prod_fn = sum(r.prod_fn for r in results)
+        prod_forbidden = sum(r.prod_forbidden_violations for r in results)
+        prod_micro_p = prod_tp / (prod_tp + prod_fp) if (prod_tp + prod_fp) > 0 else 0.0
+        prod_micro_r = prod_tp / (prod_tp + prod_fn) if (prod_tp + prod_fn) > 0 else 0.0
+        prod_micro_f1 = (
+            2 * prod_micro_p * prod_micro_r / (prod_micro_p + prod_micro_r)
+            if (prod_micro_p + prod_micro_r) > 0
+            else 0.0
+        )
+
         return {
             "macro_f1_relaxed": round(macro_f1, 4),
             "macro_f1_strict": round(macro_strict_f1, 4),
@@ -516,6 +571,14 @@ class StateTagEvaluator:
             "total_forbidden_violations": total_forbidden,
             "turn_count": n,
             "conversation_count": conv_count,
+            # Production metrics (after post-processing filters)
+            "prod_macro_f1_relaxed": round(macro_prod_f1, 4),
+            "prod_macro_f1_strict": round(macro_prod_strict_f1, 4),
+            "prod_micro_f1": round(prod_micro_f1, 4),
+            "prod_total_tp": prod_tp,
+            "prod_total_fp": prod_fp,
+            "prod_total_fn": prod_fn,
+            "prod_total_forbidden_violations": prod_forbidden,
         }
 
     @staticmethod
@@ -537,6 +600,12 @@ class StateTagEvaluator:
             "f1_relaxed": round(r.f1, 4),
             "f1_strict": round(r.strict_f1, 4),
             "forbidden_violations": r.forbidden_violations,
+            "prod_f1_relaxed": round(r.prod_f1, 4),
+            "prod_f1_strict": round(r.prod_strict_f1, 4),
+            "prod_tp": r.prod_tp,
+            "prod_fp": r.prod_fp,
+            "prod_fn": r.prod_fn,
+            "prod_forbidden_violations": r.prod_forbidden_violations,
             "raw_response_tail": r.raw_response[-400:] if r.raw_response else "",
         }
 
@@ -688,29 +757,42 @@ def _print_report(report: dict) -> None:
     print(f"  Conversations : {agg['conversation_count']}")
     print(f"  Turns         : {agg['turn_count']}")
     print()
+    print("  [Raw LLM output]")
     print(f"  Macro F1  (relaxed) : {agg['macro_f1_relaxed']:.3f}")
     print(f"  Macro F1  (strict)  : {agg['macro_f1_strict']:.3f}")
     print(f"  Macro Precision     : {agg['macro_precision']:.3f}")
     print(f"  Macro Recall        : {agg['macro_recall']:.3f}")
     print(f"  Micro F1            : {agg['micro_f1']:.3f}")
-    print()
     print(f"  TP / FP / FN        : {agg['total_tp']} / {agg['total_fp']} / {agg['total_fn']}")
     print(f"  Forbidden violations: {agg['total_forbidden_violations']}")
     print()
+    prod = agg.get("prod_macro_f1_relaxed") is not None
+    if prod:
+        print("  [Production (post-filter)]")
+        print(f"  Prod Macro F1 (relaxed) : {agg['prod_macro_f1_relaxed']:.3f}")
+        print(f"  Prod Macro F1 (strict)  : {agg['prod_macro_f1_strict']:.3f}")
+        print(f"  Prod Micro F1           : {agg['prod_micro_f1']:.3f}")
+        print(f"  Prod TP / FP / FN       : {agg['prod_total_tp']} / {agg['prod_total_fp']} / {agg['prod_total_fn']}")
+        print(f"  Prod Forbidden          : {agg['prod_total_forbidden_violations']}")
+        print()
     print("  Per-turn breakdown:")
-    print(f"  {'Conv':20s} {'T':>2}  {'F1-R':>5}  {'F1-S':>5}  {'P':>5}  {'R':>5}  {'Forb':>4}  Message")
-    print("  " + "-" * 90)
+    hdr = f"  {'Conv':20s} {'T':>2}  {'F1-R':>5}  {'pF1-R':>6}  {'F1-S':>5}  {'pF1-S':>6}  {'P':>5}  {'R':>5}  {'Forb':>4}  Message"
+    print(hdr)
+    print("  " + "-" * 105)
     for t in turns:
         cid = t["conversation_id"][:18]
         ti = t["turn_index"]
         f1r = t["f1_relaxed"]
+        pf1r = t.get("prod_f1_relaxed", f1r)
         f1s = t["f1_strict"]
+        pf1s = t.get("prod_f1_strict", f1s)
         p = t["precision"]
         r = t["recall"]
         fv = t["forbidden_violations"]
-        msg = t["user_message"][:38]
-        fv_mark = f"⚠{fv}" if fv else "  -"
-        print(f"  {cid:20s}  {ti}  {f1r:.3f}  {f1s:.3f}  {p:.3f}  {r:.3f}  {fv_mark:>4}  {msg}")
+        pfv = t.get("prod_forbidden_violations", fv)
+        msg = t["user_message"][:30]
+        fv_mark = f"⚠{pfv}" if pfv else "  -"
+        print(f"  {cid:20s}  {ti}  {f1r:.3f}  {pf1r:.3f}  {f1s:.3f}  {pf1s:.3f}  {p:.3f}  {r:.3f}  {fv_mark:>4}  {msg}")
     print("=" * 64)
 
 

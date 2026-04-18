@@ -1,0 +1,105 @@
+{
+  "description": "FEG Path B paraphrase held-out test — verifies Run 10 generalisation vs test leakage. All 5 variants describe the same Path B trigger (employer commitment signed, language not yet confirmed) using different professions, nationalities, phrasings, and languages. Expected tags are identical to the original feg_path_b T0.",
+  "conversations": [
+    {
+      "id": "feg_paraphrase_1",
+      "visa_type": "skilled_worker",
+      "language": "zh-TW",
+      "description": "Korean physical therapist, Frankfurt clinic — different nationality and profession from original",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "我是韓國的物理治療師，在韓國有執業資格，但在德國尚未認可。法蘭克福一家復健診所表示他們可以幫我申請 Anerkennungspartnerschaft，已簽署相關承諾書。",
+          "expected_tags": [
+            {"type": "MILESTONE", "id": "1", "value": "current", "status": "current"},
+            {"type": "REQ", "id": "4", "value": "TBC", "status": "warning"},
+            {"type": "REQ", "id": "1", "value": "TBC", "status": "warning"}
+          ],
+          "forbidden_tags": [
+            {"type": "REQ", "id": "4", "status": "required", "note": "A2 not yet confirmed"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "feg_paraphrase_2",
+      "visa_type": "skilled_worker",
+      "language": "zh-TW",
+      "description": "Abstract §16d reference — no profession/nationality specified, tests schema trigger without surface keywords",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "我的海外學歷在德國還沒通過審核，但德國的雇主願意根據 §16d AufenthG 簽承諾書，支持我在德國完成認可流程。",
+          "expected_tags": [
+            {"type": "MILESTONE", "id": "1", "value": "current", "status": "current"},
+            {"type": "REQ", "id": "4", "value": "TBC", "status": "warning"},
+            {"type": "REQ", "id": "1", "value": "TBC", "status": "warning"}
+          ],
+          "forbidden_tags": [
+            {"type": "REQ", "id": "4", "status": "required", "note": "A2 not yet confirmed"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "feg_paraphrase_3",
+      "visa_type": "skilled_worker",
+      "language": "de",
+      "description": "German language input — tests cross-language generalisation",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "Mein Arbeitgeber in Deutschland hat die Anerkennungspartnerschaft nach §16d unterzeichnet. Mein taiwanesischer Pflegeabschluss ist in Deutschland noch nicht anerkannt.",
+          "expected_tags": [
+            {"type": "MILESTONE", "id": "1", "value": "current", "status": "current"},
+            {"type": "REQ", "id": "4", "value": "TBC", "status": "warning"},
+            {"type": "REQ", "id": "1", "value": "TBC", "status": "warning"}
+          ],
+          "forbidden_tags": [
+            {"type": "REQ", "id": "4", "status": "required", "note": "A2 not yet confirmed"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "feg_paraphrase_4",
+      "visa_type": "skilled_worker",
+      "language": "zh-TW",
+      "description": "Indian mechanical engineer — different profession, less clinical language",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "我是印度的機械工程師，在印度有相關工作資格，但德國尚未承認。柏林一家製造公司表示願意支持我的學歷認可程序，已簽署書面承諾。",
+          "expected_tags": [
+            {"type": "MILESTONE", "id": "1", "value": "current", "status": "current"},
+            {"type": "REQ", "id": "4", "value": "TBC", "status": "warning"},
+            {"type": "REQ", "id": "1", "value": "TBC", "status": "warning"}
+          ],
+          "forbidden_tags": [
+            {"type": "REQ", "id": "4", "status": "required", "note": "A2 not yet confirmed"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "feg_paraphrase_5",
+      "visa_type": "skilled_worker",
+      "language": "zh-TW",
+      "description": "Vague phrasing — employer 'supports the process' without using technical terms like Anerkennungspartnerschaft",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "我在越南有護理師資格，但德國這邊的認可申請還在進行中。我找到一家慕尼黑的醫療機構，他們說可以等我拿到認可，並且會支持整個申請流程，合約也準備好了。",
+          "expected_tags": [
+            {"type": "MILESTONE", "id": "1", "value": "current", "status": "current"},
+            {"type": "REQ", "id": "4", "value": "TBC", "status": "warning"},
+            {"type": "REQ", "id": "1", "value": "TBC", "status": "warning"}
+          ],
+          "forbidden_tags": [
+            {"type": "REQ", "id": "4", "status": "required", "note": "A2 not yet confirmed"}
+          ]
+        }
+      ]
+    }
+  ]
+}

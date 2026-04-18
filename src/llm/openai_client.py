@@ -26,20 +26,22 @@ class OpenAIClient:
         api_key: str,
         model: str = "gpt-4o-mini",
         base_url: Optional[str] = None,
+        deployment: Optional[str] = None,
     ):
         self.api_key = api_key
         self.model = model
         self.base_url = base_url or settings.openai_api_base
 
         if settings.use_azure_openai:
-            self.model = settings.azure_llm_deployment
+            _deployment = deployment or settings.azure_llm_deployment
+            self.model = _deployment
             self.client = AsyncAzureOpenAI(
                 api_key=settings.azure_openai_api_key,
                 azure_endpoint=settings.azure_openai_endpoint,
                 api_version=settings.azure_openai_api_version,
-                azure_deployment=settings.azure_llm_deployment,
+                azure_deployment=_deployment,
             )
-            logger.info("Azure OpenAI client initialized (deployment: %s)", settings.azure_llm_deployment)
+            logger.info("Azure OpenAI client initialized (deployment: %s)", _deployment)
         else:
             self.client = AsyncOpenAI(
                 api_key=api_key,
@@ -96,6 +98,7 @@ class OpenAIClient:
         max_tokens: Optional[int] = None,
         top_p: float = 1.0,
         stream: bool = False,
+        reasoning_effort: Optional[str] = None,
     ) -> Any:
         """
         Call OpenAI API with retry logic.
@@ -111,13 +114,32 @@ class OpenAIClient:
                 },
             )
 
+            # gpt-5 / o1 / o3 series have restricted parameter support:
+            #   - require max_completion_tokens instead of max_tokens
+            #   - only support default temperature (1); sending any other value raises 400
+            _restricted = self.model.startswith(("o1", "o3", "gpt-5"))
+            extra_token_kwarg: dict[str, Any] = {}
+            if _restricted:
+                # Reasoning models consume internal tokens before emitting visible output.
+                # A budget of < 4096 leaves nothing for the response after reasoning completes.
+                _reasoning_min = 4096
+                _completion_tokens = max(_reasoning_min, max_tokens) if max_tokens else _reasoning_min
+                extra_token_kwarg = {"max_completion_tokens": _completion_tokens}
+            else:
+                extra_token_kwarg = {"max_tokens": max_tokens}
+            extra_sampling_kwargs: dict[str, Any] = {} if _restricted else {"temperature": temperature, "top_p": top_p}
+            # reasoning_effort is only valid for restricted (reasoning) model families
+            extra_reasoning_kwargs: dict[str, Any] = (
+                {"reasoning_effort": reasoning_effort} if _restricted and reasoning_effort else {}
+            )
+
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=top_p,
                 stream=stream,
+                **extra_token_kwarg,
+                **extra_sampling_kwargs,
+                **extra_reasoning_kwargs,
             )
 
             return response
@@ -134,6 +156,7 @@ class OpenAIClient:
         messages: list[dict[str, str]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> str:
         """Call OpenAI and return complete response text."""
         response = await self.call(
@@ -141,6 +164,7 @@ class OpenAIClient:
             temperature=temperature,
             max_tokens=max_tokens,
             stream=False,
+            reasoning_effort=reasoning_effort,
         )
 
         return response.choices[0].message.content
@@ -150,6 +174,7 @@ class OpenAIClient:
         messages: list[dict[str, str]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> AsyncIterator[str]:
         """
         Call OpenAI with streaming and yield text chunks.
@@ -159,6 +184,7 @@ class OpenAIClient:
             temperature=temperature,
             max_tokens=max_tokens,
             stream=True,
+            reasoning_effort=reasoning_effort,
         )
 
         async for chunk in response:

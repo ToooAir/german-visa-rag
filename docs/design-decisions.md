@@ -729,6 +729,91 @@ The raw LLM F1 (0.887) is slightly below the Run 6 baseline due to standard LLM 
 **Conclusion:**
 Production F1 **0.932** is the highest score achieved. The filter handles logic that prompt instructions cannot, whilst limitations explicitly tied to missing tags (False Negatives that cannot be filtered) remain accepted. The evaluation framework now tracks raw F1 (prompt capability) and production F1 (user-facing accuracy) to benchmark future improvements.
 
+### Model Benchmark — gpt-4o-mini vs gpt-4.1-mini vs gpt-5-mini (2026-04-18)
+
+To select the Answer LLM for the next production deployment, three Azure-hosted models were benchmarked on two representative test cases using streaming, measuring TTFT, total latency, response length, and State Tag F1. gpt-5-mini was tested in both full-reasoning and `reasoning_effort: "none"` configurations.
+
+**Compatibility fixes applied to `src/llm/openai_client.py` for reasoning model families (gpt-5 / o1 / o3):**
+
+| Issue | Root cause | Fix |
+| :--- | :--- | :--- |
+| `400 Unsupported parameter: max_tokens` | Reasoning models require `max_completion_tokens` | Auto-detected via `model.startswith(("o1","o3","gpt-5"))` |
+| `400 Unsupported value: temperature 0.1` | Only default temperature (1) supported | `temperature` and `top_p` omitted for restricted families |
+| Empty response despite API success | 1024-token budget fully consumed by internal reasoning; 0 tokens left for visible output | Minimum `max_completion_tokens=4096` enforced |
+
+**Benchmark results (2 test cases, single run each):**
+
+| Model | Avg TTFT | Avg Total | Avg Chars | Macro F1 |
+| :--- | :---: | :---: | :---: | :---: |
+| gpt-4o-mini | **2,846 ms** | **4,296 ms** | 485 | 0.873 |
+| gpt-4.1-mini | 3,650 ms | 6,007 ms | 562 | **0.833** |
+| gpt-5-mini (reasoning_effort=none) | 3,849 ms | 23,835 ms | 2,320 | 0.762 |
+| gpt-5-mini (full reasoning) | 42,598 ms | 52,059 ms | 1,067 | 0.667 |
+
+**Per-case detail:**
+
+| Model | CK T0 F1 | Path1 T0 F1 | Notes |
+| :--- | :---: | :---: | :--- |
+| gpt-4o-mini | 0.889 | 0.857 | Stable; one FN (REQ:2-1 points tag missed) |
+| gpt-4.1-mini | **1.000** | 0.667 | Best on CK T0; Path1 has FP+FN (MILESTONE confusion) |
+| gpt-5-mini (none) | 0.667 | 0.857 | CK T0 emits 10 tags vs 5 expected (FP=5) |
+| gpt-5-mini (full) | 0.667 | 0.667 | Same FP issue; Path1 reasoning adds no quality gain |
+
+**Key findings:**
+
+1. **gpt-5-mini full reasoning is not viable for production**: TTFT averages 42 seconds. In a streaming SSE context the user sees no output for ~40 seconds, which is UX-breaking. Ruled out.
+
+2. **`reasoning_effort: "none"` eliminates the TTFT problem** (3.8 s) but total latency remains ~24 seconds due to longer response generation (2,300 chars average vs 485 for gpt-4o-mini). The extra verbosity is not quality — it is unnecessary elaboration surrounding the same tag block.
+
+3. **gpt-4.1-mini shows the highest ceiling on CK T0 (F1 1.000)** and reasonable latency, but regressed on Path1 T0. Warrants a full 13-turn F1 evaluation before adoption.
+
+4. **gpt-4o-mini remains the most consistent** across both test cases and is the fastest overall.
+
+**Decision:** Run a full 13-turn State Tag F1 evaluation on **gpt-4.1-mini** as the primary candidate for the next production model. gpt-5-mini (`reasoning_effort: "none"`) is a secondary candidate contingent on resolving the first-turn over-emission (FP) issue.
+
+### Run 9 — gpt-4.1-mini Evaluation (2026-04-18)
+
+**Change:** Switched Answer LLM from `gpt-4o-mini` to `gpt-4.1-mini`. No prompt changes from Run 8.
+
+**Results:**
+
+| Metric | Run 8 Raw (gpt-4o-mini) | Run 8 Production | Run 9 Raw (gpt-4.1-mini) | Run 9 Production |
+| :--- | :---: | :---: | :---: | :---: |
+| **Macro F1 (relaxed)** | 0.887 | **0.932** | 0.825 | 0.825 |
+| **Macro F1 (strict)** | 0.849 | **0.894** | 0.810 | 0.810 |
+| Micro F1 | 0.873 | **0.914** | 0.835 | 0.835 |
+| TP / FP / FN | 31 / 5 / 4 | 32 / 3 / 3 | 33 / 9 / 4 | 33 / 9 / 4 |
+| Forbidden violations | 2 | 1 | **0** | **0** |
+
+**Per-turn breakdown:**
+
+| Turn | Run 8 Prod F1-R | Run 9 Raw F1-R | Change | Note |
+| :--- | :---: | :---: | :---: | :--- |
+| ck_progressive T0–T2 | 1.000 | **1.000** | = | Perfect on all three turns |
+| ck_no_assumption T0 | — | 0.571 | — | FP: 2 extra tags emitted; P=0.400, R=1.000 |
+| ck_no_assumption T1 | 0.500 | 0.800 | **+0.300** | Partial improvement; one FN remains |
+| bc_salary_tiers T0 | — | 0.857 | — | FP: 1 extra tag |
+| bc_salary_tiers T1 | — | 1.000 | — | Correct |
+| sv_complete T0 | 0.727 ⚠Forb | 1.000 (relaxed) / 0.800 (strict) | ↑ relaxed | Relaxed pass; one VALUE mismatch on strict |
+| sv_complete T1 | — | 1.000 | — | Correct |
+| **feg_path_b T0** | **≥ 1.000** | **0.000** | **−1.000** | **Critical regression: zero tags emitted** |
+| **feg_path_b T1** | **≥ 1.000** | **0.500** | **−0.500** | Partial recovery; FP+FN |
+| ck_path1_direct T0–T1 | 1.000 | **1.000** | = | Maintained |
+
+**Key observations:**
+
+1. **Critical regression — `feg_path_b`:** The model emitted zero tags in T0 (F1 0.000) and only partial tags in T1 (F1 0.500). gpt-4.1-mini appears to fail to recognise the Fachkräfteeinwanderungsgesetz skilled worker visa type's REQ schema. This single conversation drags macro F1 from a potential ~0.940 down to 0.825.
+
+2. **Filters are no-ops in Run 9:** Production F1 equals Raw F1 — the model natively handles Path 1 (ck_path1_direct T0/T1 both 1.000 raw) so the code-layer filters do not add value here.
+
+3. **Higher FP count (9 vs 5):** First turns consistently over-emit. This is the same pattern seen in the benchmark micro-test and reflects a tendency to emit speculative REQ tags before the user has confirmed them.
+
+4. **Zero forbidden violations:** No tag suppression rules violated.
+
+**Conclusion:**
+
+gpt-4.1-mini (Prod F1 **0.825**) falls below the Run 8 baseline (Prod F1 **0.932**). The `feg_path_b` total collapse is the decisive regression. **gpt-4o-mini with post-processing filters remains the production baseline.** gpt-4.1-mini is not adopted.
+
 ---
 
 *This Architecture Design Record (ADR) encapsulates how the system manages real-world complexity and messy, unstructured data—evolving a traditional "document search" baseline into an expert system capable of rudimentary "stateful reasoning."*

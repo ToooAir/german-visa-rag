@@ -5,6 +5,7 @@ import openai
 from dotenv import load_dotenv
 
 from src.llm.openai_client import OpenAIClient
+from src.rag.query_transformer import QueryTransformer
 from src.vector_db.embedder import OpenAIEmbedder, QuotaExhaustedError
 
 
@@ -28,7 +29,8 @@ async def test_provider(provider_name, use_azure):
             llm_deployment = os.getenv("AZURE_LLM_DEPLOYMENT", "gpt-41-mini")
             emb_deployment = os.getenv("AZURE_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")
 
-            print(f"Azure Config: Endpoint={endpoint}, LLM={llm_deployment}, EMB={emb_deployment}")
+            qt_deployment = os.getenv("AZURE_QUERY_TRANSFORM_DEPLOYMENT") or llm_deployment
+            print(f"Azure Config: Endpoint={endpoint}, LLM={llm_deployment}, EMB={emb_deployment}, QT={qt_deployment}")
 
             # Explicitly set settings for this test run to override singleton behavior in src.config
             from src.config import settings
@@ -37,6 +39,7 @@ async def test_provider(provider_name, use_azure):
             settings.azure_openai_api_key = api_key
             settings.azure_openai_endpoint = endpoint
             settings.azure_llm_deployment = llm_deployment
+            settings.azure_query_transform_deployment = qt_deployment or None
 
             # Initialize clients
             llm = OpenAIClient(api_key=api_key)
@@ -74,6 +77,16 @@ async def test_provider(provider_name, use_azure):
         print("Testing Chat Completion...")
         res = await llm.call_non_streaming([{"role": "user", "content": "Say 'Provider OK'"}])
         print(f"✅ Chat Success: {res.strip()}")
+
+        # 3. Test QueryTransformer router split (Azure only — verifies AZURE_QUERY_TRANSFORM_DEPLOYMENT)
+        if use_azure:
+            print("Testing QueryTransformer (router split)...")
+            qt = QueryTransformer()
+            print(f"   QueryTransformer deployment: {qt.llm.model}")
+            result = await qt.transform_query("我想申請 Chancenkarte")
+            corrected = result.get("corrected_query", "")
+            detected = result.get("detected_visa_types", [])
+            print(f"✅ QueryTransformer Success: corrected='{corrected}', detected={detected}")
 
     except QuotaExhaustedError as e:
         print(f"❌ {provider_name} Quota/Rate Limit Exhausted!")

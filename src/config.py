@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     # ============================================
     openai_api_key: str = Field(..., validation_alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_MODEL")
+    # Separate model for QueryTransformer (cheaper nano model; falls back to openai_model if unset)
+    query_transform_model: str = Field(default="gpt-4.1-nano-2025-04-14", validation_alias="QUERY_TRANSFORM_MODEL")
     openai_api_base: str = Field(default="https://api.openai.com/v1", validation_alias="OPENAI_API_BASE")
     embedding_model: str = Field(default="text-embedding-3-small", validation_alias="EMBEDDING_MODEL")
     embedding_dimension: int = Field(default=1536, validation_alias="EMBEDDING_DIMENSION")
@@ -38,6 +40,10 @@ class Settings(BaseSettings):
     azure_openai_api_version: str = Field(default="2024-12-01-preview", validation_alias="AZURE_OPENAI_API_VERSION")
     azure_embedding_deployment: Optional[str] = Field(default=None, validation_alias="AZURE_EMBEDDING_DEPLOYMENT")
     azure_llm_deployment: Optional[str] = Field(default=None, validation_alias="AZURE_LLM_DEPLOYMENT")
+    # Separate Azure deployment for QueryTransformer (e.g. a nano deployment); falls back to azure_llm_deployment
+    azure_query_transform_deployment: Optional[str] = Field(
+        default=None, validation_alias="AZURE_QUERY_TRANSFORM_DEPLOYMENT"
+    )
 
     # Token limits & cost control
     max_query_tokens: int = Field(default=256, validation_alias="MAX_QUERY_TOKENS")

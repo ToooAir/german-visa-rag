@@ -11,7 +11,7 @@ from typing import Any, Optional
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.config import settings
-from src.llm import get_llm_client
+from src.llm.openai_client import OpenAIClient
 from src.logger import logger
 
 
@@ -70,7 +70,18 @@ class QueryTransformer:
     """
 
     def __init__(self):
-        self.llm = get_llm_client()
+        if settings.use_azure_openai:
+            deployment = settings.azure_query_transform_deployment or settings.azure_llm_deployment
+            self.llm = OpenAIClient(
+                api_key=settings.azure_openai_api_key or settings.openai_api_key,
+                deployment=deployment,
+            )
+        else:
+            self.llm = OpenAIClient(
+                api_key=settings.openai_api_key,
+                model=settings.query_transform_model,
+                base_url=settings.openai_api_base,
+            )
 
     async def transform_query(
         self,

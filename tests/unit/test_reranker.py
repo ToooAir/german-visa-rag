@@ -191,7 +191,7 @@ class TestRerankerFactory:
     def test_default_mock_reranker(self):
         with patch("src.rag.reranker.settings") as s:
             s.reranker_api_type = "mock"
-        r = RerankerFactory.get_reranker()
+            r = RerankerFactory.get_reranker()
         assert isinstance(r, MockReranker)
 
     def test_cohere_with_key(self):

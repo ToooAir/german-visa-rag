@@ -218,19 +218,19 @@ class TestBuildSystemPromptExtended:
         pb = _builder()
         reqs = [{"id": "1-1", "value": "MET", "status": "required"}]
         req = PromptRequest(context="ctx", question="q?", requirements=reqs)
-        assert "CURRENT_UI_STATE" in pb.build_system_prompt(req)
+        assert "<CURRENT_UI_STATE>" in pb.build_system_prompt(req)
 
     def test_header_id_requirements_skipped(self):
         pb = _builder()
         reqs = [{"id": "header_section", "value": "Section", "status": "required"}]
         req = PromptRequest(context="ctx", question="q?", requirements=reqs)
-        assert "CURRENT_UI_STATE" not in pb.build_system_prompt(req)
+        assert "<CURRENT_UI_STATE>" not in pb.build_system_prompt(req)
 
     def test_invalid_status_requirements_skipped(self):
         pb = _builder()
         reqs = [{"id": "1-1", "value": "MET", "status": "bad_status"}]
         req = PromptRequest(context="ctx", question="q?", requirements=reqs)
-        assert "CURRENT_UI_STATE" not in pb.build_system_prompt(req)
+        assert "<CURRENT_UI_STATE>" not in pb.build_system_prompt(req)
 
     def test_requirement_with_label(self):
         pb = _builder()
@@ -264,7 +264,7 @@ class TestRequirementSanitizationWarning:
         req = PromptRequest(context="ctx", question="q?", requirements=reqs)
         prompt = pb.build_system_prompt(req)
         # No requirement content should appear (it was skipped)
-        assert "CURRENT_UI_STATE" not in prompt
+        assert "<CURRENT_UI_STATE>" not in prompt
 
     def test_requirement_with_sanitized_empty_value_is_skipped(self):
         """Lines 376-381: warning logged when s_val is empty after sanitization."""
@@ -272,7 +272,7 @@ class TestRequirementSanitizationWarning:
         reqs = [{"id": "1-1", "value": "[::]", "status": "required"}]
         req = PromptRequest(context="ctx", question="q?", requirements=reqs)
         prompt = pb.build_system_prompt(req)
-        assert "CURRENT_UI_STATE" not in prompt
+        assert "<CURRENT_UI_STATE>" not in prompt
 
 
 class TestGetPromptBuilderExtended:

@@ -18,7 +18,7 @@ from typing import Any, Dict
 
 import pandas as pd
 from datasets import Dataset
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings, ChatOpenAI, OpenAIEmbeddings
 from ragas import evaluate
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
@@ -42,35 +42,55 @@ class RagasEvaluator:
     """
 
     def __init__(self):
-        # Ragas creates OpenAI clients internally; ensure the key is in env
         import os
-
-        os.environ["OPENAI_API_KEY"] = settings.openai_api_key
 
         qdrant = get_qdrant_client()
         retriever = HybridRetriever(qdrant_client=qdrant)
         self.generator = AnswerGenerator(retriever=retriever)
         self.mlflow = get_mlflow_tracker()
-        # Ragas judge LLM + embeddings — must match the project's base_url (GitHub Models)
-        self.ragas_llm = LangchainLLMWrapper(
-            ChatOpenAI(
-                model=settings.openai_model,
-                api_key=settings.openai_api_key,
-                base_url=settings.openai_api_base,
+
+        # Ragas judge LLM + embeddings — mirrors the active provider so judge and
+        # answer generator use the same model family (avoids judge/system mismatch).
+        if settings.use_azure_openai:
+            os.environ["AZURE_OPENAI_API_KEY"] = settings.azure_openai_api_key or ""
+            self.ragas_llm = LangchainLLMWrapper(
+                AzureChatOpenAI(
+                    azure_deployment=settings.azure_llm_deployment,
+                    azure_endpoint=settings.azure_openai_endpoint,
+                    api_key=settings.azure_openai_api_key,
+                    api_version=settings.azure_openai_api_version,
+                )
             )
-        )
-        self.ragas_embeddings = LangchainEmbeddingsWrapper(
-            OpenAIEmbeddings(
-                model=settings.embedding_model,
-                api_key=settings.openai_api_key,
-                base_url=settings.openai_api_base,
+            self.ragas_embeddings = LangchainEmbeddingsWrapper(
+                AzureOpenAIEmbeddings(
+                    azure_deployment=settings.azure_embedding_deployment,
+                    azure_endpoint=settings.azure_openai_endpoint,
+                    api_key=settings.azure_openai_api_key,
+                    api_version=settings.azure_openai_api_version,
+                )
             )
-        )
+        else:
+            os.environ["OPENAI_API_KEY"] = settings.openai_api_key
+            self.ragas_llm = LangchainLLMWrapper(
+                ChatOpenAI(
+                    model=settings.openai_model,
+                    api_key=settings.openai_api_key,
+                    base_url=settings.openai_api_base,
+                )
+            )
+            self.ragas_embeddings = LangchainEmbeddingsWrapper(
+                OpenAIEmbeddings(
+                    model=settings.embedding_model,
+                    api_key=settings.openai_api_key,
+                    base_url=settings.openai_api_base,
+                )
+            )
 
     async def evaluate_from_dataset(
         self,
         dataset_path: str,
         output_dir: str = "eval/results",
+        run_name: str = "ragas_evaluation",
     ) -> Dict[str, Any]:
         """
         Evaluate RAG pipeline on a test dataset.
@@ -174,7 +194,7 @@ class RagasEvaluator:
             logger.info(f"Results saved to {output_file}")
 
             if self.mlflow:
-                self._log_to_mlflow(aggregate_metrics, results_df)
+                self._log_to_mlflow(aggregate_metrics, results_df, run_name=run_name)
 
             return report
 
@@ -182,12 +202,12 @@ class RagasEvaluator:
             logger.error(f"Evaluation failed: {e}", exc_info=True)
             raise
 
-    def _log_to_mlflow(self, metrics: Dict[str, float], results_df: pd.DataFrame):
+    def _log_to_mlflow(self, metrics: Dict[str, float], results_df: pd.DataFrame, run_name: str = "ragas_evaluation"):
         """Log evaluation results to MLflow."""
         try:
             import mlflow
 
-            with mlflow.start_run(run_name="ragas_evaluation"):
+            with mlflow.start_run(run_name=run_name):
                 for metric_name, value in metrics.items():
                     if metric_name != "count":
                         mlflow.log_metric(metric_name, value)
@@ -232,17 +252,22 @@ class RagasEvaluator:
 
 
 async def main():
-    """Run evaluation script."""
+    """Run evaluation script.
+
+    Usage:
+        python -m eval.ragas_evaluator [dataset_path] [run_name]
+
+    Example:
+        python -m eval.ragas_evaluator eval/eval_dataset.json ragas_run5
+    """
     import sys
 
     evaluator = RagasEvaluator()
 
-    dataset_path = "eval/eval_dataset.json"
+    dataset_path = sys.argv[1] if len(sys.argv) > 1 else "eval/eval_dataset.json"
+    run_name = sys.argv[2] if len(sys.argv) > 2 else "ragas_evaluation"
 
-    if len(sys.argv) > 1:
-        dataset_path = sys.argv[1]
-
-    report = await evaluator.evaluate_from_dataset(dataset_path)
+    report = await evaluator.evaluate_from_dataset(dataset_path, run_name=run_name)
 
     print("\n" + "=" * 60)
     print("EVALUATION REPORT")

@@ -34,6 +34,27 @@ from typing import Optional
 _SALARY_MET_VALUES: frozenset[str] = frozenset({"MET", "SALARY_MET", "SHORTAGE_SALARY_MET", "GRADUATE_SALARY_MET"})
 
 
+# Values in REQ:2-1 that unambiguously represent English C1 bonus (not German pts).
+# German A2=A2|1, B1=B1|2, B2=B2|3, C1=C1|4 — none collide with these.
+_ENGLISH_C1_VALUES: frozenset[str] = frozenset({"C1|1", "EN_C1|1"})
+
+
+def apply_english_c1_split_filter(new_requirements: list[dict]) -> list[dict]:
+    """Correct model errors where English C1 bonus is emitted as REQ:2-1 instead of REQ:2-7.
+
+    REQ:2-1 is German language points only (A2|1, B1|2, B2|3, C1|4).
+    English C1 bonus must use REQ:2-7 with value EN_C1|1.
+    Any REQ:2-1 with a value in _ENGLISH_C1_VALUES is silently re-routed.
+    """
+    result = []
+    for r in new_requirements:
+        if r.get("id") == "2-1" and r.get("value") in _ENGLISH_C1_VALUES:
+            result.append({**r, "id": "2-7", "value": "EN_C1|1"})
+        else:
+            result.append(r)
+    return result
+
+
 def apply_path1_filter(
     visa_type: Optional[str],
     state_requirements: list[dict],

@@ -1,6 +1,6 @@
 """Unit tests for src/rag/tag_filter.py."""
 
-from src.rag.tag_filter import apply_milestone2_filter, apply_path1_filter
+from src.rag.tag_filter import apply_english_c1_split_filter, apply_milestone2_filter, apply_path1_filter
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -13,6 +13,57 @@ def req(id_, value, status="required"):
 
 def milestone(id_, status="current"):
     return {"id": id_, "status": status}
+
+
+# ---------------------------------------------------------------------------
+# apply_english_c1_split_filter
+# ---------------------------------------------------------------------------
+
+
+class TestApplyEnglishC1SplitFilter:
+    def test_c1_1_in_2_1_is_rerouted_to_2_7(self):
+        reqs = [req("2-1", "C1|1")]
+        result = apply_english_c1_split_filter(reqs)
+        assert result == [{"id": "2-7", "value": "EN_C1|1", "status": "required"}]
+
+    def test_en_c1_1_in_2_1_is_rerouted_to_2_7(self):
+        reqs = [req("2-1", "EN_C1|1")]
+        result = apply_english_c1_split_filter(reqs)
+        assert result == [{"id": "2-7", "value": "EN_C1|1", "status": "required"}]
+
+    def test_german_a2_1pt_not_affected(self):
+        """German A2 = A2|1 must NOT be rerouted — only C1|1 / EN_C1|1 are English."""
+        reqs = [req("2-1", "A2|1")]
+        result = apply_english_c1_split_filter(reqs)
+        assert result[0]["id"] == "2-1"
+        assert result[0]["value"] == "A2|1"
+
+    def test_german_c1_4pt_not_affected(self):
+        reqs = [req("2-1", "C1|4")]
+        result = apply_english_c1_split_filter(reqs)
+        assert result[0]["id"] == "2-1"
+        assert result[0]["value"] == "C1|4"
+
+    def test_stacking_case_both_tags(self):
+        """German C1 (4pt) + English C1 (1pt): only the English one is rerouted."""
+        reqs = [req("2-1", "C1|4"), req("2-1", "C1|1")]
+        result = apply_english_c1_split_filter(reqs)
+        ids = [(r["id"], r["value"]) for r in result]
+        assert ("2-1", "C1|4") in ids
+        assert ("2-7", "EN_C1|1") in ids
+
+    def test_non_language_tags_unchanged(self):
+        reqs = [req("2-2", "5_YEARS_EXP|3"), req("2-3", "UNDER_35|2")]
+        result = apply_english_c1_split_filter(reqs)
+        assert result == reqs
+
+    def test_empty_list(self):
+        assert apply_english_c1_split_filter([]) == []
+
+    def test_status_preserved_on_reroute(self):
+        reqs = [{"id": "2-1", "value": "C1|1", "status": "warning"}]
+        result = apply_english_c1_split_filter(reqs)
+        assert result[0]["status"] == "warning"
 
 
 # ---------------------------------------------------------------------------

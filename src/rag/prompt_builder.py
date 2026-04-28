@@ -266,7 +266,7 @@ REQ Tag Mapping (Chancenkarte Language — emit BOTH threshold tag and points ta
   German B2        → [REQ:1-2:B2:required]  + [REQ:2-1:B2|3:required]
   German C1/C2     → [REQ:1-2:C1:required]  + [REQ:2-1:C1|4:required]
   English B2       → [REQ:1-2:B2:required]                                    (threshold met; English B2 earns 0 bonus pts, omit REQ:2-1 and REQ:2-7)
-  English C1       → [REQ:1-2:C1:required]  + [REQ:2-7:EN_C1|1:required]
+  English C1       → [REQ:1-2:C1:required]  + [REQ:2-7:EN_C1|1:required]     ← ALWAYS REQ:2-7, NEVER REQ:2-1, even when no German exists
   Neither German nor English language confirmed → [REQ:1-2:TBC:warning]
 
   ⚠ STACKING RULE: REQ:2-1 (German pts) and REQ:2-7 (English C1 bonus) are INDEPENDENT tags — emit BOTH when applicable:
@@ -357,6 +357,7 @@ Analyze the user's current situation and intent. Output the following hidden tag
     If the user provides no personal information, do NOT emit any REQ:2-x tags — not even TBC|0:warning.
     "I want to know about Chancenkarte requirements" → NO REQ:2-x tags (no personal info to score).
     "I have German B1" → emit [REQ:2-1:B1|2:required] alongside [REQ:1-2:B1:required].
+    "英文 C1，完全沒有德文" → emit [REQ:2-7:EN_C1|1:required] alongside [REQ:1-2:C1:required].  ← English C1 uses REQ:2-7, NEVER REQ:2-1
 
   WRONG/CORRECT Example 7 — Chancenkarte first turn, no personal details:
   WRONG: User asks "我想了解 Chancenkarte 的申請條件" (no personal data) →
@@ -418,7 +419,15 @@ Analyze the user's current situation and intent. Output the following hidden tag
    - EU Blue Card:         1:Qualification, 2:Salary, 3:Language-Bonus
                            (Blue Card IDs are single digits: 1, 2, 3 — NOT 1-1, 1-2, etc.)
    - Chancenkarte:         Thresholds: 1-1:Financial-Proof, 1-2:Language, 1-3:Qualification
-                           Points:     2-1:Language (e.g. B1|2), 2-2:Experience (e.g. 5_YEARS_EXP|3), 2-3:Age (e.g. UNDER_35|2), 2-4:Qualification (e.g. DEGREE|4), 2-5:Germany-Exp, 2-6:Partner
+                           Points:     2-1:German-Language (e.g. C1|4), 2-2:Experience (e.g. 5_YEARS_EXP|3), 2-3:Age (e.g. UNDER_35|2), 2-4:Qualification (e.g. DEGREE|4), 2-5:Germany-Exp, 2-6:Partner, 2-7:English-C1-Bonus (e.g. EN_C1|1)
+
+   ⚠ CHANCENKARTE LANGUAGE TAG SPLIT (MANDATORY):
+     REQ:2-1 = German language points ONLY  → values: A2|1, B1|2, B2|3, C1|4
+     REQ:2-7 = English C1 bonus ONLY        → value always: EN_C1|1
+     WRONG:   "英文 C1" → [REQ:2-1:C1|1:required]    ← WRONG ID: must be 2-7, not 2-1
+     WRONG:   "英文 C1" → [REQ:2-1:EN_C1|1:required]  ← WRONG ID: even with correct value, ID must be 2-7
+     CORRECT: "英文 C1" → [REQ:2-7:EN_C1|1:required]  ← ID=2-7, value=EN_C1|1, always
+
    - Student Visa:         1:Financial-Proof, 2:Language, 3:Health-Insurance, 4:Prior-Qualification
                            (Student Visa IDs are single digits: 1, 2, 3, 4 — NOT 1-1, 1-2, etc.)
 

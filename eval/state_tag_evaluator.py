@@ -39,7 +39,7 @@ from src.llm import get_llm_client
 from src.logger import logger
 from src.observability.mlflow_tracker import get_mlflow_tracker
 from src.rag.prompt_builder import PromptRequest, get_prompt_builder
-from src.rag.tag_filter import apply_milestone2_filter, apply_path1_filter
+from src.rag.tag_filter import apply_english_c1_split_filter, apply_milestone2_filter, apply_path1_filter
 
 # ─── Tag parsing (mirrors answer_generator.py) ────────────────────────────────
 
@@ -411,7 +411,8 @@ class StateTagEvaluator:
                 {"id": t.id, "value": t.value, "status": t.status} for t in predicted if t.tag_type == "REQ"
             ]
             pred_milestone_dicts = [{"id": t.id, "status": t.status} for t in predicted if t.tag_type == "MILESTONE"]
-            filtered_reqs = apply_path1_filter(visa_type, state_reqs, pred_req_dicts)
+            corrected_reqs = apply_english_c1_split_filter(pred_req_dicts)
+            filtered_reqs = apply_path1_filter(visa_type, state_reqs, corrected_reqs)
             filtered_milestones = apply_milestone2_filter(
                 visa_type, state_reqs, state_milestones_list, filtered_reqs, pred_milestone_dicts
             )

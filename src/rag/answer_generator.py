@@ -140,7 +140,7 @@ class AnswerGenerator:
             return cached_result
 
         try:
-            # 1. Query transformation
+            # 1. Query transformation + build search queries (single LLM call)
             logger.info("Step 1: Transforming query")
             try:
                 transformed = await self.query_transformer.transform_query(query)
@@ -148,9 +148,24 @@ class AnswerGenerator:
             except Exception as e:
                 logger.error("Query expansion/correction failed: %s", e)
                 main_query = query
+                transformed = {}
+
+            if not settings.enable_query_expansion or len(query) > 100:
+                search_queries = [query]
+            else:
+                search_queries = [main_query]
+                for key in ("english_query", "german_query"):
+                    val = transformed.get(key)
+                    if val and val not in search_queries:
+                        search_queries.append(val)
+                if len(search_queries) < 3:
+                    for variant in transformed.get("query_variants", []):
+                        if variant and variant not in search_queries:
+                            search_queries.append(variant)
+                            break
+                search_queries = list(dict.fromkeys(filter(None, search_queries)))[:3]
 
             # 2. Retrieval
-            search_queries = await self.query_transformer.get_search_queries(query)
             logger.info("Step 2: Retrieving for queries: %s", search_queries)
 
             visa_types_filter = [visa_type] if visa_type else None
@@ -304,13 +319,26 @@ class AnswerGenerator:
             return
 
         try:
-            # 1. Query transformation
+            # 1. Query transformation + build search queries (single LLM call)
             transformed = await self.query_transformer.transform_query(query)
             main_query = transformed["corrected_query"]
 
             # 2. Retrieval
             yield self._format_status_chunk("retrieving")
-            search_queries = await self.query_transformer.get_search_queries(query)
+            if not settings.enable_query_expansion or len(query) > 100:
+                search_queries = [query]
+            else:
+                search_queries = [main_query]
+                for key in ("english_query", "german_query"):
+                    val = transformed.get(key)
+                    if val and val not in search_queries:
+                        search_queries.append(val)
+                if len(search_queries) < 3:
+                    for variant in transformed.get("query_variants", []):
+                        if variant and variant not in search_queries:
+                            search_queries.append(variant)
+                            break
+                search_queries = list(dict.fromkeys(filter(None, search_queries)))[:3]
             yield self._format_search_queries_chunk(search_queries)
             logger.info("Streaming retrieval for queries: %s (request_id=%s)", search_queries, request_id)
 

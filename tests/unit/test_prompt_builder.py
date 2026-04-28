@@ -245,6 +245,24 @@ class TestBuildSystemPromptExtended:
         prompt = pb.build_system_prompt(req)
         assert "B1" in prompt and "+2 pts" in prompt
 
+    def test_req_2_7_english_bonus_format(self):
+        pb = _builder()
+        reqs = [{"id": "2-7", "value": "EN_C1|1", "status": "required", "label": "Language (English C1 Bonus)"}]
+        req = PromptRequest(context="ctx", question="q?", requirements=reqs)
+        prompt = pb.build_system_prompt(req)
+        assert "EN_C1" in prompt and "+1 pts" in prompt
+
+    def test_req_2_1_and_2_7_stackable(self):
+        pb = _builder()
+        reqs = [
+            {"id": "2-1", "value": "C1|4", "status": "required", "label": "Language (German)"},
+            {"id": "2-7", "value": "EN_C1|1", "status": "required", "label": "Language (English C1 Bonus)"},
+        ]
+        req = PromptRequest(context="ctx", question="q?", requirements=reqs)
+        prompt = pb.build_system_prompt(req)
+        assert "C1" in prompt and "+4 pts" in prompt
+        assert "EN_C1" in prompt and "+1 pts" in prompt
+
 
 class TestBuildUserMessageExtended:
     def test_role_is_user(self):

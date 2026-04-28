@@ -55,6 +55,8 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
     else if (key === 'contractduration' || key === 'contractdurationmin6mo') result = t.criteria.contractDuration;
     else if (key === 'germanresidency6mo' || key === 'germanresidency') result = t.criteria.residencyBonus;
     else if (key === 'partnerbonus') result = t.criteria.partnerBonus;
+    else if (key === 'languagegerman') result = t.criteria.langGerman;
+    else if (key === 'languageenglishc1bonus') result = t.criteria.langEnglishBonus;
     else if (key === 'mandatorythresholds' || key === 'header1') {
       if (activeVisaCategory === 'chancenkarte') {
         return language === 'zh-TW' ? '前置要求 (依申請路徑)' : language === 'de' ? 'Voraussetzungen (je nach Pfad)' : 'Prerequisites (Path-dependent)';
@@ -166,11 +168,11 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
     });
 
     // Factor in reverse-inferred Language points
-    if (!requirements.some(r => r.id === '2-1' && r.status === 'required')) {
+    if (!requirements.some(r => (r.id === '2-1' || r.id === '2-7') && r.status === 'required')) {
       const tReq = requirements.find(r => r.id === '1-2' && r.status === 'required');
       if (tReq) {
         const val = tReq.value.toLowerCase();
-        const ptsMap: Record<string, number> = { a2: 1, b1: 2, b2: 3, c1: 4, en_c1: 1 };
+        const ptsMap: Record<string, number> = { a2: 1, b1: 2, b2: 3, c1: 4 };
         total += ptsMap[val] || 0;
       }
     }
@@ -226,7 +228,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
       cards.push({ label: t.criteria.financialGoal || 'Financial Requirement', value: `${t.criteria.yearlyAmount}: €11,904`, sub: `(${getFinancialSub('1')})` });
     } else if (cat === 'chancenkarte') {
       // Smart Inference: if points are awarded, base requirements are logically met
-      const hasLangPoints = requirements.some(r => r.id === '2-1' && r.status === 'required');
+      const hasLangPoints = requirements.some(r => (r.id === '2-1' || r.id === '2-7') && r.status === 'required');
       const hasQualPoints = requirements.some(r => r.id?.match(/^2-[45]/) && r.status === 'required');
 
       const isLangMet = hasLangPoints || requirements.some(r => r.id === '1-2' && r.status === 'required');
@@ -262,7 +264,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
     const displayItem = { ...item };
     // Smart Inference for Chancenkarte Milestones
     if (activeVisaCategory === 'chancenkarte') {
-      const hasLangPoints = requirements.some(r => r.id === '2-1' && r.status === 'required');
+      const hasLangPoints = requirements.some(r => (r.id === '2-1' || r.id === '2-7') && r.status === 'required');
       const hasQualPoints = requirements.some(r => r.id?.match(/^2-[45]/) && r.status === 'required');
       const isLangMet = hasLangPoints || requirements.some(r => r.id === '1-2' && r.status === 'required');
       const isQualMet = hasQualPoints || requirements.some(r => r.id === '1-3' && r.status === 'required');
@@ -434,7 +436,7 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
 
                   // Apply smart inference to visually satisfy prerequisites if points are awarded
                   if (activeVisaCategory === 'chancenkarte') {
-                    const hasLangPoints = requirements.some(r => r.id === '2-1' && r.status === 'required');
+                    const hasLangPoints = requirements.some(r => (r.id === '2-1' || r.id === '2-7') && r.status === 'required');
                     const hasQualPoints = requirements.some(r => r.id?.match(/^2-[45]/) && r.status === 'required');
 
                     // A. Forward Inference: Points -> Threshold
@@ -447,12 +449,12 @@ export function InsightsPanel({ className = '' }: { className?: string }) {
                       req.value = 'MET';
                     }
 
-                    // B. Reverse Inference: Threshold -> Points (Language)
+                    // B. Reverse Inference: Threshold -> Points (Language, German only)
                     if (req.id === '2-1' && req.status !== 'required') {
                       const tReq = requirements.find(r => r.id === '1-2' && r.status === 'required');
                       if (tReq) {
                         const val = tReq.value.toLowerCase();
-                        const ptsMap: Record<string, number> = { a2: 1, b1: 2, b2: 3, c1: 4, en_c1: 1 };
+                        const ptsMap: Record<string, number> = { a2: 1, b1: 2, b2: 3, c1: 4 };
                         if (ptsMap[val]) {
                           req.status = 'required';
                           req.value = `${tReq.value}|${ptsMap[val]}`;

@@ -255,16 +255,28 @@ REQ Tag Mapping (Chancenkarte Language — emit BOTH threshold tag and points ta
   Use the ACTUAL level stated (e.g. C1), NOT the minimum threshold level (B2).
   WRONG: "英文 C1，沒有德文" → [REQ:1-2:TBC:warning]   ← "沒有德文" must be IGNORED
   WRONG: "英文 C1，沒有德文" → [REQ:1-2:B2:required]   ← value must be C1, not B2
-  CORRECT: "英文 C1，沒有德文" → [REQ:1-2:C1:required] [REQ:2-1:C1|1:required]
+  WRONG: "英文 C1，沒有德文" → [REQ:1-2:C1:required] [REQ:2-1:C1|1:required]  ← REQ:2-1 is German-only; English C1 bonus MUST use REQ:2-7
+  CORRECT: "英文 C1，沒有德文" → [REQ:1-2:C1:required] [REQ:2-7:EN_C1|1:required]
+
+  ⚠ REQ:2-1 IS FOR GERMAN LANGUAGE POINTS ONLY. NEVER emit REQ:2-1 for English. English C1 bonus = REQ:2-7:EN_C1|1.
 
   German A1        → [REQ:1-2:A1:required]                                    (threshold met; A1 earns 0 pts, omit REQ:2-1)
   German A2        → [REQ:1-2:A2:required]  + [REQ:2-1:A2|1:required]
   German B1        → [REQ:1-2:B1:required]  + [REQ:2-1:B1|2:required]
   German B2        → [REQ:1-2:B2:required]  + [REQ:2-1:B2|3:required]
   German C1/C2     → [REQ:1-2:C1:required]  + [REQ:2-1:C1|4:required]
-  English B2       → [REQ:1-2:B2:required]                                    (threshold met; English B2 earns 0 bonus pts, omit REQ:2-1)
-  English C1       → [REQ:1-2:C1:required]  + [REQ:2-1:C1|1:required]        (stackable with German pts)
+  English B2       → [REQ:1-2:B2:required]                                    (threshold met; English B2 earns 0 bonus pts, omit REQ:2-1 and REQ:2-7)
+  English C1       → [REQ:1-2:C1:required]  + [REQ:2-7:EN_C1|1:required]
   Neither German nor English language confirmed → [REQ:1-2:TBC:warning]
+
+  ⚠ STACKING RULE: REQ:2-1 (German pts) and REQ:2-7 (English C1 bonus) are INDEPENDENT tags — emit BOTH when applicable:
+  German B1 + English C1 → [REQ:2-1:B1|2:required] [REQ:2-7:EN_C1|1:required]  ← total 3 pts
+  German C1 + English C1 → [REQ:2-1:C1|4:required]  [REQ:2-7:EN_C1|1:required]  ← total 5 pts
+  German A1 + English C1 → [REQ:2-7:EN_C1|1:required] only                       ← A1 earns 0 pts, omit REQ:2-1
+
+  WRONG: "德文 C1，英文 C1" → [REQ:2-1:C1|1:required]                    ← 誤用英文積分給德文
+  WRONG: "德文 C1，英文 C1" → [REQ:2-1:C1|4:required]                    ← 漏掉 REQ:2-7 英文 bonus
+  CORRECT: "德文 C1，英文 C1" → [REQ:2-1:C1|4:required] [REQ:2-7:EN_C1|1:required]
 
   NOTE on VALUE: Always use the exact language level as VALUE (e.g. "B1", "C1", "B2").
   Never use "MET" or "TBC" as language level values — those are reserved for non-language REQ IDs.
@@ -277,7 +289,7 @@ PATH 1 DETECTION — check this BEFORE applying any language or point rules:
   → PATH 1 confirmed. All PATH 1 rules apply for ALL remaining turns.
 
   PATH 1 rules:
-    • Do NOT emit REQ:1-2 (language) or REQ:2-1 (language points) — Path 1 is language-exempt.
+    • Do NOT emit REQ:1-2 (language), REQ:2-1 (German language points), or REQ:2-7 (English language bonus) — Path 1 is language-exempt.
     • Do NOT emit REQ:2-2, REQ:2-3, REQ:2-4 point tags.
     • MILESTONE:2 requires BOTH REQ:1-1:MET AND REQ:1-3:MET to be confirmed.
       ⚠ gleichwertig/entspricht alone confirms REQ:1-3 only — MILESTONE:2 does NOT fire yet.
@@ -301,7 +313,7 @@ PATH 1 DETECTION — check this BEFORE applying any language or point rules:
 
 
 **Chancenkarte Points — qualify at 6+ points total**
-1. Language (max 4 pts): German A2(+1), B1(+2), B2(+3), C1(+4); English C1(+1). Stackable.
+1. Language (max 5 pts): German A2(+1), B1(+2), B2(+3), C1(+4) → REQ:2-1; English C1(+1) → REQ:2-7. Both tags are independent and stackable.
 2. Work Experience (max 3 pts): 5+ yrs relevant experience in last 7 yrs (+3); 2+ yrs in last 5 yrs (+2).
 3. Age (max 2 pts): ≤35 yrs (+2); 36–40 yrs (+1).
 4. Qualification & Shortage Occupation (max 4 pts): Partial recognition (+4); Shortage field — IT / Nursing / Engineering (+1).
@@ -350,7 +362,7 @@ Analyze the user's current situation and intent. Output the following hidden tag
   WRONG: User asks "我想了解 Chancenkarte 的申請條件" (no personal data) →
          [MILESTONE:1:current] [REQ:1-1:TBC:warning] [REQ:1-2:TBC:warning] [REQ:1-3:TBC:warning]
          [REQ:2-1:TBC|0:warning] [REQ:2-2:TBC|0:warning] [REQ:2-3:TBC|0:warning]
-         [REQ:2-4:TBC|0:warning] [REQ:2-5:TBC|0:warning] [REQ:2-6:TBC|0:warning]
+         [REQ:2-4:TBC|0:warning] [REQ:2-5:TBC|0:warning] [REQ:2-6:TBC|0:warning] [REQ:2-7:TBC|0:warning]
          ← WRONG: REQ:2-x tags must NOT be emitted without user-provided values to score
   CORRECT: → [MILESTONE:1:current] [REQ:1-1:TBC:warning] [REQ:1-2:TBC:warning] [REQ:1-3:TBC:warning]
              ← Only threshold REQ tags initialized; no REQ:2-x until user provides scoring info

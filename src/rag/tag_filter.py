@@ -58,7 +58,8 @@ def apply_path1_filter(
     if not path1_active:
         return new_requirements
 
-    return [r for r in new_requirements if r.get("id") != "1-2"]
+    _LANG_IDS = {"1-2", "2-1", "2-7"}
+    return [r for r in new_requirements if r.get("id") not in _LANG_IDS]
 
 
 def apply_milestone2_filter(

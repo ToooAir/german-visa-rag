@@ -473,4 +473,57 @@ conditions per visa type (see `src/rag/tag_filter.py` for full specification).
 
 ---
 
+### Decision 4 — REQ:2-7 Language Split: Separating German Points from English C1 Bonus
+
+**Context:** The Chancenkarte point system allows accumulating German language points
+(`REQ:2-1`, max 4 pts via `A2|1`/`B1|2`/`B2|3`/`C1|4`) and an English C1 bonus
+(`REQ:2-7`, +1 pt via `EN_C1|1`) independently. These are two distinct scoring
+dimensions that must never share the same tag ID.
+
+**Problem:** The model consistently emitted the English C1 bonus under `REQ:2-1` instead
+of `REQ:2-7`, making it impossible to distinguish German from English language
+contributions in the UI and point calculator.
+
+Two compounding root causes were identified:
+
+1. **Missing ID in Reference:** `REQ:2-7` was absent from the authoritative REQ ID
+   Reference table in `prompt_builder.py`. Without a canonical anchor, the model
+   defaulted to the nearest known language ID (`REQ:2-1`).
+2. **Strong Model Prior:** Even after correcting the ID Reference, Scenario 1 (English
+   C1 only, zero German) continued to oscillate. The model's training-time prior —
+   associating C1 proficiency with a single language tag — overrode prompt-level
+   instructions under certain conversation patterns.
+
+**Decision — 5-Layer Implementation:**
+
+- **Layer 1 (Prompt):** Added `REQ:2-7` to the Chancenkarte ID Reference. Added a
+  `MANDATORY SPLIT` block with WRONG/CORRECT examples for both the pure-English and
+  stacking cases. Extended Path 1 exempt list to include `REQ:2-7`.
+- **Layer 4 (Deterministic Filter):** Added `apply_english_c1_split_filter` to
+  `tag_filter.py`. Any `REQ:2-1` emission with value in `{C1|1, EN_C1|1}` is silently
+  re-routed to `REQ:2-7:EN_C1|1`. Extended `apply_path1_filter` suppress set from
+  `{"1-2"}` to `{"1-2", "2-1", "2-7"}`.
+- **Layer 2 (Frontend Store):** Added `REQ:2-7` slot to `chatStore.ts`. Renamed REQ:2-1
+  label from `Language` to `Language (German)`.
+- **Layer 3 (UI Logic):** Updated `InsightsPanel.tsx` to treat both `2-1` and `2-7` as
+  language REQs for forward/reverse inference. Removed `en_c1` from the inline points
+  map (now handled via REQ:2-7 directly).
+- **Layer 5 (Tests):** Added 27 unit tests covering both filters and new prompt
+  rendering behaviour.
+
+**Why the deterministic filter was necessary:** Scenario 2 (German + English stacking)
+became reliable after the prompt fix alone. Scenario 1 (English-only, no German) did
+not — prompt instructions alone cannot override a sufficiently strong model prior when
+the scenario is underrepresented in training distribution. The filter guarantees
+correctness regardless of model output variation.
+
+**Safety invariants preserved:**
+- German values `A2|1`, `B1|2`, `B2|3`, `C1|4` do not overlap with
+  `_ENGLISH_C1_VALUES = {"C1|1", "EN_C1|1"}`, so no German points are silently
+  re-routed.
+- Path 1 suppresses all three language-related IDs (`{"1-2", "2-1", "2-7"}`), since the
+  language threshold is waived entirely under direct recognition.
+
+---
+
 *This Architecture Design Record (ADR) encapsulates how the system manages real-world complexity and messy, unstructured data—evolving a traditional "document search" baseline into an expert system capable of rudimentary "stateful reasoning."*

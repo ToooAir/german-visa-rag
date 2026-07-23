@@ -12,8 +12,11 @@ on:
         type: boolean
         default: false
   schedule:
-    # 03:17 UTC daily (off-peak, staggered minute to dodge scheduler congestion)
-    - cron: "17 3 * * *"
+    # 03:17 UTC every Monday (off-peak; staggered minute to dodge scheduler congestion).
+    # Weekly rather than daily: this gate guards against model/dependency drift, which
+    # changes slowly, so a weekly cadence keeps drift monitoring at ~1/7th the API cost.
+    # Trigger it manually (workflow_dispatch) right after changing prompts or tag rules.
+    - cron: "17 3 * * 1"
 
 jobs:
   eval-gate:

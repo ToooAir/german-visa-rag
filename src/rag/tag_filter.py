@@ -83,6 +83,38 @@ def apply_path1_filter(
     return [r for r in new_requirements if r.get("id") not in _LANG_IDS]
 
 
+def apply_feg_path_a_filter(
+    visa_type: Optional[str],
+    state_requirements: list[dict],
+    new_requirements: list[dict],
+) -> list[dict]:
+    """Remove a pending REQ:4 (language) when FEG Path A is active.
+
+    FEG Path A (full recognition: anabin "entspricht"/"gleichwertig" → REQ:1:MET)
+    requires no language proof, yet the model sometimes still initialises
+    REQ:4:TBC:warning. Path A is signalled by REQ:1:MET:required in either
+    state_requirements (CURRENT_UI_STATE) or new_requirements (this turn).
+
+    This is the FEG analogue of apply_path1_filter for Chancenkarte Path 1.
+    Only *warning*-status REQ:4 tags are dropped, so a genuinely confirmed A2
+    from a completed Path B (REQ:4:A2:required) is preserved.
+
+    Returns new_requirements unchanged for non-skilled_worker visa types or when
+    Path A is not active.
+    """
+    if visa_type != "skilled_worker":
+        return new_requirements
+
+    path_a_active = any(
+        r.get("id") == "1" and r.get("value") == "MET" and r.get("status") == "required"
+        for r in state_requirements + new_requirements
+    )
+    if not path_a_active:
+        return new_requirements
+
+    return [r for r in new_requirements if not (r.get("id") == "4" and r.get("status") == "warning")]
+
+
 def apply_milestone2_filter(
     visa_type: Optional[str],
     state_requirements: list[dict],

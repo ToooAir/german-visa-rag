@@ -1,0 +1,75 @@
+name: Eval Gate - State Tag F1 Regression
+
+# The State Tag evaluator calls a REAL LLM: it is non-deterministic and costs
+# API credits per run. So this gate does NOT run per-PR. It runs on demand and
+# nightly, comparing production Macro F1 against the committed eval/baseline.json.
+# A regression beyond the baseline tolerance fails the job.
+on:
+  workflow_dispatch:
+    inputs:
+      update_baseline:
+        description: "Overwrite eval/baseline.json with this run's metrics instead of checking against it"
+        type: boolean
+        default: false
+  schedule:
+    # 03:17 UTC daily (off-peak, staggered minute to dodge scheduler congestion)
+    - cron: "17 3 * * *"
+
+jobs:
+  eval-gate:
+    runs-on: ubuntu-latest
+    # Guard: skip on forks (no secrets available) to avoid guaranteed failures.
+    if: github.repository == 'ToooAir/german-visa-rag'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -e ".[dev,test]"
+
+      - name: Run State Tag eval gate
+        env:
+          # Required secrets — configure under repo Settings → Secrets → Actions.
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          API_KEY: ${{ secrets.API_KEY }}
+          # Azure path (optional — only needed if USE_AZURE_OPENAI=true).
+          USE_AZURE_OPENAI: ${{ vars.USE_AZURE_OPENAI }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_LLM_DEPLOYMENT: ${{ vars.AZURE_LLM_DEPLOYMENT }}
+          AZURE_QUERY_TRANSFORM_DEPLOYMENT: ${{ vars.AZURE_QUERY_TRANSFORM_DEPLOYMENT }}
+          # Infra defaults are fine — the evaluator is LLM-direct (bypasses retrieval).
+          ENVIRONMENT: test
+          MLFLOW_TRACKING_URI: ""
+        run: |
+          if [ "${{ inputs.update_baseline }}" = "true" ]; then
+            echo "::notice::Updating baseline instead of checking against it"
+            python -m eval.state_tag_evaluator --update-baseline
+          else
+            python -m eval.state_tag_evaluator --check-baseline
+          fi
+
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: state-tag-eval-report
+          path: eval/results/state_tag_report_*.json
+          retention-days: 30
+
+      - name: Commit updated baseline
+        if: ${{ inputs.update_baseline == true }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add eval/baseline.json
+          git commit -m "chore(eval): update State Tag F1 gate baseline [skip ci]" || echo "No baseline change"
+          git push

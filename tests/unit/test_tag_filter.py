@@ -1,6 +1,11 @@
 """Unit tests for src/rag/tag_filter.py."""
 
-from src.rag.tag_filter import apply_english_c1_split_filter, apply_milestone2_filter, apply_path1_filter
+from src.rag.tag_filter import (
+    apply_english_c1_split_filter,
+    apply_feg_path_a_filter,
+    apply_milestone2_filter,
+    apply_path1_filter,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -132,6 +137,55 @@ class TestApplyPath1Filter:
         ids = [r["id"] for r in result]
         assert "1-2" in ids
         assert "2-1" in ids
+
+
+# ---------------------------------------------------------------------------
+# apply_feg_path_a_filter
+# ---------------------------------------------------------------------------
+
+
+class TestApplyFegPathAFilter:
+    def test_non_skilled_worker_passthrough(self):
+        """Filter only applies to skilled_worker (FEG)."""
+        new = [req("1", "MET"), req("4", "TBC", status="warning")]
+        assert apply_feg_path_a_filter("blue_card", [], new) == new
+
+    def test_path_a_not_active_passthrough(self):
+        """Without REQ:1:MET, Path A is not active — REQ:4 kept."""
+        new = [req("1", "TBC", status="warning"), req("4", "TBC", status="warning")]
+        result = apply_feg_path_a_filter("skilled_worker", [], new)
+        assert result == new
+
+    def test_path_a_active_via_new_strips_pending_language(self):
+        """REQ:1:MET this turn → drop pending REQ:4:warning (Path A is language-exempt)."""
+        new = [req("1", "MET"), req("4", "TBC", status="warning")]
+        result = apply_feg_path_a_filter("skilled_worker", [], new)
+        ids = [r["id"] for r in result]
+        assert "4" not in ids
+        assert "1" in ids
+
+    def test_path_a_active_via_state_strips_pending_language(self):
+        """REQ:1:MET from CURRENT_UI_STATE also activates the filter."""
+        state = [req("1", "MET")]
+        new = [req("4", "TBC", status="warning"), req("2", "TBC", status="warning")]
+        result = apply_feg_path_a_filter("skilled_worker", state, new)
+        ids = [r["id"] for r in result]
+        assert "4" not in ids
+        assert "2" in ids
+
+    def test_confirmed_a2_preserved(self):
+        """A completed Path B (REQ:4:A2:required) must NOT be stripped even if REQ:1:MET."""
+        state = [req("1", "MET")]
+        new = [req("4", "A2", status="required")]
+        result = apply_feg_path_a_filter("skilled_worker", state, new)
+        assert new[0] in result
+
+    def test_path_b_in_progress_keeps_language(self):
+        """Path B in progress (REQ:1:TBC) keeps its pending REQ:4:TBC."""
+        new = [req("1", "TBC", status="warning"), req("4", "TBC", status="warning")]
+        result = apply_feg_path_a_filter("skilled_worker", [], new)
+        ids = [r["id"] for r in result]
+        assert "4" in ids
 
 
 # ---------------------------------------------------------------------------

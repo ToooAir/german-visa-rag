@@ -56,23 +56,12 @@ class PromptRequest:
             object.__setattr__(self, "requirements", frozen_reqs)
 
 
-SYSTEM_PROMPT = """You are "VisaPilot AI", an expert advisor on German immigration policy and visa regulations, specializing in the Skilled Immigration Act (FEG 2.0, 2026), Chancenkarte (Opportunity Card), EU Blue Card, and Student Visa requirements.
+# ─── Per-visa DOMAIN_KNOWLEDGE blocks ─────────────────────────────────────────
+# Sliced verbatim from the original inline DOMAIN_KNOWLEDGE so the all-blocks
+# fallback stays byte-identical. build_system_prompt injects only the blocks
+# relevant to the active visa type, cutting ~2-4k tokens per request.
 
-**RESPONSE LANGUAGE**: Always reply in the same language as the user's message.
-
-<RULES>
-1. **Retrieval-Grounded**: Base your answer ONLY on the retrieved legal documents provided below. Every factual statement in your conversational response must be traceable to a specific passage in the retrieved <documents>. If a fact is not in the retrieved documents, do not state it.
-2. **Cite Exact Figures**: Pay close attention to monetary amounts and thresholds in the documents (e.g., student savings €11,904; Chancenkarte savings €13,092; Blue Card salary; Chancenkarte point thresholds). Quote them precisely when mentioned.
-3. **Mandatory Markdown Citations**: Every factual claim MUST include a Markdown hyperlink `[{citation_label} N](URL)`.
-4. **Conflict Resolution**: Prioritize 🔴 [OFFICIAL] sources and most recent dates. If the retrieved documents do not contain enough information to answer a question, explicitly say so and direct the user to the official sources. DOMAIN_KNOWLEDGE below is used EXCLUSIVELY for generating structured REQ/MILESTONE tags — never cite it as a source for conversational claims.
-5. **No Synthesis Beyond Context**: Do not combine or extrapolate information across documents to reach a conclusion not explicitly stated in the source text. If answering requires facts not present in the retrieved documents, state the limitation clearly rather than inferring.
-</RULES>
-
-<DOMAIN_KNOWLEDGE>
-[FOR STRUCTURED TAG GENERATION ONLY — Do NOT use this section as a source for conversational claims. Retrieved documents always take precedence. Use this section exclusively to infer correct REQ/MILESTONE tag values.]
-
-
-**Skilled Worker / FEG (§§16a–16d AufenthG) — Three Pathways**
+_DK_FEG = """**Skilled Worker / FEG (§§16a–16d AufenthG) — Three Pathways**
   Path A — Full Recognition:
     Degree fully recognized in Germany (anabin "entspricht"/"gleichwertig") → no language required.
   Path B — Anerkennungspartnerschaft (§16d):
@@ -121,7 +110,9 @@ REQ Tag Mapping (Skilled Worker / FEG — IDs are single digits: 1, 2, 3, 4):
   EXAMPLE: "Hospital signed employer commitment" → [REQ:1:TBC:warning] [REQ:4:TBC:warning]  ← immediately
 
 
-**EU Blue Card (§18g AufenthG)**
+"""
+
+_DK_BLUE_CARD = """**EU Blue Card (§18g AufenthG)**
 - Requires a university degree (Hochschulabschluss) — vocational degrees do NOT qualify (except IT Exception below).
 - Work contract minimum duration: 6 months.
 - IT Exception: IT professionals with 3 years of relevant experience may waive the degree requirement.
@@ -146,7 +137,9 @@ REQ Tag Mapping (Qualification — ID 1, single digit):
   Only emit [REQ:1:MET:required] when user EXPLICITLY states anabin H+ AND "entspricht"/"gleichwertig".
 
 
-**Student Visa**
+"""
+
+_DK_STUDENT = """**Student Visa**
 - University admission letter (Zulassung) is the absolute prerequisite.
 - Financial proof: blocked account (€11,904/year) is standard; scholarships or
   guarantor letters (Verpflichtungserklärung / VE) are also accepted.
@@ -179,13 +172,17 @@ REQ Tag Mapping (Student Visa — IDs are single digits: 1, 2, 3, 4):
   CORRECT: IELTS 7.0 / B2 confirmed → [REQ:2:MET:required]
 
 
-**CRITICAL — No Assumption Rule (ENFORCE STRICTLY)**
+"""
+
+_DK_NO_ASSUMPTION = """**CRITICAL — No Assumption Rule (ENFORCE STRICTLY)**
 - If the user has NOT explicitly mentioned their age, exact degree level, or years of experience,
   mark those fields as "To Be Confirmed" (TBC) and assign 0 points.
 - NEVER assume "under 40" or "has a university degree" to inflate eligibility.
 
 
-**Qualification Recognition — Anabin / KMK / ZAB**
+"""
+
+_DK_ANABIN = """**Qualification Recognition — Anabin / KMK / ZAB**
 [Supplementary only — retrieved documents take precedence]
 
 Anabin (https://anabin.kmk.org) is the official KMK/ZAB database for foreign degree
@@ -234,7 +231,9 @@ Always await confirmation of BOTH H-Rating AND Äquivalenz before updating REQ:1
 Only emit [REQ:1-3:MET:required] when BOTH H+ rating AND entspricht/gleichwertig are explicitly confirmed.
 
 
-**Chancenkarte (Opportunity Card) — Threshold-First Rule**
+"""
+
+_DK_CHANCENKARTE = """**Chancenkarte (Opportunity Card) — Threshold-First Rule**
 - Step 1 — Hard Thresholds (MUST verify ALL three BEFORE any point calculation):
   1. Financial Proof: €13,092 blocked account or equivalent
   2. Language: German A1 minimum OR English B2 minimum
@@ -338,7 +337,65 @@ REQ Tag Mapping (Chancenkarte Points — always use KEY|POINTS format, never des
   WRONG:     Emitting [REQ:2-4] in the same response as [REQ:1-3:MET:required]
   If the user holds a recognized degree (gleichwertig/entspricht), output ONLY [REQ:1-3:MET:required].
   Do NOT additionally output [REQ:2-4] — it would inflate the point count incorrectly.
-</DOMAIN_KNOWLEDGE>
+"""
+
+# Ordered to match the original inline sequence (fallback == legacy prompt).
+_DK_BLOCKS: tuple[tuple[str, str], ...] = (
+    ("feg", _DK_FEG),
+    ("blue_card", _DK_BLUE_CARD),
+    ("student", _DK_STUDENT),
+    ("shared", _DK_NO_ASSUMPTION),
+    ("anabin", _DK_ANABIN),
+    ("chancenkarte", _DK_CHANCENKARTE),
+)
+
+# Which blocks each visa type includes. No-Assumption is always shared; Anabin
+# recognition applies to every work visa but not the Student visa.
+_VISA_DK_KEYS: dict[str, frozenset[str]] = {
+    "chancenkarte": frozenset({"shared", "anabin", "chancenkarte"}),
+    "blue_card": frozenset({"blue_card", "shared", "anabin"}),
+    "skilled_worker": frozenset({"feg", "shared", "anabin"}),
+    "student": frozenset({"student", "shared"}),
+}
+
+_ALL_DK_KEYS: frozenset[str] = frozenset(k for k, _ in _DK_BLOCKS)
+
+
+def _build_domain_knowledge(visa_type: Optional[str], salary_section: str) -> str:
+    """Assemble the DOMAIN_KNOWLEDGE body for a visa type.
+
+    Only the active visa's block (plus shared No-Assumption and, for work visas,
+    the Anabin recognition block) is included. Unknown/None visa types fall back
+    to all blocks, reproducing the legacy prompt byte-for-byte. Blocks are emitted
+    in their original order so the fallback is identical to the pre-scoping prompt.
+    """
+    keys = _VISA_DK_KEYS.get((visa_type or "").lower(), _ALL_DK_KEYS)
+    parts: list[str] = []
+    for key, block in _DK_BLOCKS:
+        if key in keys:
+            if key == "blue_card":
+                block = block.replace("{blue_card_salary_section}", salary_section)
+            parts.append(block)
+    return "".join(parts)
+
+
+SYSTEM_PROMPT = """You are "VisaPilot AI", an expert advisor on German immigration policy and visa regulations, specializing in the Skilled Immigration Act (FEG 2.0, 2026), Chancenkarte (Opportunity Card), EU Blue Card, and Student Visa requirements.
+
+**RESPONSE LANGUAGE**: Always reply in the same language as the user's message.
+
+<RULES>
+1. **Retrieval-Grounded**: Base your answer ONLY on the retrieved legal documents provided below. Every factual statement in your conversational response must be traceable to a specific passage in the retrieved <documents>. If a fact is not in the retrieved documents, do not state it.
+2. **Cite Exact Figures**: Pay close attention to monetary amounts and thresholds in the documents (e.g., student savings €11,904; Chancenkarte savings €13,092; Blue Card salary; Chancenkarte point thresholds). Quote them precisely when mentioned.
+3. **Mandatory Markdown Citations**: Every factual claim MUST include a Markdown hyperlink `[{citation_label} N](URL)`.
+4. **Conflict Resolution**: Prioritize 🔴 [OFFICIAL] sources and most recent dates. If the retrieved documents do not contain enough information to answer a question, explicitly say so and direct the user to the official sources. DOMAIN_KNOWLEDGE below is used EXCLUSIVELY for generating structured REQ/MILESTONE tags — never cite it as a source for conversational claims.
+5. **No Synthesis Beyond Context**: Do not combine or extrapolate information across documents to reach a conclusion not explicitly stated in the source text. If answering requires facts not present in the retrieved documents, state the limitation clearly rather than inferring.
+</RULES>
+
+<DOMAIN_KNOWLEDGE>
+[FOR STRUCTURED TAG GENERATION ONLY — Do NOT use this section as a source for conversational claims. Retrieved documents always take precedence. Use this section exclusively to infer correct REQ/MILESTONE tag values.]
+
+
+{domain_knowledge}</DOMAIN_KNOWLEDGE>
 
 <tag_schema>
 Analyze the user's current situation and intent. Output the following hidden tags at the very end of your response. These tags must NEVER appear in the conversational text.
@@ -699,10 +756,11 @@ class PromptBuilder:
             f"    → [REQ:2:SHORTAGE_SALARY_MET:required]  ← NOT SALARY_MET (general threshold does not apply)"
         )
 
+        domain_knowledge = _build_domain_knowledge(request.visa_type, blue_card_salary_section)
         prompt = SYSTEM_PROMPT.format(
             context=safe_context,
             citation_label=citation_label,
-            blue_card_salary_section=blue_card_salary_section,
+            domain_knowledge=domain_knowledge,
         )
 
         # Question injected OUTSIDE <documents> for structural isolation

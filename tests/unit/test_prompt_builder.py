@@ -319,3 +319,55 @@ class TestGetPromptBuilderExtended:
         with patch("src.rag.prompt_builder.settings", MagicMock(spec=[])):
             pb = get_prompt_builder()
         assert isinstance(pb, PromptBuilder)
+
+
+class TestPerVisaDomainKnowledgeScoping:
+    """DOMAIN_KNOWLEDGE is injected per visa type; unknown/None falls back to all."""
+
+    # Distinctive DOMAIN_KNOWLEDGE headers, one per scoped block.
+    FEG = "**Skilled Worker / FEG"
+    BLUE_CARD = "**EU Blue Card (§18g"
+    STUDENT = "**Student Visa**"
+    CHANCENKARTE = "**Chancenkarte (Opportunity Card)"
+    ANABIN = "**Qualification Recognition — Anabin"
+    NO_ASSUMPTION = "**CRITICAL — No Assumption Rule"
+
+    def _prompt(self, visa_type):
+        return PromptBuilder().build_system_prompt(
+            PromptRequest(context="CTX", question="Q", language="auto", visa_type=visa_type)
+        )
+
+    def test_fallback_includes_all_visa_blocks(self):
+        """Unknown/None visa type includes every DOMAIN_KNOWLEDGE block."""
+        p = self._prompt(None)
+        for header in (self.FEG, self.BLUE_CARD, self.STUDENT, self.CHANCENKARTE, self.ANABIN):
+            assert header in p
+
+    def test_chancenkarte_excludes_other_visas(self):
+        p = self._prompt("chancenkarte")
+        assert self.CHANCENKARTE in p
+        assert self.ANABIN in p  # recognition shared by work visas
+        assert self.NO_ASSUMPTION in p  # global
+        for header in (self.FEG, self.BLUE_CARD, self.STUDENT):
+            assert header not in p
+
+    def test_student_excludes_anabin_and_other_visas(self):
+        """Student visa has no anabin recognition block."""
+        p = self._prompt("student")
+        assert self.STUDENT in p
+        assert self.NO_ASSUMPTION in p
+        for header in (self.FEG, self.BLUE_CARD, self.CHANCENKARTE, self.ANABIN):
+            assert header not in p
+
+    def test_blue_card_salary_section_interpolated(self):
+        """The blue_card block's {blue_card_salary_section} placeholder is filled."""
+        p = self._prompt("blue_card")
+        assert self.BLUE_CARD in p
+        assert "{blue_card_salary_section}" not in p
+        assert "45,934.20" in p  # a shortage-threshold figure from the salary section
+
+    def test_scoped_prompt_smaller_than_fallback(self):
+        """Every scoped prompt is shorter than the all-blocks fallback."""
+        fallback_len = len(self._prompt(None))
+        for visa in ("chancenkarte", "blue_card", "student", "skilled_worker"):
+            assert len(self._prompt(visa)) < fallback_len

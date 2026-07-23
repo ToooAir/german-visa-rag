@@ -55,8 +55,19 @@ class TestLLMFactory:
         assert isinstance(client, OllamaClient)
 
     def test_defaults_to_openai_when_no_config(self):
-        """No valid key, no ollama → defaults to OpenAI (will fail at call time)."""
-        with patch("src.llm.settings") as s:
+        """No valid key, no ollama → still returns an OpenAIClient wrapper.
+
+        The underlying SDK client is mocked so this verifies factory routing
+        independently of the installed openai SDK. Newer openai versions raise
+        OpenAIError at construction time when the api_key is empty/None, whereas
+        this test intentionally exercises the empty-key path — the wrapper must
+        still be an OpenAIClient (real credential failure is deferred to call time).
+        """
+        with (
+            patch("src.llm.settings") as s,
+            patch("src.llm.openai_client.AsyncOpenAI"),
+            patch("src.llm.openai_client.AsyncAzureOpenAI"),
+        ):
             s.openai_api_key = ""
             s.use_ollama = False
             s.openai_model = "gpt-4o-mini"

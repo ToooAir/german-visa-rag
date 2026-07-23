@@ -465,9 +465,9 @@ Analyze the user's current situation and intent. Output the following hidden tag
    EXAMPLE — CURRENT_UI_STATE: REQ:1-1:TBC, REQ:1-2:TBC, REQ:1-3:TBC
      User says "英文 C1, 沒有德文, 高中學歷":
      ← OR THRESHOLD: English C1 alone meets the Chancenkarte language threshold. "沒有德文" is IRRELEVANT.
-     ← English C1 in language mapping → BOTH REQ:1-2 AND REQ:2-1 must be emitted together.
-     CORRECT tags: [REQ:1-2:C1:required] [REQ:2-1:C1|1:required] [REQ:1-3:TBC:warning]
-     WRONG:  [REQ:1-2:C1:required]  ← missing REQ:2-1:C1|1:required (points tag always accompanies threshold)
+     ← English C1 in language mapping → BOTH REQ:1-2 AND REQ:2-7 must be emitted together (English bonus = REQ:2-7, never REQ:2-1).
+     CORRECT tags: [REQ:1-2:C1:required] [REQ:2-7:EN_C1|1:required] [REQ:1-3:TBC:warning]
+     WRONG:  [REQ:1-2:C1:required]  ← missing REQ:2-7:EN_C1|1:required (English bonus tag always accompanies threshold)
      WRONG:  [REQ:1-2:TBC:warning]  ← "沒有德文" does NOT mean threshold unmet when English C1 confirmed
      WRONG:  [REQ:1-1:TBC:warning]  ← unresolved TBC — OMIT instead of re-emitting
 
@@ -511,8 +511,9 @@ Analyze the user's current situation and intent. Output the following hidden tag
        → Student Visa: threshold is €11,904. Chancenkarte: €13,092. NEVER confuse them.
   3. Language level (A1/B1/C1/etc.) mentioned?
        → REQ:1-2 MUST appear (unless Chancenkarte Path 1 — see item 6).
-       → Chancenkarte: BOTH REQ:1-2 AND REQ:2-1 must appear together (threshold + points).
-         EXAMPLE: English C1 → [REQ:1-2:C1:required] AND [REQ:2-1:C1|1:required] — never one without the other.
+       → Chancenkarte: emit REQ:1-2 (threshold) together with the points tag — German → REQ:2-1, English C1 → REQ:2-7.
+         EXAMPLE: German B1 → [REQ:1-2:B1:required] AND [REQ:2-1:B1|2:required].
+         EXAMPLE: English C1 → [REQ:1-2:C1:required] AND [REQ:2-7:EN_C1|1:required] — never one without the other.
   4. First turn (no CURRENT_UI_STATE)?
        → [MILESTONE:1:current] MUST appear for ALL visa types.
        → THRESHOLD REQ tags not yet confirmed MUST be initialised as TBC:warning.
@@ -523,7 +524,9 @@ Analyze the user's current situation and intent. Output the following hidden tag
        → SCORING REQ:2-x tags (Chancenkarte) MUST NOT be emitted unless the user explicitly provided
          a value that maps to a score. No personal details = no REQ:2-x tags in output.
   5. English B2/C1/C2 confirmed (Chancenkarte Path 2)?
-       → [REQ:1-2:LEVEL:required] AND [REQ:2-1:LEVEL|PTS:required] MUST appear.
+       → [REQ:1-2:LEVEL:required] MUST appear (threshold met).
+       → English C1 additionally → [REQ:2-7:EN_C1|1:required]. English B2 earns no bonus points (omit points tag).
+       → NEVER use REQ:2-1 for English (REQ:2-1 is German points only).
        → "沒有德文" is IRRELEVANT if English B2/C1/C2 confirmed — OR rule means English alone suffices.
   6. Chancenkarte: Does CURRENT_UI_STATE contain [REQ:1-3:MET:required]? (Path 1 check)
        → YES: Path 1 confirmed. NEVER emit REQ:1-2. NEVER re-emit REQ:1-3.

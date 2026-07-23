@@ -20,7 +20,12 @@ from src.rag.hybrid_retriever import HybridRetriever
 from src.rag.prompt_builder import PromptRequest, get_prompt_builder
 from src.rag.query_transformer import get_query_transformer
 from src.rag.reranker import get_reranker
-from src.rag.tag_filter import apply_english_c1_split_filter, apply_milestone2_filter, apply_path1_filter
+from src.rag.tag_filter import (
+    apply_english_c1_split_filter,
+    apply_feg_path_a_filter,
+    apply_milestone2_filter,
+    apply_path1_filter,
+)
 from src.storage.redis_cache import query_cache
 
 # Fallback messages when no retrieval results are found.
@@ -465,6 +470,7 @@ class AnswerGenerator:
                 state_reqs: list[dict] = requirements or []
                 corrected_reqs = apply_english_c1_split_filter(raw_requirements)
                 filtered_reqs = apply_path1_filter(visa_type, state_reqs, corrected_reqs)
+                filtered_reqs = apply_feg_path_a_filter(visa_type, state_reqs, filtered_reqs)
                 filtered_milestones = apply_milestone2_filter(visa_type, state_reqs, [], filtered_reqs, raw_milestones)
 
                 for r in filtered_reqs:

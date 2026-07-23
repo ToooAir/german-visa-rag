@@ -1,35 +1,35 @@
 {
   "_meta": {
     "description": "Production State Tag F1 regression-gate baseline.",
-    "established_git_ref": "7ed6ad3",
-    "established_utc": "2026-07-23T14:07:39.366986",
+    "established_git_ref": "e2a524a",
+    "established_utc": "2026-07-23T15:22:08.309669",
     "dataset": "eval/state_tag_dataset.json",
     "regenerate_with": "python -m eval.state_tag_evaluator --update-baseline"
   },
   "metrics": {
-    "prod_macro_f1_relaxed": 0.957,
-    "prod_macro_f1_strict": 0.9237,
-    "prod_total_forbidden_violations": 2
+    "prod_macro_f1_relaxed": 0.986,
+    "prod_macro_f1_strict": 0.986,
+    "prod_total_forbidden_violations": 0
   },
   "by_split": {
     "in_distribution": {
       "turn_count": 13,
       "conversation_count": 6,
-      "macro_f1_relaxed": 0.8756,
+      "macro_f1_relaxed": 0.9154,
       "prod_macro_f1_relaxed": 1.0,
-      "prod_macro_f1_strict": 0.9615,
+      "prod_macro_f1_strict": 1.0,
       "prod_total_forbidden_violations": 0
     },
     "held_out": {
       "turn_count": 17,
       "conversation_count": 11,
-      "macro_f1_relaxed": 0.8493,
-      "prod_macro_f1_relaxed": 0.9241,
-      "prod_macro_f1_strict": 0.8947,
-      "prod_total_forbidden_violations": 2
+      "macro_f1_relaxed": 0.9213,
+      "prod_macro_f1_relaxed": 0.9753,
+      "prod_macro_f1_strict": 0.9753,
+      "prod_total_forbidden_violations": 0
     }
   },
-  "generalization_gap_prod": 0.0759,
+  "generalization_gap_prod": 0.0247,
   "thresholds": {
     "f1_regression_tolerance": 0.05,
     "forbidden_violations_max_increase": 1

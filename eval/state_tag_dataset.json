@@ -1,7 +1,11 @@
 {
   "_meta": {
-    "version": "1.0",
-    "description": "State Tag F1 evaluation dataset. 6 multi-turn conversations covering all 4 visa types. Expected tags use relaxed matching (id+status); value field is for documentation only. Forbidden tags are (type, id, status) patterns that must NOT appear.",
+    "version": "2.0",
+    "description": "State Tag F1 evaluation dataset. 17 multi-turn conversations covering all 4 visa types. Each conversation has a 'split': 'in_distribution' (the original 6, close to the tuned prompt distribution) or 'held_out' (11 novel scenarios — different professions, nationalities, input languages, boundary values — used to measure generalization). Expected tags use relaxed matching (id+status); value field is documentation for relaxed but is checked under strict matching. Forbidden tags are (type, id, status) patterns that must NOT appear.",
+    "splits": {
+      "in_distribution": "Original hand-tuned cases; reflect the prompt's training distribution.",
+      "held_out": "Novel surface forms of well-defined rules; the in_dist minus held_out prod-F1 gap is the generalization metric."
+    },
     "matching": {
       "relaxed": "type + id + status must match (value ignored)",
       "strict": "type + id + value + status must all match"
@@ -14,6 +18,7 @@
   "conversations": [
     {
       "id": "ck_progressive",
+      "split": "in_distribution",
       "visa_type": "chancenkarte",
       "language": "zh-TW",
       "description": "Chancenkarte - user progressively reveals qualifications across 3 turns. Tests incremental state accumulation and correct threshold + point tag pairing.",
@@ -57,6 +62,7 @@
 
     {
       "id": "ck_no_assumption",
+      "split": "in_distribution",
       "visa_type": "chancenkarte",
       "language": "zh-TW",
       "description": "Chancenkarte - No Assumption Rule test. Turn 1: user provides no personal details — all thresholds must be TBC/warning. Turn 2: user has English C1 but only high-school diploma — language threshold met, qualification warning.",
@@ -81,7 +87,7 @@
           "user": "我有英文 C1 的成績，但沒有德文，我的最高學歷是台灣高中畢業。",
           "expected_tags": [
             {"type": "REQ",       "id": "1-2",  "value": "C1",       "status": "required",  "note": "English C1 ≥ English B2 minimum — language threshold met"},
-            {"type": "REQ",       "id": "2-1",  "value": "C1|1",     "status": "required",  "note": "English C1 = +1 pt (stackable language bonus)"},
+            {"type": "REQ",       "id": "2-7",  "value": "EN_C1|1",  "status": "required",  "note": "English C1 = +1 pt (stackable bonus) — REQ:2-7 per language split (REQ:2-1 is German only)"},
             {"type": "REQ",       "id": "1-3",  "value": "TBC",      "status": "warning",   "note": "High school diploma does NOT meet 2-year vocational degree minimum"}
           ],
           "forbidden_tags": [
@@ -94,6 +100,7 @@
 
     {
       "id": "bc_salary_tiers",
+      "split": "in_distribution",
       "visa_type": "blue_card",
       "language": "zh-TW",
       "description": "EU Blue Card - salary threshold classification. Turn 1: IT salary €46,500 falls in shortage tier (> €45,934 but < €50,700 general). Turn 2: anabin H+/entspricht confirms full qualification recognition.",
@@ -126,6 +133,7 @@
 
     {
       "id": "sv_complete",
+      "split": "in_distribution",
       "visa_type": "student",
       "language": "zh-TW",
       "description": "Student Visa - complete checklist across 2 turns. Turn 1: admission + language confirmed; financial and health TBC. Turn 2: both remaining criteria confirmed.",
@@ -161,6 +169,7 @@
 
     {
       "id": "feg_path_b",
+      "split": "in_distribution",
       "visa_type": "skilled_worker",
       "language": "zh-TW",
       "description": "FEG Anerkennungspartnerschaft (Path B) — A2 hard requirement test. Turn 1: employer commitment signed but A2 not yet confirmed → TBC warning. Turn 2: A2 explicitly confirmed → required.",
@@ -192,6 +201,7 @@
 
     {
       "id": "ck_path1_direct",
+      "split": "in_distribution",
       "visa_type": "chancenkarte",
       "language": "zh-TW",
       "description": "Chancenkarte Path 1 (Direct Recognition) — user has 'gleichwertig' degree, skips point calculation. Tests that system correctly identifies Path 1 and does NOT demand language proof.",
@@ -221,6 +231,818 @@
             {"type": "REQ", "id": "1-1", "status": "warning",  "note": "Financial now confirmed — warning must not persist"},
             {"type": "REQ", "id": "1-2", "status": "warning",  "note": "Path 1 users are exempt from language requirement — REQ:1-2 must NOT appear"},
             {"type": "REQ", "id": "1-2", "status": "required", "note": "Path 1 users are exempt from language requirement — REQ:1-2 must NOT appear"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ck_stacking_de_en",
+      "split": "held_out",
+      "visa_type": "chancenkarte",
+      "language": "de",
+      "description": "Chancenkarte, German input. German C1 + English C1 stack into REQ:2-1:C1|4 AND REQ:2-7:EN_C1|1 (5 language pts). T1 adds funds+age but MILESTONE:2 must NOT fire (REQ:1-3 still TBC). Tests the language-split feature in a non-Chinese language.",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "Ich moechte die Chancenkarte beantragen. Ich habe Deutsch C1 (Goethe) und Englisch C1 (IELTS). Mein Abschluss ist ein Bachelor von einer taiwanischen Universitaet, bei anabin noch nicht geprueft.",
+          "expected_tags": [
+            {
+              "type": "MILESTONE",
+              "id": "1",
+              "value": "current",
+              "status": "current"
+            },
+            {
+              "type": "REQ",
+              "id": "1-1",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Financial proof not mentioned"
+            },
+            {
+              "type": "REQ",
+              "id": "1-2",
+              "value": "C1",
+              "status": "required",
+              "note": "German C1 clears the A1 language threshold"
+            },
+            {
+              "type": "REQ",
+              "id": "2-1",
+              "value": "C1|4",
+              "status": "required",
+              "note": "German C1 = +4 language pts"
+            },
+            {
+              "type": "REQ",
+              "id": "2-7",
+              "value": "EN_C1|1",
+              "status": "required",
+              "note": "English C1 = +1 stackable bonus (REQ:2-7, never REQ:2-1)"
+            },
+            {
+              "type": "REQ",
+              "id": "1-3",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Degree stated but anabin not verified — no-assumption"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "1-1",
+              "status": "required",
+              "note": "Financial not mentioned"
+            },
+            {
+              "type": "REQ",
+              "id": "1-3",
+              "status": "required",
+              "note": "Degree not anabin-verified"
+            }
+          ]
+        },
+        {
+          "turn_index": 1,
+          "user": "Ich habe 20.000 Euro auf meinem Sperrkonto und bin 30 Jahre alt.",
+          "expected_tags": [
+            {
+              "type": "REQ",
+              "id": "1-1",
+              "value": "MET",
+              "status": "required",
+              "note": "EUR 20,000 >= EUR 13,092 threshold"
+            },
+            {
+              "type": "REQ",
+              "id": "2-3",
+              "value": "UNDER_35|2",
+              "status": "required",
+              "note": "Age 30 <= 35 = +2 pts"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "1-1",
+              "status": "warning",
+              "note": "Funds now confirmed — must not stay TBC"
+            },
+            {
+              "type": "MILESTONE",
+              "id": "2",
+              "status": "current",
+              "note": "MILESTONE:2 must NOT fire: REQ:1-3 still TBC"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ck_partial_recognition",
+      "split": "held_out",
+      "visa_type": "chancenkarte",
+      "language": "zh-TW",
+      "description": "Chancenkarte partial recognition. anabin H+ but degree rating 'bedingt vergleichbar' → REQ:1-3:PARTIAL:warning + REQ:2-4:DEGREE|4:warning (the ONLY valid use of REQ:2-4). German B2 gives REQ:2-1:B2|3. Tests REQ:2-4 usage restriction.",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "我申請 Chancenkarte。我的學位在 anabin 查詢，機構評級是 H+，但學位評級顯示 'bedingt vergleichbar'（有條件可比）。另外我有德文 B2 證書。",
+          "expected_tags": [
+            {
+              "type": "MILESTONE",
+              "id": "1",
+              "value": "current",
+              "status": "current"
+            },
+            {
+              "type": "REQ",
+              "id": "1-1",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Financial proof not mentioned"
+            },
+            {
+              "type": "REQ",
+              "id": "1-2",
+              "value": "B2",
+              "status": "required",
+              "note": "German B2 clears language threshold"
+            },
+            {
+              "type": "REQ",
+              "id": "2-1",
+              "value": "B2|3",
+              "status": "required",
+              "note": "German B2 = +3 language pts"
+            },
+            {
+              "type": "REQ",
+              "id": "1-3",
+              "value": "PARTIAL",
+              "status": "warning",
+              "note": "bedingt vergleichbar = conditional, not full equivalency"
+            },
+            {
+              "type": "REQ",
+              "id": "2-4",
+              "value": "DEGREE|4",
+              "status": "warning",
+              "note": "Partial recognition bonus = +4 (ONLY valid for bedingt vergleichbar)"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "1-3",
+              "status": "required",
+              "note": "bedingt vergleichbar is NOT MET/required"
+            },
+            {
+              "type": "REQ",
+              "id": "1-1",
+              "status": "required",
+              "note": "Financial not mentioned"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ck_no_assumption_en",
+      "split": "held_out",
+      "visa_type": "chancenkarte",
+      "language": "en",
+      "description": "Chancenkarte, English input. Degree claimed but anabin not checked → REQ:1-3:TBC (no-assumption). English C1 → REQ:1-2:C1 + REQ:2-7:EN_C1|1 and MUST NOT use REQ:2-1. Cross-lingual generalization of the no-assumption + language-split rules.",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "I want to apply for the Chancenkarte. I hold a bachelor's degree from a Taiwanese university and I have English C1 (IELTS 7.5). I have not checked anabin yet.",
+          "expected_tags": [
+            {
+              "type": "MILESTONE",
+              "id": "1",
+              "value": "current",
+              "status": "current"
+            },
+            {
+              "type": "REQ",
+              "id": "1-1",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Financial proof not mentioned"
+            },
+            {
+              "type": "REQ",
+              "id": "1-2",
+              "value": "C1",
+              "status": "required",
+              "note": "English C1 >= English B2 clears the language threshold"
+            },
+            {
+              "type": "REQ",
+              "id": "2-7",
+              "value": "EN_C1|1",
+              "status": "required",
+              "note": "English C1 bonus = REQ:2-7, never REQ:2-1"
+            },
+            {
+              "type": "REQ",
+              "id": "1-3",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Degree claimed but not anabin-verified — no-assumption"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "1-3",
+              "status": "required",
+              "note": "Degree not anabin-verified"
+            },
+            {
+              "type": "REQ",
+              "id": "1-1",
+              "status": "required",
+              "note": "Financial not mentioned"
+            },
+            {
+              "type": "REQ",
+              "id": "2-1",
+              "status": "required",
+              "note": "English bonus must use REQ:2-7, never REQ:2-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ck_preserve_stress",
+      "split": "held_out",
+      "visa_type": "chancenkarte",
+      "language": "zh-TW",
+      "description": "Chancenkarte PRESERVE test. T0 confirms funds (REQ:1-1:MET). T1 the user gives German B1 and asks to re-confirm funds — REQ:1-1 must STAY required (never downgrade to warning), while REQ:1-2 resolves TBC→B1. Tests the PRESERVE rule + state update together.",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "我要申請 Chancenkarte，我的封鎖帳戶目前有 €14,000 的存款。",
+          "expected_tags": [
+            {
+              "type": "MILESTONE",
+              "id": "1",
+              "value": "current",
+              "status": "current"
+            },
+            {
+              "type": "REQ",
+              "id": "1-1",
+              "value": "MET",
+              "status": "required",
+              "note": "EUR 14,000 >= EUR 13,092 threshold"
+            },
+            {
+              "type": "REQ",
+              "id": "1-2",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Language not mentioned"
+            },
+            {
+              "type": "REQ",
+              "id": "1-3",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Qualification not mentioned"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "1-2",
+              "status": "required",
+              "note": "Language not mentioned"
+            },
+            {
+              "type": "REQ",
+              "id": "1-3",
+              "status": "required",
+              "note": "Qualification not mentioned"
+            }
+          ]
+        },
+        {
+          "turn_index": 1,
+          "user": "我的德文考到了 B1。另外想再確認一下，我先前提到的財力證明還算數嗎？",
+          "expected_tags": [
+            {
+              "type": "REQ",
+              "id": "1-2",
+              "value": "B1",
+              "status": "required",
+              "note": "German B1 now confirmed — resolves TBC"
+            },
+            {
+              "type": "REQ",
+              "id": "2-1",
+              "value": "B1|2",
+              "status": "required",
+              "note": "German B1 = +2 language pts"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "1-1",
+              "status": "warning",
+              "note": "PRESERVE: funds already MET must NOT downgrade to warning"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bc_general_occupation",
+      "split": "held_out",
+      "visa_type": "blue_card",
+      "language": "zh-TW",
+      "description": "Blue Card general occupation. Financial Analyst (general) at EUR 52,000 >= EUR 50,700 general threshold → REQ:2:SALARY_MET (NOT SHORTAGE_SALARY_MET — tested via strict F1). T1 anabin entspricht → REQ:1:MET → MILESTONE:2. Tests occupation classification.",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "我申請歐盟藍卡。我是財務分析師（Financial Analyst），德國公司給我 24 個月合約，年薪 €52,000。我有金融碩士學位。",
+          "expected_tags": [
+            {
+              "type": "MILESTONE",
+              "id": "1",
+              "value": "current",
+              "status": "current"
+            },
+            {
+              "type": "REQ",
+              "id": "1",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Master's claimed but anabin not verified — no-assumption"
+            },
+            {
+              "type": "REQ",
+              "id": "2",
+              "value": "SALARY_MET",
+              "status": "required",
+              "note": "Finance = general occupation; EUR 52,000 >= EUR 50,700 general threshold"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "1",
+              "status": "required",
+              "note": "Degree not anabin-verified"
+            },
+            {
+              "type": "REQ",
+              "id": "2",
+              "status": "warning",
+              "note": "Salary is above the general threshold — must not be TBC/below"
+            }
+          ]
+        },
+        {
+          "turn_index": 1,
+          "user": "我查了 anabin，我的大學是 H+ 等級，學位評級顯示 'entspricht'（完全等同）。",
+          "expected_tags": [
+            {
+              "type": "REQ",
+              "id": "1",
+              "value": "MET",
+              "status": "required",
+              "note": "H+ AND entspricht = full recognition"
+            },
+            {
+              "type": "MILESTONE",
+              "id": "2",
+              "value": "current",
+              "status": "current"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "1",
+              "status": "warning",
+              "note": "Degree now confirmed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bc_below_threshold",
+      "split": "held_out",
+      "visa_type": "blue_card",
+      "language": "en",
+      "description": "Blue Card negative boundary. Marketing manager (general) at EUR 44,000 < all thresholds → REQ:2:BELOW_THRESHOLD:warning. English input. Tests the below-threshold branch and that salary is NOT marked required.",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "I'm applying for the EU Blue Card. I'm a marketing manager, the German company offers EUR 44,000 per year on a 12-month contract. I hold a master's degree in marketing.",
+          "expected_tags": [
+            {
+              "type": "MILESTONE",
+              "id": "1",
+              "value": "current",
+              "status": "current"
+            },
+            {
+              "type": "REQ",
+              "id": "1",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Master's claimed but anabin not verified — no-assumption"
+            },
+            {
+              "type": "REQ",
+              "id": "2",
+              "value": "BELOW_THRESHOLD",
+              "status": "warning",
+              "note": "Marketing = general; EUR 44,000 < EUR 50,700 and < EUR 45,934.20"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "1",
+              "status": "required",
+              "note": "Degree not anabin-verified"
+            },
+            {
+              "type": "REQ",
+              "id": "2",
+              "status": "required",
+              "note": "Salary below all thresholds — must not be MET/required"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bc_graduate_de",
+      "split": "held_out",
+      "visa_type": "blue_card",
+      "language": "de",
+      "description": "Blue Card recent-graduate tier (DIAGNOSTIC). Consultant (general) but graduated <3 yrs ago, EUR 47,000 >= EUR 45,934.20 graduate threshold → REQ:2:GRADUATE_SALARY_MET. German input. Hard case: model must apply the graduate pathway rather than reading EUR 47,000 < EUR 50,700 as below-threshold.",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "Ich beantrage die Blaue Karte EU. Ich habe vor einem Jahr meinen Master in Betriebswirtschaft abgeschlossen, bin also Hochschulabsolvent innerhalb der letzten drei Jahre. Eine deutsche Firma bietet mir 47.000 Euro pro Jahr als Unternehmensberater.",
+          "expected_tags": [
+            {
+              "type": "MILESTONE",
+              "id": "1",
+              "value": "current",
+              "status": "current"
+            },
+            {
+              "type": "REQ",
+              "id": "1",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Master's claimed but anabin not verified — no-assumption"
+            },
+            {
+              "type": "REQ",
+              "id": "2",
+              "value": "GRADUATE_SALARY_MET",
+              "status": "required",
+              "note": "Recent graduate (<=3 yrs); EUR 47,000 >= EUR 45,934.20 graduate threshold"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "1",
+              "status": "required",
+              "note": "Degree not anabin-verified"
+            },
+            {
+              "type": "REQ",
+              "id": "2",
+              "status": "warning",
+              "note": "Graduate threshold met — salary must not be TBC/below"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sv_boundary_funds",
+      "split": "held_out",
+      "visa_type": "student",
+      "language": "zh-TW",
+      "description": "Student visa boundary funds. Blocked account = EUR 11,904 exactly (>= threshold → MET). Admission + B2 language given; health TBC so MILESTONE:2 must NOT fire in T0. T1 adds health → all 4 MET → MILESTONE:2. Tests the >= boundary and the EUR 11,904 vs EUR 13,092 distinction.",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "我要申請學生簽證。我收到柏林洪堡大學英語授課碩士的入學通知書，IELTS 6.5 已達校方要求的 B2 英語門檻。我的封鎖帳戶剛好有 €11,904。",
+          "expected_tags": [
+            {
+              "type": "MILESTONE",
+              "id": "1",
+              "value": "current",
+              "status": "current"
+            },
+            {
+              "type": "REQ",
+              "id": "1",
+              "value": "MET",
+              "status": "required",
+              "note": "EUR 11,904 >= EUR 11,904 student threshold (boundary)"
+            },
+            {
+              "type": "REQ",
+              "id": "2",
+              "value": "MET",
+              "status": "required",
+              "note": "English B2 met for English-taught programme (value MET, not B2)"
+            },
+            {
+              "type": "REQ",
+              "id": "3",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Health insurance not mentioned"
+            },
+            {
+              "type": "REQ",
+              "id": "4",
+              "value": "MET",
+              "status": "required",
+              "note": "University admission letter (Zulassung) confirmed"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "3",
+              "status": "required",
+              "note": "Health insurance not mentioned"
+            },
+            {
+              "type": "MILESTONE",
+              "id": "2",
+              "status": "current",
+              "note": "MILESTONE:2 must NOT fire: REQ:3 still TBC"
+            }
+          ]
+        },
+        {
+          "turn_index": 1,
+          "user": "我已經辦好德國學生健康保險了。",
+          "expected_tags": [
+            {
+              "type": "REQ",
+              "id": "3",
+              "value": "MET",
+              "status": "required",
+              "note": "Health insurance confirmed"
+            },
+            {
+              "type": "MILESTONE",
+              "id": "2",
+              "value": "current",
+              "status": "current"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "3",
+              "status": "warning",
+              "note": "Health now confirmed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sv_insufficient_funds",
+      "split": "held_out",
+      "visa_type": "student",
+      "language": "zh-TW",
+      "description": "Student insufficient funds. Admission + TestDaF B2 + health all MET, but blocked account EUR 9,000 < EUR 11,904 → REQ:1:LACK_OF_FUNDS:warning (plain value, NOT LACK_OF_FUNDS:13092 which is Chancenkarte). MILESTONE:2 must NOT fire. Tests the threshold-label separation.",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "我要申請學生簽證，已收到 TU München 英語碩士入學通知，德福 TestDaF 考過 B2，健保也辦好了。但我的封鎖帳戶只有 €9,000。",
+          "expected_tags": [
+            {
+              "type": "MILESTONE",
+              "id": "1",
+              "value": "current",
+              "status": "current"
+            },
+            {
+              "type": "REQ",
+              "id": "1",
+              "value": "LACK_OF_FUNDS",
+              "status": "warning",
+              "note": "EUR 9,000 < EUR 11,904; use plain LACK_OF_FUNDS, never the Chancenkarte 13092 label"
+            },
+            {
+              "type": "REQ",
+              "id": "2",
+              "value": "MET",
+              "status": "required",
+              "note": "TestDaF B2 confirmed"
+            },
+            {
+              "type": "REQ",
+              "id": "3",
+              "value": "MET",
+              "status": "required",
+              "note": "Health insurance confirmed"
+            },
+            {
+              "type": "REQ",
+              "id": "4",
+              "value": "MET",
+              "status": "required",
+              "note": "TUM admission letter confirmed"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "1",
+              "status": "required",
+              "note": "Funds insufficient — must not be MET/required"
+            },
+            {
+              "type": "MILESTONE",
+              "id": "2",
+              "status": "current",
+              "note": "MILESTONE:2 must NOT fire: REQ:1 not met"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "feg_path_a",
+      "split": "held_out",
+      "visa_type": "skilled_worker",
+      "language": "zh-TW",
+      "description": "FEG Path A (full recognition). anabin H+ gleichwertig → REQ:1:MET directly, NO language requirement (contrast Path B which needs A2/REQ:4). T0 salary not given → REQ:2:TBC, no MILESTONE:2. T1 salary → REQ:2:MET → MILESTONE:2. DIAGNOSTIC on whether the model initialises REQ:2:TBC and omits REQ:4 on Path A.",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "我想申請德國技術工人簽證。我是機械工程師，anabin 查詢我的大學是 H+，學位評級是 gleichwertig（完全等同）。",
+          "expected_tags": [
+            {
+              "type": "MILESTONE",
+              "id": "1",
+              "value": "current",
+              "status": "current"
+            },
+            {
+              "type": "REQ",
+              "id": "1",
+              "value": "MET",
+              "status": "required",
+              "note": "Path A: H+ AND gleichwertig = full recognition"
+            },
+            {
+              "type": "REQ",
+              "id": "2",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Salary not mentioned"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "2",
+              "status": "required",
+              "note": "Salary not mentioned"
+            },
+            {
+              "type": "REQ",
+              "id": "4",
+              "status": "warning",
+              "note": "Path A requires no language — REQ:4 must not appear (contrast Path B)"
+            },
+            {
+              "type": "MILESTONE",
+              "id": "2",
+              "status": "current",
+              "note": "MILESTONE:2 must NOT fire: salary still TBC"
+            }
+          ]
+        },
+        {
+          "turn_index": 1,
+          "user": "德國一家公司給我年薪 €55,000 的正式工作合約。",
+          "expected_tags": [
+            {
+              "type": "REQ",
+              "id": "2",
+              "value": "MET",
+              "status": "required",
+              "note": "Salary confirmed"
+            },
+            {
+              "type": "MILESTONE",
+              "id": "2",
+              "value": "current",
+              "status": "current"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "2",
+              "status": "warning",
+              "note": "Salary now confirmed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "feg_path_b_electrician",
+      "split": "held_out",
+      "visa_type": "skilled_worker",
+      "language": "zh-TW",
+      "description": "FEG Path B generalization (electrician, vs the in-distribution nurse case). Employer commitment signed, A2 pending → REQ:1:TBC + REQ:4:TBC. T1 A2 confirmed → REQ:4:A2 while REQ:1 stays TBC (recognition still ongoing). Tests Path B rule transfer to a new profession.",
+      "turns": [
+        {
+          "turn_index": 0,
+          "user": "我是電機技師，我的職業資格在德國還沒有被認可。不過德國一家工廠願意支持我走認可流程，已經簽署了 Anerkennungspartnerschaft 雇主承諾書。",
+          "expected_tags": [
+            {
+              "type": "MILESTONE",
+              "id": "1",
+              "value": "current",
+              "status": "current"
+            },
+            {
+              "type": "REQ",
+              "id": "1",
+              "value": "TBC",
+              "status": "warning",
+              "note": "Recognition in progress (Path B) — not yet complete"
+            },
+            {
+              "type": "REQ",
+              "id": "4",
+              "value": "TBC",
+              "status": "warning",
+              "note": "German A2 hard requirement not yet confirmed"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "4",
+              "status": "required",
+              "note": "A2 not yet confirmed"
+            },
+            {
+              "type": "REQ",
+              "id": "1",
+              "status": "required",
+              "note": "Recognition not yet complete"
+            }
+          ]
+        },
+        {
+          "turn_index": 1,
+          "user": "我上個月考到了 Goethe A2 證書。",
+          "expected_tags": [
+            {
+              "type": "REQ",
+              "id": "4",
+              "value": "A2",
+              "status": "required",
+              "note": "German A2 confirmed"
+            }
+          ],
+          "forbidden_tags": [
+            {
+              "type": "REQ",
+              "id": "4",
+              "status": "warning",
+              "note": "A2 now confirmed"
+            },
+            {
+              "type": "REQ",
+              "id": "1",
+              "status": "required",
+              "note": "Recognition still ongoing — REQ:1 must stay TBC on Path B"
+            }
           ]
         }
       ]

@@ -391,7 +391,10 @@ GESETZE_STRATEGY = DomainCrawlStrategy(
     authority_level="official",
     default_visa_types=["work_visa", "blue_card", "chancenkarte", "skilled_worker"],
     max_depth=2,
-    max_pages=40,
+    # AufenthG has ~110 individual § pages and BeschV ~40; max_pages is shared across
+    # the whole domain, so 40 covered only a fraction. 200 comfortably reaches every
+    # section (it is a cap — discovery stops once no further relevant pages are found).
+    max_pages=200,
     allowed_path_patterns=[
         r"/beschv_2013/",
         r"/aufenthg_2004/",

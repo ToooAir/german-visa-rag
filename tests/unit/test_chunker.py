@@ -266,6 +266,28 @@ class TestCleanMarkdown:
         result = chunker.clean_markdown(text)
         assert "Download" not in result
 
+    def test_removes_gesetze_intra_law_navigation(self):
+        """Prev/next Einzelnorm and table-of-contents nav links are stripped."""
+        chunker = ParentChildChunker()
+        text = (
+            '[zurück](__18f.html "zur vorherigen Einzelnorm")\n\n'
+            '[weiter](__18h.html "zur nachfolgenden Einzelnorm")\n\n'
+            "[Nichtamtliches Inhaltsverzeichnis](index.html#BJNR195010004)\n\n"
+            "# § 18g Blaue Karte EU\n\n(1) Einer Fachkraft ..."
+        )
+        result = chunker.clean_markdown(text)
+        assert "__18f.html" not in result
+        assert "__18h.html" not in result
+        assert "Inhaltsverzeichnis" not in result
+        assert "§ 18g Blaue Karte EU" in result  # statute text preserved
+
+    def test_keeps_ordinary_content_links(self):
+        """The gesetze nav rule targets __NN.html / index.html only — other links survive."""
+        chunker = ParentChildChunker()
+        text = "See [the portal](https://example.com/page.html) for details."
+        result = chunker.clean_markdown(text)
+        assert "example.com/page.html" in result
+
 
 # ─── get_chunker singleton ────────────────────────────────────────────────────
 

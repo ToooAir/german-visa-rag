@@ -65,6 +65,12 @@ class ParentChildChunker:
         # Remove common boilerplate links: [Download|Print...](url)
         text = re.sub(r"\[(?:Download|Print|View|Overview|Back to).*?\]\(.*?\)", "", text, flags=re.IGNORECASE)
 
+        # Remove gesetze-im-internet.de intra-law navigation: prev/next Einzelnorm
+        # ([zurück](__18f.html), [weiter](__18h.html)) and the table-of-contents
+        # link ([Nichtamtliches Inhaltsverzeichnis](index.html#...)). These target
+        # sibling-norm or index pages and are pure navigation, not statute text.
+        text = re.sub(r"\[[^\]]*\]\((?:__\w+\.html|index\.html)[^)]*\)\s*", "", text, flags=re.IGNORECASE)
+
         # Remove social sharing links (LinkedIn, Twitter/X, Facebook, WhatsApp, etc.)
         text = re.sub(
             r"\[(?:Teilen auf|Share on|Compartir en|分享到?)[^\]]*\]\([^\)]+\)\s*", "", text, flags=re.IGNORECASE

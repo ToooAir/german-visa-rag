@@ -349,6 +349,37 @@ class TestExtractMetadata:
         assert meta["url"] == "http://example.com/fail"
 
 
+# ─── WebCrawler._decode_response ──────────────────────────────────────────────
+
+
+class TestDecodeResponse:
+    @staticmethod
+    def _resp(content: bytes, header_charset=None):
+        r = MagicMock()
+        r.content = content
+        r.charset_encoding = header_charset
+        return r
+
+    def test_iso_8859_1_meta_without_header_charset(self):
+        """gesetze-im-internet.de: ISO-8859-1 body, no charset in the header."""
+        body = '<meta charset="iso-8859-1">Gesetz über den Aufenthalt von Ausländern'.encode("iso-8859-1")
+        result = WebCrawler._decode_response(self._resp(body, header_charset=None))
+        assert "über" in result
+        assert "Ausländern" in result
+        assert "�" not in result  # no replacement char
+
+    def test_header_charset_takes_priority(self):
+        body = "café".encode("utf-8")
+        assert WebCrawler._decode_response(self._resp(body, header_charset="utf-8")) == "café"
+
+    def test_defaults_to_utf8_when_no_charset_anywhere(self):
+        assert WebCrawler._decode_response(self._resp(b"plain ascii", None)) == "plain ascii"
+
+    def test_unknown_encoding_falls_back_to_utf8(self):
+        body = "hello".encode("utf-8")
+        assert WebCrawler._decode_response(self._resp(body, header_charset="not-a-real-codec")) == "hello"
+
+
 # ─── WebCrawler.fetch_url ─────────────────────────────────────────────────────
 
 
@@ -377,13 +408,29 @@ class TestFetchUrl:
         crawler = self._make_crawler()
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.text = "<html>Hello</html>"
+        mock_response.headers = {"content-type": "text/html; charset=utf-8"}
+        mock_response.content = b"<html>Hello</html>"
+        mock_response.charset_encoding = "utf-8"
         mock_response.raise_for_status = MagicMock()
         crawler.client.get = AsyncMock(return_value=mock_response)
 
         with patch("src.ingestion.crawler._is_safe_url", return_value=True):
             result = await crawler.fetch_url("https://example.com/page")
         assert result == "<html>Hello</html>"
+
+    @pytest.mark.asyncio
+    async def test_skips_non_html_content_type(self):
+        """Binary downloads (.zip/.epub law exports) must be skipped, not decoded."""
+        crawler = self._make_crawler()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {"content-type": "application/zip"}
+        mock_response.raise_for_status = MagicMock()
+        crawler.client.get = AsyncMock(return_value=mock_response)
+
+        with patch("src.ingestion.crawler._is_safe_url", return_value=True):
+            result = await crawler.fetch_url("https://www.gesetze-im-internet.de/aufenthg_2004/xml.zip")
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_request_error_raises(self):

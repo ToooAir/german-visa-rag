@@ -400,9 +400,9 @@ GESETZE_STRATEGY = DomainCrawlStrategy(
         r"/aufenthg_2004/",
     ],
     blocked_path_patterns=[
-        r"\.(pdf|jpg|png|gif|svg|css|js)$",
+        r"\.(pdf|jpg|png|gif|svg|css|js|zip|epub|xml|docx?)$",  # incl. .zip/.epub law downloads
         r"/print$",
-        r"/BJNR",  # raw XML/print versions
+        r"/BJNR",  # raw XML/print/consolidated-download versions
     ],
     relevance_keywords=[
         "beschv",

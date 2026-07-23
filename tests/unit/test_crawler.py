@@ -408,6 +408,7 @@ class TestFetchUrl:
         crawler = self._make_crawler()
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.headers = {"content-type": "text/html; charset=utf-8"}
         mock_response.content = b"<html>Hello</html>"
         mock_response.charset_encoding = "utf-8"
         mock_response.raise_for_status = MagicMock()
@@ -416,6 +417,20 @@ class TestFetchUrl:
         with patch("src.ingestion.crawler._is_safe_url", return_value=True):
             result = await crawler.fetch_url("https://example.com/page")
         assert result == "<html>Hello</html>"
+
+    @pytest.mark.asyncio
+    async def test_skips_non_html_content_type(self):
+        """Binary downloads (.zip/.epub law exports) must be skipped, not decoded."""
+        crawler = self._make_crawler()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {"content-type": "application/zip"}
+        mock_response.raise_for_status = MagicMock()
+        crawler.client.get = AsyncMock(return_value=mock_response)
+
+        with patch("src.ingestion.crawler._is_safe_url", return_value=True):
+            result = await crawler.fetch_url("https://www.gesetze-im-internet.de/aufenthg_2004/xml.zip")
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_request_error_raises(self):

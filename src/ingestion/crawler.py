@@ -225,6 +225,14 @@ class WebCrawler:
             response = await self.client.get(url, headers=request_headers)
             response.raise_for_status()
 
+            # Skip non-HTML documents (e.g. gesetze-im-internet.de exposes each law
+            # as .zip / .epub downloads). Decoding binary bytes as text produces
+            # replacement-character garbage, so never feed them to the chunker.
+            content_type = response.headers.get("content-type", "").lower()
+            if content_type and "html" not in content_type and not content_type.startswith("text/"):
+                logger.info("Skipping non-HTML document (Content-Type: %s): %s", content_type, url)
+                return None
+
             logger.info("Successfully fetched %s", url, extra={"status_code": response.status_code})
             return self._decode_response(response)
 

@@ -28,6 +28,7 @@ Usage:
 import asyncio
 import json
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -82,6 +83,7 @@ class TurnResult:
     conversation_id: str
     turn_index: int
     user_message: str
+    split: str = "in_distribution"
     predicted_tags: list[ParsedTag] = field(default_factory=list)
     expected_tags: list[dict] = field(default_factory=list)
     forbidden_tags: list[dict] = field(default_factory=list)
@@ -316,10 +318,14 @@ class StateTagEvaluator:
         self.mlflow = get_mlflow_tracker()
 
     async def _call_llm(self, messages: list[dict]) -> str:
-        """Call LLM with low temperature for deterministic tag generation."""
+        """Call LLM at temperature 0 for maximally deterministic tag generation.
+
+        Determinism matters because this evaluator backs a CI regression gate
+        (see --check-baseline); residual sampling noise would make the gate flaky.
+        """
         return await self.llm.call_non_streaming(
             messages=messages,
-            temperature=0.1,
+            temperature=0.0,
             max_tokens=settings.max_response_tokens,
         )
 
@@ -336,6 +342,7 @@ class StateTagEvaluator:
         conv_id: str = conversation["id"]
         visa_type: Optional[str] = conversation.get("visa_type")
         language: str = conversation.get("language", "zh-TW")
+        split: str = conversation.get("split", "in_distribution")
         turns: list[dict] = conversation["turns"]
 
         accumulated_requirements: list[dict] = []
@@ -435,6 +442,7 @@ class StateTagEvaluator:
                 conversation_id=conv_id,
                 turn_index=turn_index,
                 user_message=user_message,
+                split=split,
                 predicted_tags=predicted,
                 expected_tags=expected_tags,
                 forbidden_tags=forbidden_tags,
@@ -518,7 +526,55 @@ class StateTagEvaluator:
 
     @staticmethod
     def _aggregate(results: list[TurnResult], conv_count: int) -> dict:
-        """Compute macro and micro F1 across all turns."""
+        """Compute overall metrics plus a per-split breakdown and generalization gap.
+
+        The generalization gap (in_distribution prod-F1 minus held_out prod-F1) is
+        the headline anti-overfitting metric: a large gap means the tuned prompt
+        scores well on familiar cases but fails to generalize to novel ones.
+        """
+        n = len(results)
+        if n == 0:
+            return {}
+
+        aggregate = StateTagEvaluator._core_metrics(results)
+        aggregate["turn_count"] = n
+        aggregate["conversation_count"] = conv_count
+
+        # Per-split breakdown.
+        by_split_results: dict[str, list[TurnResult]] = {}
+        for r in results:
+            by_split_results.setdefault(r.split, []).append(r)
+
+        by_split: dict[str, dict] = {}
+        for split_name, subset in by_split_results.items():
+            m = StateTagEvaluator._core_metrics(subset)
+            by_split[split_name] = {
+                "turn_count": len(subset),
+                "conversation_count": len({r.conversation_id for r in subset}),
+                "macro_f1_relaxed": m["macro_f1_relaxed"],
+                "prod_macro_f1_relaxed": m["prod_macro_f1_relaxed"],
+                "prod_macro_f1_strict": m["prod_macro_f1_strict"],
+                "prod_total_forbidden_violations": m["prod_total_forbidden_violations"],
+            }
+        aggregate["by_split"] = by_split
+
+        # Generalization gap (prod, relaxed): in_distribution − held_out.
+        if "in_distribution" in by_split and "held_out" in by_split:
+            aggregate["generalization_gap_prod"] = round(
+                by_split["in_distribution"]["prod_macro_f1_relaxed"] - by_split["held_out"]["prod_macro_f1_relaxed"],
+                4,
+            )
+
+        return aggregate
+
+    @staticmethod
+    def _core_metrics(results: list[TurnResult]) -> dict:
+        """Compute macro and micro F1 (raw + production) over a set of turns.
+
+        Returns the metric fields only — turn_count / conversation_count / split
+        breakdown are added by the caller. Used both for the overall aggregate and
+        for each split subset.
+        """
         n = len(results)
         if n == 0:
             return {}
@@ -570,8 +626,6 @@ class StateTagEvaluator:
             "total_fp": total_fp,
             "total_fn": total_fn,
             "total_forbidden_violations": total_forbidden,
-            "turn_count": n,
-            "conversation_count": conv_count,
             # Production metrics (after post-processing filters)
             "prod_macro_f1_relaxed": round(macro_prod_f1, 4),
             "prod_macro_f1_strict": round(macro_prod_strict_f1, 4),
@@ -586,6 +640,7 @@ class StateTagEvaluator:
     def _serialise_turn(r: TurnResult) -> dict:
         return {
             "conversation_id": r.conversation_id,
+            "split": r.split,
             "turn_index": r.turn_index,
             "user_message": r.user_message[:100],
             "predicted_tags": [
@@ -776,6 +831,24 @@ def _print_report(report: dict) -> None:
         print(f"  Prod TP / FP / FN       : {agg['prod_total_tp']} / {agg['prod_total_fp']} / {agg['prod_total_fn']}")
         print(f"  Prod Forbidden          : {agg['prod_total_forbidden_violations']}")
         print()
+
+    by_split = agg.get("by_split")
+    if by_split:
+        print("  [Generalization — prod Macro F1 by split]")
+        for split_name in ("in_distribution", "held_out"):
+            s = by_split.get(split_name)
+            if s:
+                print(
+                    f"  {split_name:16s}: {s['prod_macro_f1_relaxed']:.3f}  "
+                    f"({s['conversation_count']} conv / {s['turn_count']} turns, "
+                    f"forbidden {s['prod_total_forbidden_violations']})"
+                )
+        gap = agg.get("generalization_gap_prod")
+        if gap is not None:
+            flag = "  ⚠ large gap" if gap > 0.05 else ""
+            print(f"  generalization gap (in_dist − held_out): {gap:+.3f}{flag}")
+        print()
+
     print("  Per-turn breakdown:")
     hdr = f"  {'Conv':20s} {'T':>2}  {'F1-R':>5}  {'pF1-R':>6}  {'F1-S':>5}  {'pF1-S':>6}  {'P':>5}  {'R':>5}  {'Forb':>4}  Message"
     print(hdr)
@@ -797,6 +870,113 @@ def _print_report(report: dict) -> None:
     print("=" * 64)
 
 
+DEFAULT_BASELINE_PATH = "eval/baseline.json"
+
+
+def _git_short_ref() -> str:
+    """Return the current git short SHA, or 'unknown' outside a repo."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except (subprocess.SubprocessError, OSError):
+        return "unknown"
+
+
+def _write_baseline(report: dict, baseline_path: str) -> None:
+    """Freeze the current production metrics as the regression-gate baseline."""
+    agg = report["aggregate"]
+    baseline = {
+        "_meta": {
+            "description": "Production State Tag F1 regression-gate baseline.",
+            "established_git_ref": _git_short_ref(),
+            "established_utc": datetime.utcnow().isoformat(),
+            "dataset": report.get("dataset"),
+            "regenerate_with": "python -m eval.state_tag_evaluator --update-baseline",
+        },
+        "metrics": {
+            "prod_macro_f1_relaxed": agg["prod_macro_f1_relaxed"],
+            "prod_macro_f1_strict": agg["prod_macro_f1_strict"],
+            "prod_total_forbidden_violations": agg["prod_total_forbidden_violations"],
+        },
+        # Tracked for visibility (NOT gated — held_out is noisier and expected lower).
+        "by_split": agg.get("by_split", {}),
+        "generalization_gap_prod": agg.get("generalization_gap_prod"),
+        "thresholds": {
+            # Gate fails if prod_macro_f1_relaxed drops more than this below baseline.
+            # Empirically, gpt-4.1-mini is NOT fully deterministic even at temperature 0:
+            # two back-to-back runs of this dataset differed by ~0.025 on overall prod F1.
+            # 0.05 absorbs that run-to-run noise (~2x observed) while still catching a real
+            # regression (e.g. the Run-7 attention-dilution drop of ~0.075).
+            "f1_regression_tolerance": 0.05,
+            # Forbidden-violation count is noisier still (observed ±1 between runs), so allow
+            # a +1 increase before failing. A structural regression adds several at once.
+            "forbidden_violations_max_increase": 1,
+        },
+    }
+    with open(baseline_path, "w", encoding="utf-8") as f:
+        json.dump(baseline, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    print(f"\n✅ Baseline written to {baseline_path}")
+    print(f"   git ref               = {baseline['_meta']['established_git_ref']}")
+    print(f"   prod_macro_f1_relaxed = {baseline['metrics']['prod_macro_f1_relaxed']:.4f}")
+    print(f"   forbidden violations  = {baseline['metrics']['prod_total_forbidden_violations']}")
+
+
+def _check_against_baseline(report: dict, baseline_path: str) -> int:
+    """Compare a fresh report against the baseline. Return 0 (pass) or 1 (fail)."""
+    agg = report["aggregate"]
+    try:
+        with open(baseline_path, "r", encoding="utf-8") as f:
+            baseline = json.load(f)
+    except FileNotFoundError:
+        print(f"\n❌ Baseline file not found: {baseline_path}")
+        print("   Establish it first: python -m eval.state_tag_evaluator --update-baseline")
+        return 1
+
+    base_metrics = baseline["metrics"]
+    thr = baseline["thresholds"]
+    base_f1 = base_metrics.get("prod_macro_f1_relaxed")
+    if base_f1 is None:
+        print(f"\n❌ Baseline {baseline_path} is not populated (prod_macro_f1_relaxed is null).")
+        print("   Run: python -m eval.state_tag_evaluator --update-baseline")
+        return 1
+
+    tol = thr["f1_regression_tolerance"]
+    max_forb_inc = thr["forbidden_violations_max_increase"]
+    base_forb = base_metrics["prod_total_forbidden_violations"]
+
+    cur_f1 = agg["prod_macro_f1_relaxed"]
+    cur_forb = agg["prod_total_forbidden_violations"]
+    f1_floor = base_f1 - tol
+    forb_ceil = base_forb + max_forb_inc
+
+    f1_pass = cur_f1 >= f1_floor
+    forb_pass = cur_forb <= forb_ceil
+
+    print("\n" + "=" * 64)
+    print("  REGRESSION GATE — Production State Tag F1")
+    print("=" * 64)
+    print(f"  Baseline ref        : {baseline['_meta'].get('established_git_ref', '?')}")
+    print(
+        f"  Prod Macro F1       : {cur_f1:.4f}  "
+        f"(baseline {base_f1:.4f}, floor {f1_floor:.4f})  "
+        f"{'PASS' if f1_pass else 'FAIL'}"
+    )
+    print(
+        f"  Forbidden violations: {cur_forb}      "
+        f"(baseline {base_forb}, ceiling {forb_ceil})  "
+        f"{'PASS' if forb_pass else 'FAIL'}"
+    )
+    print("=" * 64)
+
+    if f1_pass and forb_pass:
+        print("  ✅ GATE PASSED\n")
+        return 0
+    print("  ❌ GATE FAILED — production tag quality regressed beyond tolerance\n")
+    return 1
+
+
 async def main() -> None:
     args = sys.argv[1:]
 
@@ -812,10 +992,25 @@ async def main() -> None:
             _print_report(report)
         return
 
-    dataset_path = args[0] if args else "eval/state_tag_dataset.json"
+    # --check-baseline / --update-baseline [baseline_path] — regression-gate modes.
+    # Both run a full evaluation on the default dataset, then either compare
+    # against or overwrite the committed baseline.
+    gate_mode: Optional[str] = None
+    baseline_path = DEFAULT_BASELINE_PATH
+    if args and args[0] in ("--check-baseline", "--update-baseline"):
+        gate_mode = args[0]
+        if len(args) > 1:
+            baseline_path = args[1]
+
+    dataset_path = "eval/state_tag_dataset.json" if gate_mode else (args[0] if args else "eval/state_tag_dataset.json")
     evaluator = StateTagEvaluator()
     report = await evaluator.evaluate_all(dataset_path)
     _print_report(report)
+
+    if gate_mode == "--update-baseline":
+        _write_baseline(report, baseline_path)
+    elif gate_mode == "--check-baseline":
+        sys.exit(_check_against_baseline(report, baseline_path))
 
 
 if __name__ == "__main__":

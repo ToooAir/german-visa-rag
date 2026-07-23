@@ -51,22 +51,6 @@ class TestCleanMarkdown:
         text = "## Title\n\nSome text here."
         assert clean_markdown(text) == text
 
-    def test_removes_markdown_images(self):
-        assert clean_markdown("![logo](../img/lay/BMJV.svg) Real content") == "Real content"
-
-    def test_flattens_links_to_anchor_text(self):
-        assert clean_markdown("See [§ 18g AufenthG](__18g.html) now") == "See § 18g AufenthG now"
-
-    def test_strips_gesetze_navigation_boilerplate(self):
-        """gesetze-im-internet.de wraps a nav icon inside a link — keep only the label."""
-        nav = '[weiter![next](../img/button/p_right.gif "next")](__18h.html "to next")'
-        assert clean_markdown(nav) == "weiter"
-
-    def test_keeps_link_label_when_url_dropped(self):
-        result = clean_markdown("[Startseite](../index.html) | body")
-        assert "Startseite | body" == result
-        assert "index.html" not in result
-
 
 class TestExtractSectionTitle:
     def test_finds_nearest_header(self):

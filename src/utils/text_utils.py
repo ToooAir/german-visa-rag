@@ -16,14 +16,6 @@ def clean_markdown(text: str) -> str:
     """Clean markdown text for processing."""
     # Remove HTML comments
     text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
-    # Remove markdown images — decorative logos/nav-button icons carry no textual
-    # content, yet survive HTML-tag stripping (e.g. gesetze-im-internet.de pads
-    # legal text with ![](../img/...) logos and prev/next navigation icons).
-    # Must run before link flattening because images share the [..](..) syntax.
-    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)
-    # Flatten markdown links to their anchor text, dropping the URL. Citations are
-    # attached from chunk metadata (source_url), so inline link targets are noise.
-    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
     # Remove inline HTML tags
     text = re.sub(r"<[^>]+>", "", text)
     # Normalize markdown headers

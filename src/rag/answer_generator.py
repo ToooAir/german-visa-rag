@@ -122,6 +122,24 @@ class AnswerGenerator:
         chunk = {"choices": [], "metadata": {"search_queries": queries}}
         return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
 
+    @staticmethod
+    def _cache_scope(
+        language: str,
+        visa_type: Optional[str],
+        requirements: Optional[list[dict[str, str]]],
+    ) -> dict[str, Any]:
+        """Build the cache scope: everything but the question text that changes the answer.
+
+        Conversation state belongs in the cache key, not only in the cached value.
+        Two callers can send the same question with different accumulated
+        requirements, and neither may be served the other's answer.
+        """
+        return {
+            "language": language,
+            "visa_type": visa_type,
+            "requirements": requirements or [],
+        }
+
     # ─── Public API ─────────────────────────────────────────────────────────
 
     async def generate_answer(
@@ -136,9 +154,10 @@ class AnswerGenerator:
     ) -> dict[str, Any]:
         """Generate answer without streaming."""
         start_time = time.time()
+        cache_scope = self._cache_scope(language, visa_type, requirements)
 
         # 0. Cache check
-        cached_result = await query_cache.get(query)
+        cached_result = await query_cache.get(query, scope=cache_scope)
         if cached_result:
             cached_result["metadata"]["latency_seconds"] = time.time() - start_time
             cached_result["metadata"]["cache_hit"] = True
@@ -253,7 +272,7 @@ class AnswerGenerator:
             }
 
             # 6. Cache + observability
-            await query_cache.set(query, result)
+            await query_cache.set(query, result, scope=cache_scope)
 
             if self.mlflow:
                 input_tokens = self.token_counter.count_messages(messages)
@@ -288,10 +307,11 @@ class AnswerGenerator:
         request_id = str(uuid.uuid4())
         start_time = time.time()
         logger.info("Starting streaming answer generation (request_id=%s)", request_id)
+        cache_scope = self._cache_scope(language, visa_type, requirements)
 
         # 0. Cache check
         yield self._format_status_chunk("analyzing")
-        cached_result = await query_cache.get(query)
+        cached_result = await query_cache.get(query, scope=cache_scope)
         if cached_result:
             logger.info("Streaming from cache (request_id=%s)", request_id)
             answer = cached_result.get("answer", "")
@@ -529,6 +549,7 @@ class AnswerGenerator:
                         "cache_hit": False,
                     },
                 },
+                scope=cache_scope,
             )
 
             yield f"data: {json.dumps({'choices': [], 'metadata': {'sources': sources, 'latency_seconds': latency}}, ensure_ascii=False)}\n\n"

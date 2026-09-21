@@ -12,6 +12,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.config import settings
 from src.logger import logger
+from src.utils.hash_utils import compute_query_fingerprint
 
 
 class RerankerType(str, Enum):
@@ -104,7 +105,7 @@ class CohereReranker(Reranker):
         try:
             # Support both 'text' (old-style) and 'content' (new-style) keys
             texts = [(doc.get("text") or doc.get("content", "")) for doc in documents]
-            logger.debug("Cohere reranker: %d docs, query=%.50s", len(documents), query)
+            logger.debug("Cohere reranker: %d docs, query=%s", len(documents), compute_query_fingerprint(query))
 
             results = await self._call_api(query, texts, top_k)
 
@@ -172,7 +173,7 @@ class JinaReranker(Reranker):
             return []
         try:
             texts = [(doc.get("text") or doc.get("content", "")) for doc in documents]
-            logger.debug("Jina reranker: %d docs, query=%.50s", len(documents), query)
+            logger.debug("Jina reranker: %d docs, query=%s", len(documents), compute_query_fingerprint(query))
 
             results = await self._call_api(query, texts, top_k)
 

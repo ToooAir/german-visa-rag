@@ -1,6 +1,10 @@
 """Unit tests for src/utils/hash_utils.py"""
 
-from src.utils.hash_utils import compute_canonical_hash, compute_content_hash
+from src.utils.hash_utils import (
+    compute_canonical_hash,
+    compute_content_hash,
+    compute_query_fingerprint,
+)
 
 
 class TestComputeCanonicalHash:
@@ -42,3 +46,24 @@ class TestComputeContentHash:
         result = compute_content_hash("test")
         assert len(result) == 64
         assert all(c in "0123456789abcdef" for c in result)
+
+
+class TestComputeQueryFingerprint:
+    def test_is_deterministic(self):
+        q = "do I qualify for the chancenkarte?"
+        assert compute_query_fingerprint(q) == compute_query_fingerprint(q)
+
+    def test_is_short(self):
+        assert len(compute_query_fingerprint("anything")) == 12
+
+    def test_different_queries_differ(self):
+        assert compute_query_fingerprint("foo") != compute_query_fingerprint("bar")
+
+    def test_does_not_leak_the_query(self):
+        """The whole point: the fingerprint must not contain the text."""
+        fp = compute_query_fingerprint("I earn 123456 EUR and I hold a masters degree")
+        assert "123456" not in fp
+        assert "masters" not in fp.lower()
+
+    def test_normalizes_like_canonical_hash(self):
+        assert compute_query_fingerprint("  Hello  WORLD ") == compute_query_fingerprint("hello world")

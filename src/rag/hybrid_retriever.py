@@ -13,6 +13,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from src.config import settings
 from src.logger import logger
 from src.models.chunk import AuthorityLevel, VisaType
+from src.utils.hash_utils import compute_query_fingerprint
 from src.vector_db.embedder import embedder
 from src.vector_db.qdrant_client_wrapper import QdrantWrapper, get_qdrant_client
 
@@ -70,7 +71,7 @@ class HybridRetriever:
             Ranked retrieval results with adjusted scores and metadata.
         """
         top_k = top_k or self.top_k_hybrid
-        logger.debug("Starting hybrid retrieval for query: %.100s", query)
+        logger.debug("Starting hybrid retrieval (query=%s)", compute_query_fingerprint(query))
 
         try:
             query_embedding = await embedder.embed_single(query)
@@ -177,7 +178,7 @@ class HybridRetriever:
             return enriched_results
 
         except Exception as e:
-            logger.error("Hybrid retrieval failed: %s", e, extra={"query": query[:100]})
+            logger.error("Hybrid retrieval failed: %s", e, extra={"query": compute_query_fingerprint(query)})
             raise
 
     async def retrieve_batch(

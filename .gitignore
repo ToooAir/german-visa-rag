@@ -61,6 +61,7 @@ Thumbs.db
 data/*.db
 data/*.sqlite
 data/*.jsonl
+data/*.json
 /storage/
 /qdrant_storage/
 /vector_db/

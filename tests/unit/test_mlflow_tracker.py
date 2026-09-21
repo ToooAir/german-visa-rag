@@ -69,8 +69,27 @@ class TestMLflowTrackerEnabled:
             t.log_query_result("What is Chancenkarte?", {"answer": "..."})
 
         mock_mlflow.start_run.assert_called_once()
-        mock_mlflow.log_text.assert_called_once()
+        mock_mlflow.log_params.assert_called_once()
         mock_mlflow.log_dict.assert_called_once()
+
+    def test_log_query_result_never_persists_the_question(self):
+        """User questions carry personal data and MLflow artifacts have no TTL."""
+        t = _disabled_tracker()
+        t.enabled = True
+        question = "I hold a masters degree and earn 123456 EUR per year"
+
+        mock_mlflow = MagicMock()
+        mock_mlflow.start_run.return_value.__enter__ = MagicMock(return_value=MagicMock())
+        mock_mlflow.start_run.return_value.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(tracker_module, "mlflow", mock_mlflow):
+            t.log_query_result(question, {"latency_seconds": 1.2})
+
+        mock_mlflow.log_text.assert_not_called()
+        logged = str(mock_mlflow.log_params.call_args) + str(mock_mlflow.log_dict.call_args)
+        assert question not in logged
+        assert "123456" not in logged
+        assert "masters" not in logged
 
     def test_log_ingestion_run_swallows_mlflow_error(self):
         t = _disabled_tracker()

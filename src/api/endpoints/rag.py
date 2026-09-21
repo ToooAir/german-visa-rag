@@ -8,6 +8,7 @@ from src.api.endpoints.dependencies import get_generator, get_qdrant
 from src.api.sse import create_sse_response
 from src.logger import logger
 from src.rag.answer_generator import AnswerGenerator
+from src.utils.hash_utils import compute_query_fingerprint
 from src.vector_db.qdrant_client_wrapper import QdrantWrapper
 
 router = APIRouter(prefix="/query", tags=["rag"])
@@ -62,7 +63,12 @@ async def ask_question(
     x_api_key: str = Depends(auth.verify_api_key),
 ):
     """Ask a question about German visa regulations."""
-    logger.info("Query: %.100s, Visa: %s, Lang: %s", request.query, request.visa_type, request.language)
+    logger.info(
+        "Query received (query=%s), Visa: %s, Lang: %s",
+        compute_query_fingerprint(request.query),
+        request.visa_type,
+        request.language,
+    )
     result = await generator.generate_answer(
         request.query,
         language=request.language,
@@ -80,7 +86,12 @@ async def ask_question_stream(
     x_api_key: str = Depends(auth.verify_api_key),
 ):
     """Ask a question with streaming response."""
-    logger.info("Stream query: %.100s, Visa: %s, Lang: %s", request.query, request.visa_type, request.language)
+    logger.info(
+        "Stream query received (query=%s), Visa: %s, Lang: %s",
+        compute_query_fingerprint(request.query),
+        request.visa_type,
+        request.language,
+    )
     stream = generator.generate_answer_streaming(
         request.query,
         language=request.language,

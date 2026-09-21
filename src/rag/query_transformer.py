@@ -13,6 +13,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from src.config import settings
 from src.llm.openai_client import OpenAIClient
 from src.logger import logger
+from src.utils.hash_utils import compute_query_fingerprint
 
 
 class QueryTransformType(str, Enum):
@@ -89,7 +90,7 @@ class QueryTransformer:
         apply_expansion: bool = True,
     ) -> dict[str, Any]:
         """Transform and enrich a query."""
-        logger.debug("Transforming query: %.100s", query)
+        logger.debug("Transforming query (query=%s)", compute_query_fingerprint(query))
 
         try:
             # Prioritize apply_expansion flag; then fall back to length-based expansion

@@ -11,6 +11,7 @@ except ImportError:
 
 from src.config import settings
 from src.logger import logger
+from src.utils.hash_utils import compute_query_fingerprint
 
 
 class MLflowTracker:
@@ -61,13 +62,24 @@ class MLflowTracker:
             logger.warning(f"MLflow logging failed: {e}")
 
     def log_query_result(self, query: str, result: Dict[str, Any]):
-        """Log query result for evaluation."""
+        """Log query metrics for evaluation.
+
+        The query text itself is never persisted: user questions carry personal
+        data (degree, salary, nationality, age) and MLflow artifacts have no
+        retention policy. A fingerprint still groups repeats of the same
+        question across runs, and the length keeps long-query analysis possible.
+        """
         if not self.enabled:
             return
 
         try:
             with mlflow.start_run(run_name="query"):
-                mlflow.log_text(query, artifact_file="query.txt")
+                mlflow.log_params(
+                    {
+                        "query_fingerprint": compute_query_fingerprint(query),
+                        "query_length": len(query),
+                    }
+                )
                 mlflow.log_dict(result, artifact_file="result.json")
         except Exception as e:
             logger.warning(f"Query logging failed: {e}")

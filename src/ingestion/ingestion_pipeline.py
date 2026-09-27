@@ -22,6 +22,11 @@ from src.vector_db.embedder import QuotaExhaustedError, embedder
 from src.vector_db.qdrant_client_wrapper import get_qdrant_client
 from src.vector_db.sparse_encoder import get_sparse_encoder
 
+# Above this much HTML, a document that produces no chunks was not a thin page:
+# something stopped the text from being extracted. arbeitsagentur.de serves 150 KB
+# that parses down to 250 characters of teaser.
+LOW_YIELD_MIN_HTML_LENGTH = 20000
+
 
 class IngestionPipeline:
     """
@@ -79,6 +84,7 @@ class IngestionPipeline:
         total_tokens = 0
         quota_exhausted = False
         documents_skipped_quota = 0
+        documents_without_content = 0
 
         # ── Pre-flight: check embedding API quota ──
         try:
@@ -154,6 +160,8 @@ class IngestionPipeline:
                     documents_skipped_quota += 1
                 elif result["success"]:
                     documents_processed += 1
+                    if result.get("skipped_low_content"):
+                        documents_without_content += 1
                     chunks_ingested += result["chunks_ingested"]
                     chunks_skipped += result["chunks_skipped"]
                     total_tokens += result.get("tokens_used", 0)
@@ -184,6 +192,10 @@ class IngestionPipeline:
             "total_tokens": total_tokens,
             "quota_exhausted": quota_exhausted,
             "documents_skipped_quota": documents_skipped_quota,
+            # Counted separately from errors: these pages were fetched and parsed,
+            # they simply produced nothing. Folded into documents_processed they
+            # read as success, which is how a whole blocked domain stayed invisible.
+            "documents_without_content": documents_without_content,
         }
 
         logger.info("Ingestion pipeline completed", extra=summary)
@@ -265,10 +277,23 @@ class IngestionPipeline:
             )
 
             if not chunks:
-                # This is normal for low-content pages (e.g. news archives, nav items)
-                # Mark as 'ingested' so we don't keep trying to process this URL
+                # Normal for nav pages and news archives. It is not normal for a
+                # large document to parse down to a line or two: that is a page
+                # rendered client-side, where only a server-side teaser survives.
+                # Marked ingested either way so the URL is not retried forever, but
+                # the low-yield case is logged loudly and counted in the run summary.
                 self.state_store.mark_document_ingested(doc_id, content_hash)
-                logger.info(f"⏭️  Skipping document with no substantive content: {url}")
+                html_length = len(crawled.get("html") or "")
+                if html_length >= LOW_YIELD_MIN_HTML_LENGTH:
+                    logger.warning(
+                        "No chunks from %s: %d chars of HTML parsed down to %d. "
+                        "The page is probably rendered client-side.",
+                        url,
+                        html_length,
+                        len(markdown_text),
+                    )
+                else:
+                    logger.info("⏭️  Skipping document with no substantive content: %s", url)
                 return {
                     "success": True,
                     "chunks_ingested": 0,
@@ -305,8 +330,10 @@ class IngestionPipeline:
             logger.debug("Deduplication: %d to ingest, %d skipped", len(chunks_to_ingest), skipped_count)
 
             # Step 4: Embed (Children only)
-            # In Parent-Child strategy, we only search against children.
-            # Parents provide context but don't need vectors (saves cost + avoids token limits).
+            # In Parent-Child strategy, we only search against children. Parents are
+            # still stored so retrieval can expand a hit into its whole section, but
+            # they are looked up by chunk_id rather than searched, so they get no
+            # vectors (saves cost + avoids token limits).
             chunks_to_embed = [c for c in chunks_to_ingest if not c.metadata.is_parent]
             texts_to_embed = [c.text for c in chunks_to_embed]
 
@@ -329,8 +356,16 @@ class IngestionPipeline:
             for chunk in chunks_to_ingest:
                 payload = QdrantPayload.from_chunk(chunk)
 
-                # Use hash-based ID for deterministic point IDs
-                point_id = int(hash(chunk.metadata.text_hash) & 0x7FFFFFFF)
+                # Deterministic point ID from the chunk's SHA-256, which is what
+                # text_hash already holds. The previous derivation used the builtin
+                # hash(), which is salted per process, so the same chunk got a
+                # different ID on every run.
+                #
+                # 63 bits, not 64: the ID is mirrored into SQLite's chunks table and
+                # SQLite INTEGER is signed, so anything at or above 2**63 is rejected
+                # with "Python int too large to convert to SQLite INTEGER". Qdrant
+                # itself accepts the full u64 range.
+                point_id = int(chunk.metadata.text_hash[:16], 16) & 0x7FFFFFFFFFFFFFFF
 
                 # Retrieve vectors if this is a child chunk, else use empty vectors
                 vectors = vector_map.get(

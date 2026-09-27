@@ -224,6 +224,7 @@ class AnswerGenerator:
                 documents=retrieval_results,
                 top_k=settings.retrieval_top_k_reranked,
             )
+            reranked = await self.retriever.expand_to_parents(reranked)
 
             # 4. Build prompt
             context = self.prompt_builder.build_context_from_retrieval(reranked, language=language or "en")
@@ -391,6 +392,7 @@ class AnswerGenerator:
                 documents=retrieval_results,
                 top_k=settings.retrieval_top_k_reranked,
             )
+            reranked = await self.retriever.expand_to_parents(reranked)
 
             sources = self._build_sources(reranked)
             yield f"data: {json.dumps({'choices': [], 'metadata': {'sources': sources}}, ensure_ascii=False)}\n\n"

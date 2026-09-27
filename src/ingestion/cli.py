@@ -110,6 +110,7 @@ def _print_ingestion_summary(result: dict):
     ingested = result.get("chunks_ingested", 0)
     skipped = result.get("chunks_skipped", 0)
     skipped_quota = result.get("documents_skipped_quota", 0)
+    no_content = result.get("documents_without_content", 0)
     errors = result.get("errors", [])
 
     typer.echo("\n" + "=" * 40)
@@ -117,6 +118,11 @@ def _print_ingestion_summary(result: dict):
     typer.echo("-" * 40)
     typer.echo(f"📄 Total Documents:    {processed + len(errors) + skipped_quota}")
     typer.echo(f"✅ Successfully Processed: {processed}")
+    if no_content > 0:
+        # Fetched and parsed, but produced nothing. Printed next to the success
+        # count because it reads as success otherwise, and a run can report 783/786
+        # while an entire domain contributes no text at all.
+        typer.echo(f"🫥  Yielded No Content:  {no_content}  (see WARNING lines for client-rendered pages)")
     typer.echo(f"❌ Failed:              {len(errors)}")
     if skipped_quota > 0:
         typer.echo(f"⏭️  Skipped (Quota):     {skipped_quota}")

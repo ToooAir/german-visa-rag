@@ -314,6 +314,29 @@ class QdrantWrapper:
                 # Use OR if multiple types
             )
 
+    async def get_payloads_by_chunk_ids(self, chunk_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Fetch payloads by their chunk_id, keyed by chunk_id.
+
+        Point IDs are derived from a text hash, so a chunk cannot be addressed by
+        ID; this filters on the payload field instead. chunk_ids with no point are
+        simply absent from the result.
+        """
+        if not chunk_ids:
+            return {}
+
+        try:
+            points, _ = await self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=Filter(must=[FieldCondition(key="chunk_id", match=MatchAny(any=chunk_ids))]),
+                limit=len(chunk_ids),
+                with_payload=True,
+                with_vectors=False,
+            )
+            return {p.payload["chunk_id"]: p.payload for p in points if p.payload and p.payload.get("chunk_id")}
+        except Exception as e:
+            logger.error("Failed to fetch chunks by id: %s", e)
+            return {}
+
     async def get_point_by_id(self, point_id: int) -> Optional[dict[str, Any]]:
         """Retrieve a single point by ID."""
         try:

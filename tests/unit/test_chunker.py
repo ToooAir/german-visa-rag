@@ -286,6 +286,33 @@ class TestStatuteChunking:
         children = self._children(ParentChildChunker(child_chunk_size=320, min_child_length=50))
         assert all("Section:" not in c.text.split("\n", 1)[0] for c in children)
 
+    def test_parent_section_opens_with_a_meaningful_heading(self):
+        """Retrieval expands a hit into the parent, so "Introduction" is not enough."""
+        chunker = ParentChildChunker(child_chunk_size=320, min_child_length=50)
+        chunks = chunker.chunk_document(
+            markdown_text=STATUTE,
+            source_url="https://www.gesetze-im-internet.de/aufenthg_2004/__18b.html",
+            doc_id="doc_18b",
+            title="§ 18b AufenthG - Einzelnorm",
+        )
+        parent = next(c for c in chunks if c.metadata.is_parent)
+        assert parent.text.startswith("§ 18b AufenthG - Einzelnorm")
+
+    def test_children_link_back_to_their_parent_section(self):
+        """Retrieval expands a child into its section, so the link must be explicit."""
+        chunker = ParentChildChunker(child_chunk_size=320, min_child_length=50)
+        chunks = chunker.chunk_document(
+            markdown_text=STATUTE,
+            source_url="https://www.gesetze-im-internet.de/aufenthg_2004/__18b.html",
+            doc_id="doc_18b",
+            title="§ 18b AufenthG - Einzelnorm",
+        )
+        parents = {c.metadata.chunk_id for c in chunks if c.metadata.is_parent}
+        children = [c for c in chunks if not c.metadata.is_parent]
+        assert children
+        assert all(c.metadata.parent_chunk_id in parents for c in children)
+        assert all(c.metadata.parent_chunk_id is None for c in chunks if c.metadata.is_parent)
+
     def test_ordinary_pages_get_no_absatz_label(self):
         chunker = ParentChildChunker(min_child_length=50)
         content = "You need a passport and proof of funds. " * 6
@@ -474,6 +501,19 @@ class TestCleanMarkdown:
         result = chunker.clean_markdown("Required ✔ documents ℹ️ here 📄")
         assert "✔" not in result and "📄" not in result
         assert "Required" in result
+
+    def test_removes_the_gesetze_download_bar(self):
+        """Emitted as a heading, so it became the section header of what followed."""
+        chunker = ParentChildChunker()
+        text = (
+            "## Full text in format:   [HTML](englisch_aufenthg.html)  "
+            '[PDF](englisch_aufenthg.pdf "pdf will be shown in separate tab")\n\n'
+            "### § 18b Fachkräfte\n\n(1) Der Text bleibt."
+        )
+        result = chunker.clean_markdown(text)
+        assert "Full text in format" not in result
+        assert "englisch_aufenthg.pdf" not in result
+        assert "§ 18b Fachkräfte" in result
 
     def test_keeps_ordinary_content_links(self):
         """The gesetze nav rule targets __NN.html / index.html only — other links survive."""

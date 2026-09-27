@@ -160,6 +160,10 @@ class ParentChildChunker:
             r"(?:^|\s)\]\(https?://[^\s\)]+\)",  # Trailing broken link fragments
             r"^\*?\d{2}\.\d{2}\.\d{4}\*?$",  # Standalone date-only lines
             r"^\*?Pressemitteilung\*?$",  # Standalone Press Release tags
+            # gesetze-im-internet download bar ("Full text in format: [HTML] [PDF] ...").
+            # It is emitted as a heading, so it became the section header of the chunks
+            # that followed it and its links were embedded with them.
+            r"^#{0,6}\s*(?:Full text in format|zur Gesamtausgabe der Norm im Format):.*$",
         ]
         for pattern in ui_noise_patterns:
             text = re.sub(pattern, "", text, flags=re.IGNORECASE | re.MULTILINE)
@@ -448,7 +452,11 @@ class ParentChildChunker:
                 continue
 
             # ── Parent chunk ─────────────────────────────────────────────
-            parent_text = f"{section_header}\n\n{section_content}"
+            # Parent sections are what retrieval expands a hit into, so the heading
+            # line has to carry information: a statute page has no H2/H3 and would
+            # otherwise open on the word "Introduction".
+            parent_label = self._derive_context_label(section_header, title)
+            parent_text = f"{parent_label}\n\n{section_content}"
 
             # Safety check: Trim parent if it's monstrously large
             if len(parent_text) > MAX_CHUNK_LENGTH:
@@ -533,6 +541,7 @@ class ParentChildChunker:
                     metadata=ChunkMetadata(
                         chunk_id=child_chunk_id,
                         parent_doc_id=str(doc_id),
+                        parent_chunk_id=parent_chunk_id,
                         source_url=source_url,
                         source_title=title,
                         authority_level=authority_level,

@@ -23,6 +23,11 @@ class VisaType(str, Enum):
 
     CHANCENKARTE = "chancenkarte"
     WORK_VISA = "work_visa"
+    # FEG skilled worker. tag_filter and PromptBuilder.ALLOWED_VISA_TYPES already
+    # treat this as a visa type, but it was missing here, so no chunk could carry
+    # the tag and a visa_type=skilled_worker query matched nothing and fell through
+    # to an unfiltered search.
+    SKILLED_WORKER = "skilled_worker"
     BLUE_CARD = "blue_card"
     IT_VISA = "it_visa"
     STUDENT_VISA = "student_visa"
@@ -39,6 +44,9 @@ class ChunkMetadata(BaseModel):
     # Identifiers
     chunk_id: str = Field(..., description="Unique chunk identifier (hash-based)")
     parent_doc_id: str = Field(..., description="Reference to parent document")
+    parent_chunk_id: Optional[str] = Field(
+        default=None, description="Parent section chunk this child was cut from (None on parents)"
+    )
 
     # Source Information
     source_url: str = Field(..., description="Original URL of the document")
@@ -85,6 +93,7 @@ class QdrantPayload(BaseModel):
 
     chunk_id: str
     parent_doc_id: str
+    parent_chunk_id: Optional[str]
     source_url: str
     source_title: Optional[str]
     authority_level: str  # Stored as string
@@ -104,6 +113,7 @@ class QdrantPayload(BaseModel):
         return cls(
             chunk_id=chunk.metadata.chunk_id,
             parent_doc_id=chunk.metadata.parent_doc_id,
+            parent_chunk_id=chunk.metadata.parent_chunk_id,
             source_url=chunk.metadata.source_url,
             source_title=chunk.metadata.source_title,
             authority_level=chunk.metadata.authority_level.value,

@@ -144,6 +144,14 @@ class Settings(BaseSettings):
     rag_authority_boost_third_party: float = Field(default=0.8, validation_alias="RAG_AUTHORITY_BOOST_THIRD_PARTY")
     rag_recency_penalty_max: float = Field(default=0.1, validation_alias="RAG_RECENCY_PENALTY_MAX")
     rag_recency_penalty_days: int = Field(default=365, validation_alias="RAG_RECENCY_PENALTY_DAYS")
+    enable_parent_expansion: bool = Field(default=True, validation_alias="ENABLE_PARENT_EXPANSION")
+    # Total characters of parent text a single answer may pull in. Beyond it the
+    # remaining results keep their precise child chunk.
+    rag_parent_context_budget_chars: int = Field(default=8000, validation_alias="RAG_PARENT_CONTEXT_BUDGET_CHARS")
+    # Per-document cap the prompt builder enforces. PromptBuilder read this via
+    # getattr and fell back to 2000 with a warning, which truncated an expanded
+    # section mid-rule; the average legal parent section is ~3.5k characters.
+    max_context_content_chars: int = Field(default=4000, validation_alias="MAX_CONTEXT_CONTENT_CHARS")
 
     # ============================================
     # Reranker Configuration

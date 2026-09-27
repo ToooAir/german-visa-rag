@@ -13,6 +13,8 @@ from src.rag.answer_generator import AnswerGenerator
 def _make_generator() -> AnswerGenerator:
     """Build an AnswerGenerator with all heavy dependencies mocked out."""
     retriever = MagicMock()
+    # Parent expansion is exercised in test_hybrid_retriever; here it is a pass-through.
+    retriever.expand_to_parents = AsyncMock(side_effect=lambda results: results)
     with (
         patch("src.rag.answer_generator.get_query_transformer"),
         patch("src.rag.answer_generator.get_reranker"),

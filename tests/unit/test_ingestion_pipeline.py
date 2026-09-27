@@ -53,7 +53,7 @@ def _make_pipeline() -> IngestionPipeline:
     return p
 
 
-def _make_chunk(chunk_id: str = "c1", text_hash: str = "hash1", is_parent: bool = False):
+def _make_chunk(chunk_id: str = "c1", text_hash: str = 64 * "a", is_parent: bool = False):
     chunk = MagicMock()
     chunk.text = "Sample chunk text content"
     chunk.metadata = MagicMock()
@@ -327,8 +327,9 @@ class TestProcessSingleDocument:
         """Lines 298-300: second chunk with same hash in same batch is skipped."""
         p = _make_pipeline()
         # Use parent chunks so no embedding is needed
-        chunk1 = _make_chunk("c1", "same_hash", is_parent=True)
-        chunk2 = _make_chunk("c2", "same_hash", is_parent=True)  # same hash → batch dup
+        same = 64 * "b"
+        chunk1 = _make_chunk("c1", same, is_parent=True)
+        chunk2 = _make_chunk("c2", same, is_parent=True)  # same hash → batch dup
         p.crawler.crawl_document = AsyncMock(return_value={"markdown": "content", "metadata": {}})
         p.chunker.chunk_document = MagicMock(return_value=[chunk1, chunk2])
         p.state_store.check_chunk_duplicate = MagicMock(return_value=False)
@@ -421,3 +422,141 @@ class TestGetIngestionPipeline:
             b = get_ingestion_pipeline()
         assert a is b
         pipeline_module._pipeline = None
+
+
+# ─── Point ID derivation ──────────────────────────────────────────────────────
+
+
+class TestPointIdDerivation:
+    """Point IDs come from the chunk's SHA-256, not the builtin hash(), which is
+    salted per process and would give the same chunk a different ID every run."""
+
+    @staticmethod
+    def _point_id(text_hash: str) -> int:
+        # Mirrors the derivation in _ingest_single_document.
+        return int(text_hash[:16], 16) & 0x7FFFFFFFFFFFFFFF
+
+    def test_is_stable_for_the_same_chunk(self):
+        from src.utils.hash_utils import compute_canonical_hash
+
+        h = compute_canonical_hash("(1) Einer Fachkraft wird eine Blaue Karte EU erteilt.")
+        assert self._point_id(h) == self._point_id(h)
+        assert self._point_id(h) == int(h[:16], 16)
+
+    def test_differs_between_chunks(self):
+        from src.utils.hash_utils import compute_canonical_hash
+
+        a = self._point_id(compute_canonical_hash("Absatz 1"))
+        b = self._point_id(compute_canonical_hash("Absatz 2"))
+        assert a != b
+
+    def test_fits_a_signed_64_bit_sqlite_integer(self):
+        """The ID is mirrored into SQLite, whose INTEGER is signed. Checking only
+        Qdrant's u64 range let a 2**63 overflow reach a real ingest run, where it
+        failed 600 documents with "Python int too large to convert to SQLite
+        INTEGER" after their points had already been written."""
+        from src.utils.hash_utils import compute_canonical_hash
+
+        for text in ("a", "ä" * 500, "", "f" * 64):
+            pid = self._point_id(compute_canonical_hash(text))
+            assert 0 <= pid < 2**63
+
+    def test_every_hash_prefix_stays_in_range(self):
+        """The top bit is the one that overflowed, so cover a hash that sets it."""
+        assert self._point_id("f" * 64) < 2**63
+        assert self._point_id("8" + "0" * 63) < 2**63
+
+
+# ─── Documents that yield no content ──────────────────────────────────────────
+
+
+class TestNoContentAccounting:
+    """A fetched page that produces no chunks used to be counted purely as a
+    success, so a run could report 783/786 processed while an entire domain
+    contributed nothing."""
+
+    @staticmethod
+    def _pipeline_yielding_no_chunks(html: str):
+        p = _make_pipeline()
+        p.crawler.crawl_document = AsyncMock(
+            return_value={
+                "markdown": "Short teaser.",
+                "html": html,
+                "metadata": {"title": "Page"},
+                "fetched_at": "2025-01-01T00:00:00Z",
+            }
+        )
+        p.chunker.chunk_document = MagicMock(return_value=[])
+        return p
+
+    @pytest.mark.asyncio
+    async def test_counted_separately_in_the_run_summary(self):
+        p = self._pipeline_yielding_no_chunks("<html>" + "x" * 100000 + "</html>")
+        with patch("src.ingestion.ingestion_pipeline.embedder") as emb:
+            emb.preflight_check = AsyncMock(return_value=True)
+            result = await p.run_full_ingestion([_SOURCE_DOC])
+
+        assert result["documents_processed"] == 1
+        assert result["documents_without_content"] == 1
+        assert result["chunks_ingested"] == 0
+
+    @pytest.mark.asyncio
+    async def test_a_large_page_yielding_nothing_is_warned_about(self, caplog):
+        """150 KB parsing down to a line is a client-rendered page, not a thin one."""
+        import logging
+
+        p = self._pipeline_yielding_no_chunks("<html>" + "x" * 100000 + "</html>")
+        with caplog.at_level(logging.WARNING, logger="visa_rag"):
+            with patch("src.ingestion.ingestion_pipeline.embedder") as emb:
+                emb.preflight_check = AsyncMock(return_value=True)
+                await p.run_full_ingestion([_SOURCE_DOC])
+
+        assert any("rendered client-side" in r.message for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_a_genuinely_small_page_is_not_warned_about(self, caplog):
+        import logging
+
+        p = self._pipeline_yielding_no_chunks("<html>tiny</html>")
+        with caplog.at_level(logging.WARNING, logger="visa_rag"):
+            with patch("src.ingestion.ingestion_pipeline.embedder") as emb:
+                emb.preflight_check = AsyncMock(return_value=True)
+                result = await p.run_full_ingestion([_SOURCE_DOC])
+
+        assert not any("rendered client-side" in r.message for r in caplog.records)
+        assert result["documents_without_content"] == 1  # still counted
+
+    @pytest.mark.asyncio
+    async def test_a_productive_document_is_not_counted(self):
+        p = _make_pipeline()
+        p.crawler.crawl_document = AsyncMock(
+            return_value={
+                "markdown": "# Visa\n\nReal content.",
+                "html": "<html>ok</html>",
+                "metadata": {"title": "Visa"},
+                "fetched_at": "2025-01-01T00:00:00Z",
+            }
+        )
+        p.chunker.chunk_document = MagicMock(return_value=[_make_chunk()])
+
+        with (
+            patch("src.ingestion.ingestion_pipeline.embedder") as emb,
+            patch("src.ingestion.ingestion_pipeline.get_sparse_encoder") as sparse,
+            patch("src.ingestion.ingestion_pipeline.settings") as s,
+        ):
+            emb.preflight_check = AsyncMock(return_value=True)
+            emb.embed_texts = AsyncMock(return_value=[[0.1, 0.2]])
+            s.sparse_vocab_size = 8000
+            s.qdrant_vector_size = 1536
+            s.crawler_max_concurrent_requests = 5
+            enc = MagicMock()
+            enc.encode_batch = MagicMock(return_value=[{"indices": [1], "values": [0.5]}])
+            sparse.return_value = enc
+
+            from src.models.chunk import QdrantPayload
+
+            with patch.object(QdrantPayload, "from_chunk", return_value=MagicMock(to_dict=MagicMock(return_value={}))):
+                result = await p.run_full_ingestion([_SOURCE_DOC])
+
+        assert result["documents_processed"] == 1
+        assert result["documents_without_content"] == 0

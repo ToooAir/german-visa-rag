@@ -356,14 +356,12 @@ extra_urls:
     authority_level: "official"
     visa_types:
       - "work_visa"
-      - "skilled_worker"
 
   - url: "https://www.gesetze-im-internet.de/aufenthg_2004/__18b.html"
     title: "§ 18b AufenthG - Fachkräfte mit akademischer Ausbildung"
     authority_level: "official"
     visa_types:
       - "work_visa"
-      - "skilled_worker"
 
   - url: "https://www.gesetze-im-internet.de/aufenthg_2004/__18g.html"
     title: "§ 18g AufenthG - Blaue Karte EU"

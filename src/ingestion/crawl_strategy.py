@@ -389,7 +389,10 @@ GESETZE_STRATEGY = DomainCrawlStrategy(
         "/aufenthg_2004/",  # Aufenthaltsgesetz — residence act (Blue Card, FEG)
     ],
     authority_level="official",
-    default_visa_types=["work_visa", "blue_card", "chancenkarte", "skilled_worker"],
+    # No "skilled_worker": it is not a VisaType, so ingestion rejects it with
+    # "'skilled_worker' is not a valid VisaType". Only seed_urls.yml overriding
+    # this list kept that from surfacing.
+    default_visa_types=["work_visa", "blue_card", "chancenkarte"],
     max_depth=2,
     # Eleven laws share this budget: AufenthG has ~110 individual § pages, BeschV ~40,
     # AufenthV ~90, plus the English translations. At 100 discovery dropped §§ 18a/18b/18g,

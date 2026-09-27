@@ -434,7 +434,7 @@ class TestPointIdDerivation:
     @staticmethod
     def _point_id(text_hash: str) -> int:
         # Mirrors the derivation in _ingest_single_document.
-        return int(text_hash[:16], 16)
+        return int(text_hash[:16], 16) & 0x7FFFFFFFFFFFFFFF
 
     def test_is_stable_for_the_same_chunk(self):
         from src.utils.hash_utils import compute_canonical_hash
@@ -450,9 +450,18 @@ class TestPointIdDerivation:
         b = self._point_id(compute_canonical_hash("Absatz 2"))
         assert a != b
 
-    def test_fits_an_unsigned_64_bit_qdrant_id(self):
+    def test_fits_a_signed_64_bit_sqlite_integer(self):
+        """The ID is mirrored into SQLite, whose INTEGER is signed. Checking only
+        Qdrant's u64 range let a 2**63 overflow reach a real ingest run, where it
+        failed 600 documents with "Python int too large to convert to SQLite
+        INTEGER" after their points had already been written."""
         from src.utils.hash_utils import compute_canonical_hash
 
-        for text in ("a", "ä" * 500, ""):
+        for text in ("a", "ä" * 500, "", "f" * 64):
             pid = self._point_id(compute_canonical_hash(text))
-            assert 0 <= pid < 2**64
+            assert 0 <= pid < 2**63
+
+    def test_every_hash_prefix_stays_in_range(self):
+        """The top bit is the one that overflowed, so cover a hash that sets it."""
+        assert self._point_id("f" * 64) < 2**63
+        assert self._point_id("8" + "0" * 63) < 2**63

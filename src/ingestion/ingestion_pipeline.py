@@ -331,13 +331,16 @@ class IngestionPipeline:
             for chunk in chunks_to_ingest:
                 payload = QdrantPayload.from_chunk(chunk)
 
-                # Deterministic point ID, taken from the top 64 bits of the chunk's
-                # SHA-256. The previous derivation used the builtin hash(), which is
-                # salted per process, so the same chunk got a different ID on every
-                # run; masking to 31 bits also left a ~1.6% birthday-collision
-                # chance across the current corpus, and a collision silently
-                # overwrites an unrelated chunk.
-                point_id = int(chunk.metadata.text_hash[:16], 16)
+                # Deterministic point ID from the chunk's SHA-256, which is what
+                # text_hash already holds. The previous derivation used the builtin
+                # hash(), which is salted per process, so the same chunk got a
+                # different ID on every run.
+                #
+                # 63 bits, not 64: the ID is mirrored into SQLite's chunks table and
+                # SQLite INTEGER is signed, so anything at or above 2**63 is rejected
+                # with "Python int too large to convert to SQLite INTEGER". Qdrant
+                # itself accepts the full u64 range.
+                point_id = int(chunk.metadata.text_hash[:16], 16) & 0x7FFFFFFFFFFFFFFF
 
                 # Retrieve vectors if this is a child chunk, else use empty vectors
                 vectors = vector_map.get(

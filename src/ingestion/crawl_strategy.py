@@ -97,7 +97,7 @@ MAKE_IT_IN_GERMANY_STRATEGY = DomainCrawlStrategy(
         "/de/arbeit-in-deutschland/job-beruf/mangelberufe",
     ],
     authority_level="official",
-    default_visa_types=["general", "chancenkarte", "blue_card", "work_visa", "student_visa"],
+    default_visa_types=["general", "chancenkarte", "blue_card", "work_visa", "skilled_worker", "student_visa"],
     max_depth=4,
     max_pages=200,
     allowed_path_patterns=[
@@ -246,7 +246,7 @@ BAMF_STRATEGY = DomainCrawlStrategy(
         "/Shared/Publikationen/",
     ],
     authority_level="official",
-    default_visa_types=["general", "blue_card", "chancenkarte", "work_visa"],
+    default_visa_types=["general", "blue_card", "chancenkarte", "work_visa", "skilled_worker"],
     max_depth=3,
     max_pages=150,
     allowed_path_patterns=[
@@ -292,7 +292,7 @@ BA_STRATEGY = DomainCrawlStrategy(
         "/web/content/EN/institutionunternehmen/internationalerarbeitsmarkt/",
     ],
     authority_level="official",
-    default_visa_types=["work_visa", "blue_card"],
+    default_visa_types=["work_visa", "skilled_worker", "blue_card"],
     max_depth=3,
     max_pages=100,
     allowed_path_patterns=[
@@ -334,7 +334,7 @@ KMK_STRATEGY = DomainCrawlStrategy(
         "/zab/en/statement-of-comparability.html",
     ],
     authority_level="official",
-    default_visa_types=["general", "work_visa", "blue_card", "student_visa"],
+    default_visa_types=["general", "work_visa", "skilled_worker", "blue_card", "student_visa"],
     max_depth=3,
     max_pages=100,
     allowed_path_patterns=[
@@ -389,10 +389,7 @@ GESETZE_STRATEGY = DomainCrawlStrategy(
         "/aufenthg_2004/",  # Aufenthaltsgesetz — residence act (Blue Card, FEG)
     ],
     authority_level="official",
-    # No "skilled_worker": it is not a VisaType, so ingestion rejects it with
-    # "'skilled_worker' is not a valid VisaType". Only seed_urls.yml overriding
-    # this list kept that from surfacing.
-    default_visa_types=["work_visa", "blue_card", "chancenkarte"],
+    default_visa_types=["work_visa", "skilled_worker", "blue_card", "chancenkarte"],
     max_depth=2,
     # Eleven laws share this budget: AufenthG has ~110 individual § pages, BeschV ~40,
     # AufenthV ~90, plus the English translations. At 100 discovery dropped §§ 18a/18b/18g,

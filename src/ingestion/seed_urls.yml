@@ -41,6 +41,7 @@ domains:
       - "chancenkarte"
       - "blue_card"
       - "work_visa"
+      - "skilled_worker"
       - "student_visa"
     max_depth: 3
     max_pages: 200
@@ -96,6 +97,7 @@ domains:
     default_visa_types:
       - "general"
       - "work_visa"
+      - "skilled_worker"
       - "chancenkarte"
       - "blue_card"
       - "student_visa"
@@ -131,6 +133,7 @@ domains:
     authority_level: "official"
     default_visa_types:
       - "work_visa"
+      - "skilled_worker"
     max_depth: 1
     max_pages: 20
     allowed_path_patterns:
@@ -155,6 +158,7 @@ domains:
       - "blue_card"
       - "chancenkarte"
       - "work_visa"
+      - "skilled_worker"
     max_depth: 3
     max_pages: 150
     use_sitemap: true
@@ -169,6 +173,7 @@ domains:
     authority_level: "official"
     default_visa_types:
       - "work_visa"
+      - "skilled_worker"
       - "blue_card"
     max_depth: 3
     max_pages: 100
@@ -188,6 +193,7 @@ domains:
     default_visa_types:
       - "general"
       - "work_visa"
+      - "skilled_worker"
       - "blue_card"
       - "student_visa"
     max_depth: 3
@@ -214,6 +220,7 @@ domains:
     default_visa_types:
       - "general"
       - "work_visa"
+      - "skilled_worker"
       - "blue_card"
       - "chancenkarte"
     max_depth: 2
@@ -237,6 +244,7 @@ domains:
     authority_level: "official"
     default_visa_types:
       - "work_visa"
+      - "skilled_worker"
       - "blue_card"
     max_depth: 3
     max_pages: 150
@@ -265,6 +273,7 @@ extra_urls:
     authority_level: "official"
     visa_types:
       - "work_visa"
+      - "skilled_worker"
 
   - url: "https://www.make-it-in-germany.com/en/visa-residence/types/studying"
     title: "Visa for Studying - Make It In Germany"
@@ -315,12 +324,14 @@ extra_urls:
     visa_types:
       - "general"
       - "work_visa"
+      - "skilled_worker"
 
   - url: "https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/Arbeit/arbeit-node.html"
     title: "Working in Germany - BAMF"
     authority_level: "official"
     visa_types:
       - "work_visa"
+      - "skilled_worker"
       - "blue_card"
 
   - url: "https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/zuwandererdrittstaaten-node.html"
@@ -329,6 +340,7 @@ extra_urls:
     visa_types:
       - "general"
       - "work_visa"
+      - "skilled_worker"
       - "chancenkarte"
 
   - url: "https://www.arbeitsagentur.de/en/working-in-germany"
@@ -336,6 +348,7 @@ extra_urls:
     authority_level: "official"
     visa_types:
       - "work_visa"
+      - "skilled_worker"
       - "blue_card"
 
   - url: "https://www.kmk.org/zab/central-office-for-foreign-education.html"
@@ -344,6 +357,7 @@ extra_urls:
     visa_types:
       - "general"
       - "work_visa"
+      - "skilled_worker"
       - "blue_card"
       - "student_visa"
 
@@ -356,12 +370,14 @@ extra_urls:
     authority_level: "official"
     visa_types:
       - "work_visa"
+      - "skilled_worker"
 
   - url: "https://www.gesetze-im-internet.de/aufenthg_2004/__18b.html"
     title: "§ 18b AufenthG - Fachkräfte mit akademischer Ausbildung"
     authority_level: "official"
     visa_types:
       - "work_visa"
+      - "skilled_worker"
 
   - url: "https://www.gesetze-im-internet.de/aufenthg_2004/__18g.html"
     title: "§ 18g AufenthG - Blaue Karte EU"
@@ -369,6 +385,7 @@ extra_urls:
     visa_types:
       - "blue_card"
       - "work_visa"
+      - "skilled_worker"
 
   # ── Anabin: Official Foreign Degree Database (static pages only) ──────
   # Dynamic JSF app — only static entry points are indexable by standard crawlers
@@ -378,6 +395,7 @@ extra_urls:
     visa_types:
       - "general"
       - "work_visa"
+      - "skilled_worker"
       - "blue_card"
       - "student_visa"
 
@@ -387,6 +405,7 @@ extra_urls:
     visa_types:
       - "general"
       - "work_visa"
+      - "skilled_worker"
       - "blue_card"
 
 # ============================================

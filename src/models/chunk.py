@@ -23,6 +23,11 @@ class VisaType(str, Enum):
 
     CHANCENKARTE = "chancenkarte"
     WORK_VISA = "work_visa"
+    # FEG skilled worker. tag_filter and PromptBuilder.ALLOWED_VISA_TYPES already
+    # treat this as a visa type, but it was missing here, so no chunk could carry
+    # the tag and a visa_type=skilled_worker query matched nothing and fell through
+    # to an unfiltered search.
+    SKILLED_WORKER = "skilled_worker"
     BLUE_CARD = "blue_card"
     IT_VISA = "it_visa"
     STUDENT_VISA = "student_visa"

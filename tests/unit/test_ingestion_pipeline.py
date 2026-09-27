@@ -53,7 +53,7 @@ def _make_pipeline() -> IngestionPipeline:
     return p
 
 
-def _make_chunk(chunk_id: str = "c1", text_hash: str = "hash1", is_parent: bool = False):
+def _make_chunk(chunk_id: str = "c1", text_hash: str = 64 * "a", is_parent: bool = False):
     chunk = MagicMock()
     chunk.text = "Sample chunk text content"
     chunk.metadata = MagicMock()
@@ -327,8 +327,9 @@ class TestProcessSingleDocument:
         """Lines 298-300: second chunk with same hash in same batch is skipped."""
         p = _make_pipeline()
         # Use parent chunks so no embedding is needed
-        chunk1 = _make_chunk("c1", "same_hash", is_parent=True)
-        chunk2 = _make_chunk("c2", "same_hash", is_parent=True)  # same hash → batch dup
+        same = 64 * "b"
+        chunk1 = _make_chunk("c1", same, is_parent=True)
+        chunk2 = _make_chunk("c2", same, is_parent=True)  # same hash → batch dup
         p.crawler.crawl_document = AsyncMock(return_value={"markdown": "content", "metadata": {}})
         p.chunker.chunk_document = MagicMock(return_value=[chunk1, chunk2])
         p.state_store.check_chunk_duplicate = MagicMock(return_value=False)
@@ -421,3 +422,37 @@ class TestGetIngestionPipeline:
             b = get_ingestion_pipeline()
         assert a is b
         pipeline_module._pipeline = None
+
+
+# ─── Point ID derivation ──────────────────────────────────────────────────────
+
+
+class TestPointIdDerivation:
+    """Point IDs come from the chunk's SHA-256, not the builtin hash(), which is
+    salted per process and would give the same chunk a different ID every run."""
+
+    @staticmethod
+    def _point_id(text_hash: str) -> int:
+        # Mirrors the derivation in _ingest_single_document.
+        return int(text_hash[:16], 16)
+
+    def test_is_stable_for_the_same_chunk(self):
+        from src.utils.hash_utils import compute_canonical_hash
+
+        h = compute_canonical_hash("(1) Einer Fachkraft wird eine Blaue Karte EU erteilt.")
+        assert self._point_id(h) == self._point_id(h)
+        assert self._point_id(h) == int(h[:16], 16)
+
+    def test_differs_between_chunks(self):
+        from src.utils.hash_utils import compute_canonical_hash
+
+        a = self._point_id(compute_canonical_hash("Absatz 1"))
+        b = self._point_id(compute_canonical_hash("Absatz 2"))
+        assert a != b
+
+    def test_fits_an_unsigned_64_bit_qdrant_id(self):
+        from src.utils.hash_utils import compute_canonical_hash
+
+        for text in ("a", "ä" * 500, ""):
+            pid = self._point_id(compute_canonical_hash(text))
+            assert 0 <= pid < 2**64

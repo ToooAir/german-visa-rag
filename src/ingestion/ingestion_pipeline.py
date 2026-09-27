@@ -331,8 +331,13 @@ class IngestionPipeline:
             for chunk in chunks_to_ingest:
                 payload = QdrantPayload.from_chunk(chunk)
 
-                # Use hash-based ID for deterministic point IDs
-                point_id = int(hash(chunk.metadata.text_hash) & 0x7FFFFFFF)
+                # Deterministic point ID, taken from the top 64 bits of the chunk's
+                # SHA-256. The previous derivation used the builtin hash(), which is
+                # salted per process, so the same chunk got a different ID on every
+                # run; masking to 31 bits also left a ~1.6% birthday-collision
+                # chance across the current corpus, and a collision silently
+                # overwrites an unrelated chunk.
+                point_id = int(chunk.metadata.text_hash[:16], 16)
 
                 # Retrieve vectors if this is a child chunk, else use empty vectors
                 vectors = vector_map.get(

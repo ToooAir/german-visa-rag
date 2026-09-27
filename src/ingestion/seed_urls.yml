@@ -217,7 +217,11 @@ domains:
       - "blue_card"
       - "chancenkarte"
     max_depth: 2
-    max_pages: 100
+    # Eleven laws share this budget and AufenthG alone has ~110 individual §
+    # pages, so at 100 discovery stopped well short and dropped §§ 18a/18b/18g --
+    # the skilled-worker and Blue Card provisions. This value overrides the one
+    # in crawl_strategy.py, which is why the 200 documented there never applied.
+    max_pages: 400
     allowed_path_patterns:
       - "^/(aufenthg_2004|beschv_2013|v_mkaufenthgv|stag|freiz_gg_eu_2004|intv|englisch_.*)/"
     use_sitemap: false
@@ -288,13 +292,6 @@ extra_urls:
     visa_types:
       - "general"
 
-  # ── germany.info — German Embassy (US) Skilled Worker overview ───────
-  - url: "https://www.germany.info/us-en/skilled-worker-immigration-2304796"
-    title: "Skilled Worker Immigration Act 2026 Guidelines - German Embassy US"
-    authority_level: "official"
-    visa_types:
-      - "work_visa"
-
   # ── germany-visa.org — Third-party reference pages ───────────────────
   - url: "https://www.germany-visa.org/student-visa/student-visa-visum-zu-studienzwecken/"
     title: "Student Visa for Germany"
@@ -308,57 +305,72 @@ extra_urls:
     visa_types:
       - "blue_card"
 
-  # ── BAMF: Federal Immigration & Refugee Authority — Pinned entry points
-  - url: "https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/BlaueKarteEU/blauekarteeu-node.html"
-    title: "EU Blue Card Germany - BAMF Official Guide"
-    authority_level: "official"
-    visa_types:
-      - "blue_card"
-
-  - url: "https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/Fachkraefte/Chancenkarte/chancenkarte-node.html"
-    title: "Chancenkarte (Opportunity Card) - BAMF Official Guide"
-    authority_level: "official"
-    visa_types:
-      - "chancenkarte"
-
-  - url: "https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/Fachkraefte/fachkraefte-node.html"
-    title: "Skilled Worker Immigration - BAMF"
-    authority_level: "official"
-    visa_types:
-      - "work_visa"
-
-  # ── BA: Federal Employment Agency — Pinned entry points ──────────────
-  - url: "https://www.arbeitsagentur.de/en/findingajob/qualified-professionals-immigrating-to-germany"
-    title: "Qualified Professionals Immigrating to Germany - Bundesagentur für Arbeit"
-    authority_level: "official"
-    visa_types:
-      - "work_visa"
-      - "blue_card"
-
-  - url: "https://www.arbeitsagentur.de/en/managing-employees/employing-skilled-workers-from-non-eu-countries"
-    title: "Employing Skilled Workers from Non-EU Countries - BA Labour Market Approval (Zustimmung)"
-    authority_level: "official"
-    visa_types:
-      - "work_visa"
-      - "blue_card"
-
-  # ── KMK / ZAB: Credential Recognition Authorities ────────────────────
-  - url: "https://www.kmk.org/en/themen/recognition-and-transparency/recognition/recognition-of-foreign-qualifications.html"
-    title: "Recognition of Foreign Qualifications - KMK"
+  # ── Replacements for pins that started returning 404 ──────────────────
+  # The eight previous entries for germany.info, bamf.de, arbeitsagentur.de and
+  # kmk.org all 404 with no redirect. These five were checked for a 200 and for
+  # real body content; discovery already reaches the rest of those domains.
+  - url: "https://www.germany.info/us-en/service/visa"
+    title: "Visa and Entry - German Missions in the United States"
     authority_level: "official"
     visa_types:
       - "general"
       - "work_visa"
+
+  - url: "https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/Arbeit/arbeit-node.html"
+    title: "Working in Germany - BAMF"
+    authority_level: "official"
+    visa_types:
+      - "work_visa"
       - "blue_card"
 
-  - url: "https://www.kmk.org/zab/en/statement-of-comparability.html"
-    title: "Statement of Comparability for Foreign Higher Education Qualifications - ZAB/KMK"
+  - url: "https://www.bamf.de/EN/Themen/MigrationAufenthalt/ZuwandererDrittstaaten/zuwandererdrittstaaten-node.html"
+    title: "Coming from a Third Country to Germany - BAMF"
+    authority_level: "official"
+    visa_types:
+      - "general"
+      - "work_visa"
+      - "chancenkarte"
+
+  - url: "https://www.arbeitsagentur.de/en/working-in-germany"
+    title: "Working in Germany - Bundesagentur fuer Arbeit"
+    authority_level: "official"
+    visa_types:
+      - "work_visa"
+      - "blue_card"
+
+  - url: "https://www.kmk.org/zab/central-office-for-foreign-education.html"
+    title: "Central Office for Foreign Education (ZAB) - KMK"
     authority_level: "official"
     visa_types:
       - "general"
       - "work_visa"
       - "blue_card"
       - "student_visa"
+
+  # ── Pinned statutes: the legal basis for skilled work and the Blue Card ─
+  # Discovery shares one max_pages budget across eleven laws, so these three can
+  # fall below the cut even though they are the provisions most queries rest on.
+  # Pinning them keeps them in the corpus without a full discovery run.
+  - url: "https://www.gesetze-im-internet.de/aufenthg_2004/__18a.html"
+    title: "§ 18a AufenthG - Fachkräfte mit Berufsausbildung"
+    authority_level: "official"
+    visa_types:
+      - "work_visa"
+      - "skilled_worker"
+
+  - url: "https://www.gesetze-im-internet.de/aufenthg_2004/__18b.html"
+    title: "§ 18b AufenthG - Fachkräfte mit akademischer Ausbildung"
+    authority_level: "official"
+    visa_types:
+      - "work_visa"
+      - "skilled_worker"
+
+  - url: "https://www.gesetze-im-internet.de/aufenthg_2004/__18g.html"
+    title: "§ 18g AufenthG - Blaue Karte EU"
+    authority_level: "official"
+    visa_types:
+      - "blue_card"
+      - "work_visa"
 
   # ── Anabin: Official Foreign Degree Database (static pages only) ──────
   # Dynamic JSF app — only static entry points are indexable by standard crawlers

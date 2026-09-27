@@ -22,6 +22,11 @@ from src.vector_db.embedder import QuotaExhaustedError, embedder
 from src.vector_db.qdrant_client_wrapper import get_qdrant_client
 from src.vector_db.sparse_encoder import get_sparse_encoder
 
+# Above this much HTML, a document that produces no chunks was not a thin page:
+# something stopped the text from being extracted. arbeitsagentur.de serves 150 KB
+# that parses down to 250 characters of teaser.
+LOW_YIELD_MIN_HTML_LENGTH = 20000
+
 
 class IngestionPipeline:
     """
@@ -79,6 +84,7 @@ class IngestionPipeline:
         total_tokens = 0
         quota_exhausted = False
         documents_skipped_quota = 0
+        documents_without_content = 0
 
         # ── Pre-flight: check embedding API quota ──
         try:
@@ -154,6 +160,8 @@ class IngestionPipeline:
                     documents_skipped_quota += 1
                 elif result["success"]:
                     documents_processed += 1
+                    if result.get("skipped_low_content"):
+                        documents_without_content += 1
                     chunks_ingested += result["chunks_ingested"]
                     chunks_skipped += result["chunks_skipped"]
                     total_tokens += result.get("tokens_used", 0)
@@ -184,6 +192,10 @@ class IngestionPipeline:
             "total_tokens": total_tokens,
             "quota_exhausted": quota_exhausted,
             "documents_skipped_quota": documents_skipped_quota,
+            # Counted separately from errors: these pages were fetched and parsed,
+            # they simply produced nothing. Folded into documents_processed they
+            # read as success, which is how a whole blocked domain stayed invisible.
+            "documents_without_content": documents_without_content,
         }
 
         logger.info("Ingestion pipeline completed", extra=summary)
@@ -265,10 +277,23 @@ class IngestionPipeline:
             )
 
             if not chunks:
-                # This is normal for low-content pages (e.g. news archives, nav items)
-                # Mark as 'ingested' so we don't keep trying to process this URL
+                # Normal for nav pages and news archives. It is not normal for a
+                # large document to parse down to a line or two: that is a page
+                # rendered client-side, where only a server-side teaser survives.
+                # Marked ingested either way so the URL is not retried forever, but
+                # the low-yield case is logged loudly and counted in the run summary.
                 self.state_store.mark_document_ingested(doc_id, content_hash)
-                logger.info(f"⏭️  Skipping document with no substantive content: {url}")
+                html_length = len(crawled.get("html") or "")
+                if html_length >= LOW_YIELD_MIN_HTML_LENGTH:
+                    logger.warning(
+                        "No chunks from %s: %d chars of HTML parsed down to %d. "
+                        "The page is probably rendered client-side.",
+                        url,
+                        html_length,
+                        len(markdown_text),
+                    )
+                else:
+                    logger.info("⏭️  Skipping document with no substantive content: %s", url)
                 return {
                     "success": True,
                     "chunks_ingested": 0,

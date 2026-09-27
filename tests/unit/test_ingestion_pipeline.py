@@ -465,3 +465,98 @@ class TestPointIdDerivation:
         """The top bit is the one that overflowed, so cover a hash that sets it."""
         assert self._point_id("f" * 64) < 2**63
         assert self._point_id("8" + "0" * 63) < 2**63
+
+
+# ─── Documents that yield no content ──────────────────────────────────────────
+
+
+class TestNoContentAccounting:
+    """A fetched page that produces no chunks used to be counted purely as a
+    success, so a run could report 783/786 processed while an entire domain
+    contributed nothing."""
+
+    @staticmethod
+    def _pipeline_yielding_no_chunks(html: str):
+        p = _make_pipeline()
+        p.crawler.crawl_document = AsyncMock(
+            return_value={
+                "markdown": "Short teaser.",
+                "html": html,
+                "metadata": {"title": "Page"},
+                "fetched_at": "2025-01-01T00:00:00Z",
+            }
+        )
+        p.chunker.chunk_document = MagicMock(return_value=[])
+        return p
+
+    @pytest.mark.asyncio
+    async def test_counted_separately_in_the_run_summary(self):
+        p = self._pipeline_yielding_no_chunks("<html>" + "x" * 100000 + "</html>")
+        with patch("src.ingestion.ingestion_pipeline.embedder") as emb:
+            emb.preflight_check = AsyncMock(return_value=True)
+            result = await p.run_full_ingestion([_SOURCE_DOC])
+
+        assert result["documents_processed"] == 1
+        assert result["documents_without_content"] == 1
+        assert result["chunks_ingested"] == 0
+
+    @pytest.mark.asyncio
+    async def test_a_large_page_yielding_nothing_is_warned_about(self, caplog):
+        """150 KB parsing down to a line is a client-rendered page, not a thin one."""
+        import logging
+
+        p = self._pipeline_yielding_no_chunks("<html>" + "x" * 100000 + "</html>")
+        with caplog.at_level(logging.WARNING, logger="visa_rag"):
+            with patch("src.ingestion.ingestion_pipeline.embedder") as emb:
+                emb.preflight_check = AsyncMock(return_value=True)
+                await p.run_full_ingestion([_SOURCE_DOC])
+
+        assert any("rendered client-side" in r.message for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_a_genuinely_small_page_is_not_warned_about(self, caplog):
+        import logging
+
+        p = self._pipeline_yielding_no_chunks("<html>tiny</html>")
+        with caplog.at_level(logging.WARNING, logger="visa_rag"):
+            with patch("src.ingestion.ingestion_pipeline.embedder") as emb:
+                emb.preflight_check = AsyncMock(return_value=True)
+                result = await p.run_full_ingestion([_SOURCE_DOC])
+
+        assert not any("rendered client-side" in r.message for r in caplog.records)
+        assert result["documents_without_content"] == 1  # still counted
+
+    @pytest.mark.asyncio
+    async def test_a_productive_document_is_not_counted(self):
+        p = _make_pipeline()
+        p.crawler.crawl_document = AsyncMock(
+            return_value={
+                "markdown": "# Visa\n\nReal content.",
+                "html": "<html>ok</html>",
+                "metadata": {"title": "Visa"},
+                "fetched_at": "2025-01-01T00:00:00Z",
+            }
+        )
+        p.chunker.chunk_document = MagicMock(return_value=[_make_chunk()])
+
+        with (
+            patch("src.ingestion.ingestion_pipeline.embedder") as emb,
+            patch("src.ingestion.ingestion_pipeline.get_sparse_encoder") as sparse,
+            patch("src.ingestion.ingestion_pipeline.settings") as s,
+        ):
+            emb.preflight_check = AsyncMock(return_value=True)
+            emb.embed_texts = AsyncMock(return_value=[[0.1, 0.2]])
+            s.sparse_vocab_size = 8000
+            s.qdrant_vector_size = 1536
+            s.crawler_max_concurrent_requests = 5
+            enc = MagicMock()
+            enc.encode_batch = MagicMock(return_value=[{"indices": [1], "values": [0.5]}])
+            sparse.return_value = enc
+
+            from src.models.chunk import QdrantPayload
+
+            with patch.object(QdrantPayload, "from_chunk", return_value=MagicMock(to_dict=MagicMock(return_value={}))):
+                result = await p.run_full_ingestion([_SOURCE_DOC])
+
+        assert result["documents_processed"] == 1
+        assert result["documents_without_content"] == 0

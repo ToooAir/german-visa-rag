@@ -696,3 +696,58 @@ class TestGetCrawler:
             b = get_crawler()
         assert a is b
         crawler_module._crawler = None
+
+
+# ─── Interstitial detection ───────────────────────────────────────────────────
+
+
+class TestDetectInterstitial:
+    """A bot challenge and a client-rendered shell both return 200 with a full
+    page and no content. They were recorded as documents with nothing substantive
+    in them and counted as processed, hiding 129 missing pages."""
+
+    def test_bot_challenge_is_detected(self):
+        assert WebCrawler.detect_interstitial("Verifying your browser before proceeding...") == (
+            "verifying your browser"
+        )
+
+    def test_javascript_shell_is_detected(self):
+        assert WebCrawler.detect_interstitial("You need to enable JavaScript to run this app.") == "enable javascript"
+
+    def test_partial_extraction_with_real_text_is_not_an_interstitial(self):
+        """arbeitsagentur.de yields a genuine teaser from a JS-heavy page. Short
+        output is not the same as a failed fetch, so it must not be discarded."""
+        markdown = (
+            "**There are different types of visas**. These differ according to purpose "
+            "and duration. You must apply for a visa at the German embassy in your "
+            "country of residence before travelling to Germany."
+        )
+        assert WebCrawler.detect_interstitial(markdown) is None
+
+    def test_short_real_page_is_kept(self):
+        statute = "Einer Fachkraft mit akademischer Ausbildung wird eine Aufenthaltserlaubnis erteilt."
+        assert WebCrawler.detect_interstitial(statute) is None
+
+    def test_long_page_mentioning_a_signature_is_kept(self):
+        """Signatures are only trusted on short output, so an article that talks
+        about captchas survives."""
+        assert WebCrawler.detect_interstitial("A page about captcha policy. " * 200) is None
+
+    @pytest.mark.asyncio
+    async def test_crawl_document_rejects_an_interstitial(self):
+        crawler = WebCrawler()
+        crawler.fetch_url = AsyncMock(return_value="<html>" + "x" * 100000 + "</html>")
+        crawler.parse_html_to_markdown = MagicMock(return_value="Verifying your browser before proceeding...")
+        crawler.extract_metadata = MagicMock(return_value={"title": "t"})
+
+        assert await crawler.crawl_document("https://example.com/blocked") is None
+
+    @pytest.mark.asyncio
+    async def test_crawl_document_keeps_a_real_page(self):
+        crawler = WebCrawler()
+        crawler.fetch_url = AsyncMock(return_value="<html>ok</html>")
+        crawler.parse_html_to_markdown = MagicMock(return_value="Real content about the Blue Card.")
+        crawler.extract_metadata = MagicMock(return_value={"title": "t"})
+
+        result = await crawler.crawl_document("https://example.com/real")
+        assert result is not None and result["markdown"].startswith("Real content")

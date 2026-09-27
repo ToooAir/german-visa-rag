@@ -104,6 +104,22 @@ class RobotsTxtChecker:
         self._cache[domain] = disallowed
 
 
+# Pages that return 200 with no content: bot challenges and client-rendered
+# shells. Checked only against short output, so a real page that happens to
+# mention one of these words is not thrown away.
+INTERSTITIAL_SIGNATURES = (
+    "verifying your browser",
+    "checking your browser",
+    "enable javascript",
+    "javascript is required",
+    "please turn on javascript",
+    "captcha",
+    "access denied",
+    "request unsuccessful",
+)
+INTERSTITIAL_MAX_LENGTH = 2000
+
+
 def _is_safe_url(url: str) -> bool:
     """
     Block SSRF targets: private IPs, loopback, link-local, cloud metadata endpoints.
@@ -245,6 +261,31 @@ class WebCrawler:
         except Exception as e:
             logger.error("Unexpected error fetching %s: %s", url, e)
             raise
+
+    @staticmethod
+    def detect_interstitial(markdown: str) -> Optional[str]:
+        """Name the interstitial a page turned out to be, or None if it is real.
+
+        A bot challenge or a client-rendered shell returns HTTP 200 and a full
+        page that carries no content at all: make-it-in-germany.com serves 118 KB
+        of "Verifying your browser before proceeding..." that extracts to 43
+        characters, and digital.diplo.de returns "You need to enable JavaScript to
+        run this app." Both were being recorded as documents with no substantive
+        content and counted as processed, so 129 pages of the largest official
+        source went missing from the corpus without anything saying so.
+
+        Matched on signatures rather than on an extraction ratio, because a
+        JS-heavy page can still yield a genuine paragraph or two -- short output
+        alone does not mean the fetch failed.
+        """
+        if len(markdown) > INTERSTITIAL_MAX_LENGTH:
+            return None
+
+        lowered = markdown.lower()
+        for signature in INTERSTITIAL_SIGNATURES:
+            if signature in lowered:
+                return signature
+        return None
 
     def parse_html_to_markdown(self, html_content: str, url: str) -> str:
         """
@@ -394,6 +435,17 @@ class WebCrawler:
 
             if not markdown:
                 logger.warning("No markdown content extracted from %s", url)
+                return None
+
+            interstitial = self.detect_interstitial(markdown)
+            if interstitial:
+                logger.error(
+                    "Blocked by an interstitial (%r) for %s: %d chars of HTML extracted to %d",
+                    interstitial,
+                    url,
+                    len(html_content),
+                    len(markdown),
+                )
                 return None
 
             return {

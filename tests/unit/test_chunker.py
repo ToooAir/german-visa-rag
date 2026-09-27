@@ -169,6 +169,186 @@ class TestSplitIntoSentences:
         assert "Short para" in result[0]
 
 
+# ─── German statute structure ────────────────────────────────────────────────
+
+
+# A statute page as the crawler delivers it: § number in the title, no H2/H3, and
+# the rules addressed by Absatz.
+STATUTE = """§ 18b Fachkräfte mit akademischer Ausbildung
+
+(1) Einem Ausländer wird eine Aufenthaltserlaubnis zur Ausübung einer qualifizierten \
+Beschäftigung erteilt, zu der seine Qualifikation ihn befähigt. § 18 Abs. 2 Nr. 4 ist \
+nicht anzuwenden, vgl. § 19c Abs. 1 S. 2.
+
+(2) Einem Ausländer wird abweichend von § 18 Abs. 2 Nr. 4 eine Blaue Karte EU erteilt, \
+wenn er ein Gehalt in Höhe von mindestens 50 Prozent der jährlichen \
+Beitragsbemessungsgrenze erhält und die Bundesagentur zugestimmt hat.
+
+(3) Absatz 2 gilt entsprechend."""
+
+
+class TestSplitByAbsatz:
+    def test_one_unit_per_absatz(self):
+        chunker = ParentChildChunker()
+        units = chunker.split_by_absatz(STATUTE)
+        assert [number for number, _ in units] == ["1", "2", "3"]
+
+    def test_each_unit_keeps_its_marker(self):
+        chunker = ParentChildChunker()
+        for number, body in chunker.split_by_absatz(STATUTE):
+            assert f"({number})" in body
+
+    def test_absatz_bodies_do_not_leak_into_each_other(self):
+        chunker = ParentChildChunker()
+        units = dict(chunker.split_by_absatz(STATUTE))
+        assert "Blaue Karte EU" in units["2"]
+        assert "Blaue Karte EU" not in units["1"]
+
+    def test_preamble_is_attached_to_the_first_absatz(self):
+        """The § heading sits before "(1)" and must not be dropped."""
+        chunker = ParentChildChunker()
+        units = chunker.split_by_absatz(STATUTE)
+        assert "§ 18b Fachkräfte mit akademischer Ausbildung" in units[0][1]
+
+    def test_letter_suffixed_absatz(self):
+        chunker = ParentChildChunker()
+        text = "§ 19c Text\n\n(1) Erster Absatz.\n\n(2a) Eingefügter Absatz."
+        assert [n for n, _ in chunker.split_by_absatz(text)] == ["1", "2a"]
+
+    def test_prose_without_paragraph_sign_is_not_a_statute(self):
+        chunker = ParentChildChunker()
+        text = "Step (1) fill the form.\n\nStep (2) book an appointment."
+        assert chunker.split_by_absatz(text) == []
+
+    def test_single_marker_is_not_a_statute(self):
+        chunker = ParentChildChunker()
+        assert chunker.split_by_absatz("§ 4 Text\n\n(1) Nur ein Absatz.") == []
+
+
+class TestPackAbsatzUnits:
+    def test_short_absaetze_share_a_chunk_and_keep_their_markers(self):
+        chunker = ParentChildChunker(child_chunk_size=512)
+        packed = chunker.pack_absatz_units([("1", "(1) Kurz."), ("2", "(2) Auch kurz.")])
+        assert len(packed) == 1
+        label, body = packed[0]
+        assert label == "Abs. 1-2"
+        assert "(1)" in body and "(2)" in body
+
+    def test_absaetze_are_not_merged_beyond_the_child_size(self):
+        chunker = ParentChildChunker(child_chunk_size=60, min_child_length=10)
+        packed = chunker.pack_absatz_units([("1", "(1) " + "a" * 50), ("2", "(2) " + "b" * 50)])
+        assert [label for label, _ in packed] == ["Abs. 1", "Abs. 2"]
+
+    def test_oversized_absatz_is_split_and_every_piece_keeps_its_label(self):
+        chunker = ParentChildChunker(child_chunk_size=120)
+        long_body = "(2) " + "Ein ordentlicher Satz über die Blaue Karte EU. " * 8
+        packed = chunker.pack_absatz_units([("1", "(1) Kurz."), ("2", long_body)])
+        pieces = [label for label, _ in packed if label == "Abs. 2"]
+        assert len(pieces) > 1
+
+    def test_short_tail_is_merged_backwards_so_it_survives_the_length_floor(self):
+        chunker = ParentChildChunker(child_chunk_size=200, min_child_length=150)
+        packed = chunker.pack_absatz_units([("1", "(1) " + "a" * 180), ("2", "(2) Absatz 1 gilt entsprechend.")])
+        assert len(packed) == 1
+        assert "(2) Absatz 1 gilt entsprechend." in packed[0][1]
+
+
+class TestStatuteChunking:
+    """The Absatz is a rule's legal address: § 18b Abs. 2 is the Blue Card, Abs. 1 the
+    ordinary skilled worker permit. A child chunk must say which one it came from."""
+
+    def _children(self, chunker):
+        chunks = chunker.chunk_document(
+            markdown_text=STATUTE,
+            source_url="https://www.gesetze-im-internet.de/aufenthg_2004/__18b.html",
+            doc_id="doc_18b",
+            title="§ 18b AufenthG - Einzelnorm",
+        )
+        return [c for c in chunks if not c.metadata.is_parent]
+
+    def test_every_child_names_its_absatz(self):
+        children = self._children(ParentChildChunker(child_chunk_size=320, min_child_length=50))
+        assert children
+        for child in children:
+            assert "| Abs. " in child.text.split("\n", 1)[0]
+
+    def test_blue_card_rule_is_not_labelled_as_another_absatz(self):
+        children = self._children(ParentChildChunker(child_chunk_size=320, min_child_length=50))
+        carrying = [c for c in children if "Blaue Karte EU" in c.text]
+        assert carrying
+        for child in carrying:
+            header = child.text.split("\n", 1)[0]
+            assert "Abs. 2" in header
+            assert "Abs. 1" not in header
+
+    def test_prefix_does_not_repeat_the_title_as_section(self):
+        """On a statute page the header is generic, so Section would echo Topic."""
+        children = self._children(ParentChildChunker(child_chunk_size=320, min_child_length=50))
+        assert all("Section:" not in c.text.split("\n", 1)[0] for c in children)
+
+    def test_ordinary_pages_get_no_absatz_label(self):
+        chunker = ParentChildChunker(min_child_length=50)
+        content = "You need a passport and proof of funds. " * 6
+        chunks = chunker.chunk_document(
+            markdown_text=f"## Requirements\n{content}",
+            source_url="http://example.com",
+            doc_id="doc_web",
+            title="Visa Guide",
+        )
+        children = [c for c in chunks if not c.metadata.is_parent]
+        assert children
+        assert all("Abs. " not in c.text for c in children)
+
+
+# ─── German legal abbreviations ──────────────────────────────────────────────
+
+
+class TestSentenceSplittingOnLegalText:
+    def test_citation_is_never_torn_apart(self):
+        chunker = ParentChildChunker()
+        para = (
+            "Die Voraussetzung nach § 6 Abs. 1 S. 2 BeschV i. V. m. der Anlage ist erfüllt. "
+            "Die Bundesagentur für Arbeit hat der Beschäftigung bereits zugestimmt."
+        )
+        result = chunker.split_into_sentences(para, max_size=100)
+        assert len(result) == 2  # split at the real sentence end, not inside the citation
+        assert "§ 6 Abs. 1 S. 2 BeschV i. V. m. der Anlage" in result[0]
+
+    def test_no_piece_ends_on_a_dangling_abbreviation(self):
+        chunker = ParentChildChunker()
+        para = (
+            "Nach § 18 Abs. 2 Nr. 4 ist die Zustimmung entbehrlich. "
+            "Die Regelung gilt auch für Anträge nach § 19c Abs. 1 S. 2 AufenthG. "
+            "Weitere Einzelheiten regelt die Beschäftigungsverordnung."
+        )
+        for piece in chunker.split_into_sentences(para, max_size=80):
+            assert not piece.rstrip().endswith(("Abs.", "Nr.", "S.", "vgl.", "i.", "V.", "m."))
+
+    def test_sentence_ending_in_a_year_still_splits(self):
+        chunker = ParentChildChunker()
+        result = chunker.split_into_sentences("Die Regel gilt seit 2024. Ein neuer Satz folgt.", max_size=30)
+        assert len(result) == 2
+
+    def test_oversized_enumeration_breaks_between_nummern(self):
+        chunker = ParentChildChunker()
+        para = (
+            "(2) Die Blaue Karte EU wird erteilt, wenn eine der folgenden Voraussetzungen vorliegt: "
+            "1. ein anerkannter ausländischer Hochschulabschluss von mindestens drei Jahren Dauer, "
+            "2. eine Berufsqualifikation nach § 6 Abs. 1 S. 2 BeschV i. V. m. der Anlage, "
+            "3. eine seit dem 1. März 2024 erworbene gleichwertige Qualifikation."
+        )
+        result = chunker.split_into_sentences(para, max_size=200)
+        assert len(result) > 1
+        # No piece may begin in the middle of a Nummer.
+        for piece in result[1:]:
+            assert piece.lstrip()[0].isdigit()
+
+    def test_no_sentinel_leaks_into_output(self):
+        chunker = ParentChildChunker()
+        text = "Nach § 18 Abs. 2 Nr. 4 gilt dies. " * 20
+        assert all("\x00" not in piece for piece in chunker.split_into_sentences(text, max_size=100))
+
+
 # ─── chunk_document branches ────────────────────────────────────────────────
 
 

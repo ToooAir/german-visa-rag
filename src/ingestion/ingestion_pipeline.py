@@ -305,8 +305,10 @@ class IngestionPipeline:
             logger.debug("Deduplication: %d to ingest, %d skipped", len(chunks_to_ingest), skipped_count)
 
             # Step 4: Embed (Children only)
-            # In Parent-Child strategy, we only search against children.
-            # Parents provide context but don't need vectors (saves cost + avoids token limits).
+            # In Parent-Child strategy, we only search against children. Parents are
+            # still stored so retrieval can expand a hit into its whole section, but
+            # they are looked up by chunk_id rather than searched, so they get no
+            # vectors (saves cost + avoids token limits).
             chunks_to_embed = [c for c in chunks_to_ingest if not c.metadata.is_parent]
             texts_to_embed = [c.text for c in chunks_to_embed]
 

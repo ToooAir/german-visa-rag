@@ -167,3 +167,111 @@ async def test_retrieve_batch_returns_empty_list_on_individual_failure():
         mock_embed.return_value = [0.1] * 1536
         results = await retriever.retrieve_batch(["q1", "q2"])
     assert results == [[], []]
+
+
+# ─── Parent expansion ────────────────────────────────────────────────────────
+
+
+def _child(chunk_id: str, parent_chunk_id: str | None, text: str = "a child slice") -> dict:
+    return {
+        "id": 1,
+        "original_score": 0.8,
+        "adjusted_score": 0.8,
+        "metadata": {
+            "chunk_id": chunk_id,
+            "parent_doc_id": "doc_18b",
+            "parent_chunk_id": parent_chunk_id,
+            "source_url": "https://www.gesetze-im-internet.de/aufenthg_2004/__18b.html",
+            "section_header": "Introduction",
+            "is_parent": False,
+        },
+        "text": text,
+    }
+
+
+def _parent(chunk_id: str, text: str) -> dict:
+    return {"chunk_id": chunk_id, "section_header": "§ 18b", "text": text, "is_parent": True}
+
+
+@pytest.fixture
+def expansion_settings():
+    """Parent expansion on, with room for two ~500-char sections."""
+    with patch("src.rag.hybrid_retriever.settings") as mock:
+        mock.enable_parent_expansion = True
+        mock.rag_parent_context_budget_chars = 1200
+        mock.max_context_content_chars = 800
+        yield mock
+
+
+class TestExpandToParents:
+    @pytest.mark.asyncio
+    async def test_child_is_replaced_by_its_parent_section(self, expansion_settings):
+        retriever, qdrant = _make_retriever()
+        section = "(1) ... (2) the whole section " + "x" * 400
+        qdrant.get_payloads_by_chunk_ids.return_value = {"p1": _parent("p1", section)}
+
+        result = (await retriever.expand_to_parents([_child("c1", "p1")]))[0]
+
+        assert result["text"] == section
+        assert result["metadata"]["is_parent"] is True
+        assert result["metadata"]["chunk_id"] == "p1"
+        assert result["adjusted_score"] == 0.8  # ranking is untouched
+
+    @pytest.mark.asyncio
+    async def test_two_children_of_one_section_collapse_to_one_result(self, expansion_settings):
+        retriever, qdrant = _make_retriever()
+        qdrant.get_payloads_by_chunk_ids.return_value = {"p1": _parent("p1", "the whole section")}
+
+        results = await retriever.expand_to_parents([_child("c1", "p1"), _child("c2", "p1")])
+
+        assert len(results) == 1
+
+    @pytest.mark.asyncio
+    async def test_oversized_parent_keeps_the_child_rather_than_being_truncated(self, expansion_settings):
+        """A section cut mid-rule is worse than the precise child it replaced."""
+        retriever, qdrant = _make_retriever()
+        qdrant.get_payloads_by_chunk_ids.return_value = {"p1": _parent("p1", "x" * 900)}
+
+        result = (await retriever.expand_to_parents([_child("c1", "p1")]))[0]
+
+        assert result["text"] == "a child slice"
+        assert result["metadata"]["is_parent"] is False
+
+    @pytest.mark.asyncio
+    async def test_budget_stops_expansion_and_later_results_keep_their_child(self, expansion_settings):
+        retriever, qdrant = _make_retriever()
+        qdrant.get_payloads_by_chunk_ids.return_value = {
+            "p1": _parent("p1", "a" * 700),
+            "p2": _parent("p2", "b" * 700),
+        }
+
+        first, second = await retriever.expand_to_parents([_child("c1", "p1"), _child("c2", "p2")])
+
+        assert first["text"] == "a" * 700  # 700 of a 1200 budget
+        assert second["text"] == "a child slice"  # 700 more would overrun it
+
+    @pytest.mark.asyncio
+    async def test_index_without_parent_chunk_id_passes_through(self, expansion_settings):
+        """An index ingested before parent_chunk_id existed must still answer."""
+        retriever, qdrant = _make_retriever()
+        results = await retriever.expand_to_parents([_child("c1", None)])
+
+        assert results[0]["text"] == "a child slice"
+        qdrant.get_payloads_by_chunk_ids.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_missing_parent_passes_through(self, expansion_settings):
+        retriever, qdrant = _make_retriever()
+        qdrant.get_payloads_by_chunk_ids.return_value = {}
+
+        results = await retriever.expand_to_parents([_child("c1", "p1")])
+        assert results[0]["text"] == "a child slice"
+
+    @pytest.mark.asyncio
+    async def test_disabled_returns_results_untouched(self, expansion_settings):
+        expansion_settings.enable_parent_expansion = False
+        retriever, qdrant = _make_retriever()
+        given = [_child("c1", "p1")]
+
+        assert await retriever.expand_to_parents(given) == given
+        qdrant.get_payloads_by_chunk_ids.assert_not_awaited()

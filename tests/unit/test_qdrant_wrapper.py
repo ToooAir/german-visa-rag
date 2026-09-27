@@ -509,3 +509,43 @@ class TestGetQdrantClient:
             ):
                 client = get_qdrant_client()
         assert isinstance(client, QdrantWrapper)
+
+
+# ─── get_payloads_by_chunk_ids ────────────────────────────────────────────────
+
+
+class TestGetPayloadsByChunkIds:
+    @pytest.mark.asyncio
+    async def test_returns_payloads_keyed_by_chunk_id(self):
+        w = _make_wrapper()
+        point = MagicMock()
+        point.payload = {"chunk_id": "doc1_section_1_parent", "text": "the whole section"}
+        w.client.scroll.return_value = ([point], None)
+
+        result = await w.get_payloads_by_chunk_ids(["doc1_section_1_parent"])
+
+        assert result == {"doc1_section_1_parent": point.payload}
+
+    @pytest.mark.asyncio
+    async def test_filters_on_the_payload_field(self):
+        """Point IDs come from a text hash, so chunks are addressed by payload."""
+        w = _make_wrapper()
+        w.client.scroll.return_value = ([], None)
+
+        await w.get_payloads_by_chunk_ids(["a", "b"])
+
+        scroll_filter = w.client.scroll.call_args.kwargs["scroll_filter"]
+        assert scroll_filter == Filter(must=[FieldCondition(key="chunk_id", match=MatchAny(any=["a", "b"]))])
+
+    @pytest.mark.asyncio
+    async def test_empty_input_does_not_hit_qdrant(self):
+        w = _make_wrapper()
+        assert await w.get_payloads_by_chunk_ids([]) == {}
+        w.client.scroll.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_scroll_failure_returns_empty(self):
+        """Expansion is an enhancement; a lookup failure must not fail the answer."""
+        w = _make_wrapper()
+        w.client.scroll.side_effect = Exception("connection refused")
+        assert await w.get_payloads_by_chunk_ids(["a"]) == {}

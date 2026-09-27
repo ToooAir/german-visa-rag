@@ -153,6 +153,7 @@ class HybridRetriever:
                         "metadata": {
                             "chunk_id": payload.get("chunk_id"),
                             "parent_doc_id": payload.get("parent_doc_id"),
+                            "parent_chunk_id": payload.get("parent_chunk_id"),
                             "source_url": payload.get("source_url"),
                             "source_title": payload.get("source_title"),
                             "authority_level": authority_level,
@@ -180,6 +181,66 @@ class HybridRetriever:
         except Exception as e:
             logger.error("Hybrid retrieval failed: %s", e, extra={"query": compute_query_fingerprint(query)})
             raise
+
+    async def expand_to_parents(self, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Replace ranked child chunks with the parent section they were cut from.
+
+        Children are small so that retrieval stays precise, but a 500-character
+        slice is a poor thing to answer from -- for a statute the parent is the
+        whole §, with every Absatz intact. Parents are substituted in rank order
+        while they fit the budget, and two children of one section collapse into a
+        single parent, which frees a context slot for a different source.
+
+        A result is left as it is when its parent is unknown, missing, or larger
+        than the prompt builder will keep uncut: a section truncated mid-rule is
+        worse than the precise child it replaced. An index written before
+        parent_chunk_id existed therefore passes through untouched.
+        """
+        if not settings.enable_parent_expansion or not results:
+            return results
+
+        wanted = [pid for pid in dict.fromkeys(r["metadata"].get("parent_chunk_id") for r in results) if pid]
+        if not wanted:
+            return results
+
+        parents = await self.qdrant.get_payloads_by_chunk_ids(wanted)
+        if not parents:
+            return results
+
+        budget = settings.rag_parent_context_budget_chars
+        max_chars = settings.max_context_content_chars
+        expanded: list[dict[str, Any]] = []
+        substituted: set[str] = set()
+
+        for result in results:
+            parent_id = result["metadata"].get("parent_chunk_id")
+            if parent_id and parent_id in substituted:
+                continue
+
+            parent = parents.get(parent_id) if parent_id else None
+            text = (parent or {}).get("text") or ""
+
+            if not text or len(text) > max_chars or len(text) > budget:
+                expanded.append(result)
+                continue
+
+            budget -= len(text)
+            substituted.add(parent_id)
+            expanded.append(
+                {
+                    **result,
+                    "text": text,
+                    "metadata": {
+                        **result["metadata"],
+                        "chunk_id": parent.get("chunk_id"),
+                        "section_header": parent.get("section_header") or result["metadata"].get("section_header"),
+                        "is_parent": True,
+                    },
+                }
+            )
+
+        logger.debug("Parent expansion: %d results, %d sections substituted", len(expanded), len(substituted))
+        return expanded
 
     async def retrieve_batch(
         self,

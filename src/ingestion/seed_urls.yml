@@ -390,8 +390,3 @@ crawler:
   max_retries: 3
   respect_robots_txt: true
   discovery_enabled: true
-
-# Chunking settings
-chunking:
-  child_chunk_size: 512
-  parent_chunk_size: 2048

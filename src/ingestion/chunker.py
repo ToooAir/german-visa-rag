@@ -27,6 +27,58 @@ MIN_INTRO_LENGTH = 300  # chars — pre-header content must be at least this lon
 # We set a safe upper bound of 20,000 chars for any single chunk.
 MAX_CHUNK_LENGTH = 20000
 
+# ── German statute structure ──────────────────────────────────────────────
+# A gesetze-im-internet.de "Einzelnorm" page carries no H2/H3 headings, so header
+# splitting leaves the whole § as one flat section. The legal address of a rule is
+# its Absatz -- § 18b Abs. 2 grants the Blue Card, Abs. 1 the ordinary skilled
+# worker permit -- so a child chunk must never straddle an Absatz boundary nor be
+# cut loose from its number.
+ABSATZ_MARKER = re.compile(r"(?:^|\n)[ \t]*\((\d{1,2}[a-z]?)\)\s+", re.MULTILINE)
+
+# Below this many markers the text is prose that happens to use "(1)", not a statute.
+MIN_ABSATZ_MARKERS = 2
+
+# Boundary between two Nummern of the same Absatz ("..., 2. ein anerkannter ..."). A
+# Nummer is part of a rule's address (§ 18b Abs. 2 Nr. 3), so an oversized Absatz is
+# cut here rather than mid-Nummer. The list stem keeps its first item: the colon that
+# introduces the list is deliberately not a boundary.
+NUMMER_MARKER = re.compile(r"(?<=[,;])\s+(?=\d{1,2}\.\s)")
+
+# Periods that do not end a sentence in German legal prose. Citation abbreviations
+# ("Abs.", "Nr."), any single letter ("i. V. m.", "S. 2"), and short numbers used
+# for enumeration and ordinals ("3. eine Berufsqualifikation", "1. März"). Years
+# are four digits and stay excluded, so a sentence ending in one still splits.
+_LEGAL_ABBREVIATIONS = (
+    "Abs",
+    "Abschn",
+    "Anl",
+    "Art",
+    "Aufl",
+    "bspw",
+    "Buchst",
+    "bzw",
+    "evtl",
+    "ff",
+    "ggf",
+    "Hrsg",
+    "inkl",
+    "lit",
+    "Nr",
+    "Nrn",
+    "Rn",
+    "Satz",
+    "sog",
+    "vgl",
+    "Ziff",
+)
+NON_TERMINAL_DOT = re.compile(
+    r"(\b(?:" + "|".join(_LEGAL_ABBREVIATIONS) + r")|\b[A-Za-zÄÖÜäöüß]|(?<!\d)\d{1,2})\.(?=\s|$)"
+)
+
+# Stands in for a protected period while sentence splitting runs. Same width as the
+# period it replaces, so every length check downstream stays accurate.
+_DOT_SENTINEL = "\x00"
+
 
 class ParentChildChunker:
     """
@@ -41,15 +93,11 @@ class ParentChildChunker:
     def __init__(
         self,
         child_chunk_size: int = None,
-        child_chunk_overlap: int = None,
-        parent_chunk_size: int = None,
         min_child_length: int = MIN_CHILD_LENGTH,
         min_parent_length: int = MIN_PARENT_LENGTH,
         min_intro_length: int = MIN_INTRO_LENGTH,
     ):
         self.child_chunk_size = child_chunk_size or settings.chunk_size
-        self.child_chunk_overlap = child_chunk_overlap or settings.chunk_overlap
-        self.parent_chunk_size = parent_chunk_size or settings.parent_chunk_size
         self.min_child_length = min_child_length
         self.min_parent_length = min_parent_length
         self.min_intro_length = min_intro_length
@@ -96,7 +144,10 @@ class ParentChildChunker:
             r"\[FAQ\]\(.*?\)",
             r"<desc>.*?</desc>",  # SVG description labels
             r"©\s*.*?(?:\.com|\d{4})",  # Copyright credits
-            r"[✔©✅ℹ️⚠️✅❌📊📄🔗📂📜📌📏\-]",  # UI symbols
+            # UI symbols. Hyphens are deliberately absent: German compounds carry
+            # them ("Fachkräfte-Einwanderungsgesetz", "Nicht-EU-Staatsangehörige")
+            # and stripping them breaks both lexical search and the term itself.
+            r"[✔©✅ℹ️⚠️❌📊📄🔗📂📜📌📏]",
             r"^.*?\]\(/en/working-in-germany/job-listings\?tx_solr.*$",  # job search leaks
             r"Translate it via your browser\.",
             r"Google Translate is a third-party provider\.",
@@ -190,7 +241,7 @@ class ParentChildChunker:
         2. Split paragraphs by sentence if too large
         3. Recombine to reach max_size
         """
-        paragraphs = text.split("\n\n")
+        paragraphs = [part for para in text.split("\n\n") for part in self._split_enumerations(para, max_size)]
         chunks = []
         current_chunk = []
         current_size = 0
@@ -202,8 +253,11 @@ class ParentChildChunker:
 
             # If paragraph itself is too large, split by sentences
             if len(para) > max_size:
-                # 1. Try splitting by sentence punctuation first
-                para_sentences = re.split(r"([.!?](?:\s+|$))", para)
+                # 1. Try splitting by sentence punctuation first. Periods that
+                # belong to a citation or an enumerator are masked so they cannot
+                # be mistaken for a sentence end; the mask is lifted on return.
+                protected = NON_TERMINAL_DOT.sub(lambda m: m.group(1) + _DOT_SENTINEL, para)
+                para_sentences = re.split(r"([.!?](?:\s+|$))", protected)
                 segments = []
                 for i in range(0, len(para_sentences) - 1, 2):
                     segments.append(para_sentences[i] + para_sentences[i + 1])
@@ -249,7 +303,97 @@ class ParentChildChunker:
         if current_chunk:
             chunks.append(" ".join(current_chunk))
 
-        return [c for c in chunks if c.strip()]
+        return [c.replace(_DOT_SENTINEL, ".") for c in chunks if c.strip()]
+
+    @staticmethod
+    def _split_enumerations(paragraph: str, max_size: int) -> list[str]:
+        """Break an oversized paragraph at its statute enumeration boundaries.
+
+        Only applied when the paragraph does not fit a child chunk; the packer
+        recombines the parts that do fit, so the boundary lands between two Nummern
+        instead of inside one. A part separated from its list stem still carries its
+        own "N." marker and the Absatz label, which is as much address as can be kept
+        without duplicating the stem into every part.
+        """
+        if len(paragraph) <= max_size:
+            return [paragraph]
+        return [part for part in NUMMER_MARKER.split(paragraph) if part.strip()]
+
+    def split_by_absatz(self, text: str) -> list[tuple[str, str]]:
+        """Split German statute text into one (number, text) unit per Absatz.
+
+        Returns an empty list when the text is not a statute, so ordinary pages
+        fall through to the generic paragraph splitter. Any preamble before the
+        first marker -- on an Einzelnorm page that is the § heading -- is kept and
+        attached to the first Absatz rather than dropped.
+        """
+        if "§" not in text:
+            return []
+
+        matches = list(ABSATZ_MARKER.finditer(text))
+        if len(matches) < MIN_ABSATZ_MARKERS:
+            return []
+
+        units: list[tuple[str, str]] = []
+        preamble = text[: matches[0].start()].strip()
+        for i, match in enumerate(matches):
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            body = text[match.start() : end].strip()
+            if not body:
+                continue
+            if not units and preamble:
+                body = f"{preamble}\n\n{body}"
+            units.append((match.group(1), body))
+
+        return units
+
+    def pack_absatz_units(self, units: list[tuple[str, str]]) -> list[tuple[str, str]]:
+        """Group whole Absätze into child-sized units without straddling one.
+
+        Consecutive short Absätze share a chunk and each keeps its own "(n)" marker
+        inline. An Absatz longer than the child size is split, and every piece is
+        labelled with that Absatz. A trailing group under min_child_length is merged
+        backwards, so a short provision ("(3) Absatz 2 gilt entsprechend.") is not
+        dropped by the length floor later on.
+        """
+        packed: list[tuple[list[str], str]] = []
+        buffer: list[str] = []
+        numbers: list[str] = []
+
+        def flush() -> None:
+            if buffer:
+                packed.append((list(numbers), "\n\n".join(buffer)))
+                buffer.clear()
+                numbers.clear()
+
+        for number, body in units:
+            if len(body) > self.child_chunk_size:
+                flush()
+                for piece in self.split_into_sentences(body, max_size=self.child_chunk_size):
+                    packed.append(([number], piece))
+                continue
+
+            if buffer and len("\n\n".join(buffer)) + len(body) + 2 > self.child_chunk_size:
+                flush()
+            buffer.append(body)
+            numbers.append(number)
+
+        flush()
+
+        if len(packed) > 1 and len(packed[-1][1]) < self.min_child_length:
+            tail_numbers, tail_body = packed.pop()
+            prev_numbers, prev_body = packed[-1]
+            packed[-1] = (prev_numbers + tail_numbers, f"{prev_body}\n\n{tail_body}")
+
+        return [(self._absatz_label(nums), body) for nums, body in packed]
+
+    @staticmethod
+    def _absatz_label(numbers: list[str]) -> str:
+        """Render the Absätze a chunk covers, e.g. "Abs. 2" or "Abs. 2-3"."""
+        unique = list(dict.fromkeys(numbers))
+        if len(unique) == 1:
+            return f"Abs. {unique[0]}"
+        return f"Abs. {unique[0]}-{unique[-1]}"
 
     def chunk_document(
         self,
@@ -346,26 +490,41 @@ class ParentChildChunker:
             chunks.append(parent_chunk)
 
             # ── Child chunks ─────────────────────────────────────────────
-            child_texts = self.split_into_sentences(
-                section_content,
-                max_size=self.child_chunk_size,
-            )
+            # Statute sections are cut along their Absätze; everything else by
+            # paragraph. child_units is (absatz_label or "", text).
+            absatz_units = self.split_by_absatz(section_content)
+            if absatz_units:
+                child_units = self.pack_absatz_units(absatz_units)
+            else:
+                child_units = [
+                    ("", text)
+                    for text in self.split_into_sentences(
+                        section_content,
+                        max_size=self.child_chunk_size,
+                    )
+                ]
 
             # Build a meaningful context label (avoid "Introduction" when generic)
             context_section_label = self._derive_context_label(section_header, title)
             display_title = title or source_url.split("/")[-1].replace("-", " ").title()
 
             child_index = 0
-            for child_text in child_texts:
+            for absatz_label, child_text in child_units:
                 child_index += 1
 
                 child_text = child_text.strip()
                 if not child_text or len(child_text) < self.min_child_length:
                     continue
 
-                # Context Enhancement: "Topic: <page title> | Section: <meaningful header>"
-                context_prefix = f"Topic: {display_title} | Section: {context_section_label}\n"
-                enhanced_text = context_prefix + child_text
+                # Context Enhancement: "Topic: <page title> | Section: <meaningful
+                # header>", plus "| Abs. <n>" so a retrieved statute fragment still
+                # states which Absatz it came from.
+                prefix_parts = [f"Topic: {display_title}"]
+                if context_section_label != display_title:
+                    prefix_parts.append(f"Section: {context_section_label}")
+                if absatz_label:
+                    prefix_parts.append(absatz_label)
+                enhanced_text = " | ".join(prefix_parts) + "\n" + child_text
 
                 child_hash = compute_canonical_hash(enhanced_text)
                 child_chunk_id = f"{doc_id}_section_{section_index}_child_{child_index}"

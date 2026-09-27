@@ -281,6 +281,20 @@ class TestCleanMarkdown:
         assert "Inhaltsverzeichnis" not in result
         assert "§ 18g Blaue Karte EU" in result  # statute text preserved
 
+    def test_keeps_hyphens_in_german_compounds(self):
+        """Hyphens carry meaning in German legal terms and must survive cleaning."""
+        chunker = ParentChildChunker()
+        text = "Das Fachkräfte-Einwanderungsgesetz gilt für Nicht-EU-Staatsangehörige."
+        result = chunker.clean_markdown(text)
+        assert "Fachkräfte-Einwanderungsgesetz" in result
+        assert "Nicht-EU-Staatsangehörige" in result
+
+    def test_still_removes_ui_symbols(self):
+        chunker = ParentChildChunker()
+        result = chunker.clean_markdown("Required ✔ documents ℹ️ here 📄")
+        assert "✔" not in result and "📄" not in result
+        assert "Required" in result
+
     def test_keeps_ordinary_content_links(self):
         """The gesetze nav rule targets __NN.html / index.html only — other links survive."""
         chunker = ParentChildChunker()

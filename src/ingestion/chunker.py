@@ -41,15 +41,11 @@ class ParentChildChunker:
     def __init__(
         self,
         child_chunk_size: int = None,
-        child_chunk_overlap: int = None,
-        parent_chunk_size: int = None,
         min_child_length: int = MIN_CHILD_LENGTH,
         min_parent_length: int = MIN_PARENT_LENGTH,
         min_intro_length: int = MIN_INTRO_LENGTH,
     ):
         self.child_chunk_size = child_chunk_size or settings.chunk_size
-        self.child_chunk_overlap = child_chunk_overlap or settings.chunk_overlap
-        self.parent_chunk_size = parent_chunk_size or settings.parent_chunk_size
         self.min_child_length = min_child_length
         self.min_parent_length = min_parent_length
         self.min_intro_length = min_intro_length
@@ -96,7 +92,10 @@ class ParentChildChunker:
             r"\[FAQ\]\(.*?\)",
             r"<desc>.*?</desc>",  # SVG description labels
             r"©\s*.*?(?:\.com|\d{4})",  # Copyright credits
-            r"[✔©✅ℹ️⚠️✅❌📊📄🔗📂📜📌📏\-]",  # UI symbols
+            # UI symbols. Hyphens are deliberately absent: German compounds carry
+            # them ("Fachkräfte-Einwanderungsgesetz", "Nicht-EU-Staatsangehörige")
+            # and stripping them breaks both lexical search and the term itself.
+            r"[✔©✅ℹ️⚠️❌📊📄🔗📂📜📌📏]",
             r"^.*?\]\(/en/working-in-germany/job-listings\?tx_solr.*$",  # job search leaks
             r"Translate it via your browser\.",
             r"Google Translate is a third-party provider\.",

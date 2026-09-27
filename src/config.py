@@ -128,8 +128,6 @@ class Settings(BaseSettings):
     # Chunking Configuration
     # ============================================
     chunk_size: int = Field(default=512, validation_alias="CHUNK_SIZE")
-    chunk_overlap: int = Field(default=64, validation_alias="CHUNK_OVERLAP")
-    parent_chunk_size: int = Field(default=2048, validation_alias="PARENT_CHUNK_SIZE")
 
     # ============================================
     # Retrieval Configuration

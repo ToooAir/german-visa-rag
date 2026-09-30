@@ -785,3 +785,53 @@ class TestGenerateAnswerStreamingAdditional:
         full = "".join(chunks)
         assert "DONE" in full
         assert "Error" in full or "error" in full
+
+
+# ─── Reranker visibility ──────────────────────────────────────────────────────
+
+
+class TestRerankStatus:
+    """A failing reranker returns the documents sorted by retrieval score, so the
+    API still answers and only the ranking quality is gone. That degradation was
+    invisible from outside until it showed up in the response metadata."""
+
+    def test_reports_reranked_when_scores_are_present(self):
+        gen = _make_generator()
+        gen.reranker.name = "cohere"
+        status = gen._rerank_status([{"rerank_score": 0.9}, {"rerank_score": 0.4}])
+        assert status == {"reranker": "cohere", "reranked": True}
+
+    def test_reports_not_reranked_when_the_backend_fell_back(self):
+        """The fallback path sorts by adjusted_score and sets no rerank_score."""
+        gen = _make_generator()
+        gen.reranker.name = "jina"
+        status = gen._rerank_status([{"adjusted_score": 0.8}, {"adjusted_score": 0.2}])
+        assert status == {"reranker": "jina", "reranked": False}
+
+    def test_mock_backend_is_distinguishable_from_a_broken_one(self):
+        gen = _make_generator()
+        gen.reranker.name = "mock"
+        assert gen._rerank_status([{"adjusted_score": 0.8}]) == {"reranker": "mock", "reranked": False}
+
+    def test_empty_results_are_not_claimed_as_reranked(self):
+        gen = _make_generator()
+        gen.reranker.name = "cohere"
+        assert gen._rerank_status([])["reranked"] is False
+
+    def test_unknown_when_the_backend_declares_no_name(self):
+        gen = _make_generator()
+        del gen.reranker.name
+        assert gen._rerank_status([])["reranker"] == "unknown"
+
+    @pytest.mark.asyncio
+    async def test_status_reaches_the_answer_metadata(self):
+        gen = _make_generator()
+        gen.reranker.name = "cohere"
+        doc = {"text": "ctx", "metadata": {"chunk_id": "c1", "source_url": "u"}}
+        gen.retriever.retrieve_batch = AsyncMock(return_value=[[doc]])
+        gen.reranker.rerank = AsyncMock(return_value=[doc])  # no rerank_score -> fell back
+
+        result = await gen.generate_answer("q")
+
+        assert result["metadata"]["reranker"] == "cohere"
+        assert result["metadata"]["reranked"] is False

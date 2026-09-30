@@ -77,6 +77,25 @@ class AnswerGenerator:
         flat.sort(key=lambda x: x.get("adjusted_score", 0), reverse=True)
         return flat
 
+    def _rerank_status(self, reranked: list[dict[str, Any]]) -> dict[str, Any]:
+        """Report whether the configured reranker actually ran.
+
+        When a reranker fails it logs the error and returns the documents sorted by
+        their retrieval score, so the API still answers and the answer still looks
+        reasonable -- only the ranking quality is gone. That was invisible from
+        outside: an expired Jina key degraded every answer for as long as nobody
+        read the logs.
+
+        rerank_score is set only on the success path, so its absence is the signal.
+        Pairing it with the configured name separates a broken reranker
+        (cohere/jina + reranked=False) from one that was never meant to run
+        (mock + reranked=False).
+        """
+        return {
+            "reranker": getattr(self.reranker, "name", "unknown"),
+            "reranked": any("rerank_score" in doc for doc in reranked),
+        }
+
     @staticmethod
     def _build_sources(reranked: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Extract source metadata from reranked documents."""
@@ -269,6 +288,7 @@ class AnswerGenerator:
                     "retrieval_count": len(reranked),
                     "latency_seconds": latency,
                     "cache_hit": False,
+                    **self._rerank_status(reranked),
                 },
             }
 
@@ -549,6 +569,7 @@ class AnswerGenerator:
                         "query": query,
                         "retrieval_count": len(reranked),
                         "cache_hit": False,
+                        **self._rerank_status(reranked),
                     },
                 },
                 scope=cache_scope,

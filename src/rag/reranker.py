@@ -26,6 +26,10 @@ class RerankerType(str, Enum):
 class Reranker(ABC):
     """Abstract base for reranker backends."""
 
+    # Which implementation is configured. Reported per query so a reranker that is
+    # failing can be told apart from one that was never meant to run.
+    name: str = "unknown"
+
     @abstractmethod
     async def rerank(
         self,
@@ -52,6 +56,8 @@ class MockReranker(Reranker):
     Returns documents in original order without modification.
     """
 
+    name = "mock"
+
     async def rerank(
         self,
         query: str,
@@ -67,6 +73,8 @@ class CohereReranker(Reranker):
     Cohere Reranker API for semantic reranking.
     Requires COHERE_API_KEY. Uses /v1/rerank endpoint.
     """
+
+    name = "cohere"
 
     def __init__(self, api_key: str, model: str = "rerank-english-v2.0"):
         self.api_key = api_key
@@ -137,6 +145,8 @@ class JinaReranker(Reranker):
     Jina Reranker API for multilingual semantic reranking.
     Supports Chinese, German, and English out of the box.
     """
+
+    name = "jina"
 
     def __init__(self, api_key: str, model: str = "jina-reranker-v1-base-en"):
         self.api_key = api_key

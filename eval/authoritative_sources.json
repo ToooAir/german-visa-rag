@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "purpose": "URLs that must be answerable. Fed to src/scripts/audit_coverage.py to check that a crawl strategy can actually reach them, because a page the crawler never considers leaves no trace in any failure count.",
+    "how_to_extend": "When an answer is wrong or stale, find the page a search engine returns for that question, add it here with a note, and run the audit. If it reports BLIND SPOT, the strategy needs a path pattern, not a re-ingest.",
+    "updated": "2026-10-01"
+  },
+  "sources": [
+    {
+      "url": "https://www.arbeitsagentur.de/vor-ort/zav/working-and-living-in-germany/newsletter-iss/03-2026/blaue-karte",
+      "note": "Annual EU Blue Card salary thresholds in euros (2026: 50.700 / 45.934,20). The statute gives only the percentage; this is where the figure lives."
+    },
+    {
+      "url": "https://www.gesetze-im-internet.de/aufenthg_2004/__18g.html",
+      "note": "§ 18g AufenthG — Blaue Karte EU. The percentage rule (50% / 45.3% of the Beitragsbemessungsgrenze) and Abs. 7, which says the ministry publishes the euro figures annually."
+    },
+    {
+      "url": "https://www.gesetze-im-internet.de/aufenthg_2004/__18a.html",
+      "note": "§ 18a — Fachkräfte mit Berufsausbildung."
+    },
+    {
+      "url": "https://www.gesetze-im-internet.de/aufenthg_2004/__18b.html",
+      "note": "§ 18b — Fachkräfte mit akademischer Ausbildung."
+    },
+    {
+      "url": "https://www.gesetze-im-internet.de/aufenthg_2004/__20a.html",
+      "note": "§ 20a — Chancenkarte."
+    },
+    {
+      "url": "https://www.gesetze-im-internet.de/beschv_2013/__6.html",
+      "note": "BeschV § 6 — Positivliste / shortage occupations, the legal basis for the reduced threshold."
+    },
+    {
+      "url": "https://www.make-it-in-germany.com/en/visa-residence/types/eu-blue-card",
+      "note": "Plain-language Blue Card guidance. Bot-blocked as of 2026-09: returns a browser challenge, so expect it to stay absent until a headless fetch exists."
+    }
+  ]
+}

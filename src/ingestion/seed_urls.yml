@@ -163,22 +163,6 @@ domains:
     max_pages: 150
     use_sitemap: true
 
-  - domain: "www.arbeitsagentur.de"
-    # BA: Bundesagentur für Arbeit (聯邦就業局)
-    # Hardcoded strategy already defines filters; YAML can fine-tune
-    seed_paths:
-      - "/en/"
-      - "/web/content/EN/findingajob/"
-      - "/web/content/EN/institutionunternehmen/"
-    authority_level: "official"
-    default_visa_types:
-      - "work_visa"
-      - "skilled_worker"
-      - "blue_card"
-    max_depth: 3
-    max_pages: 100
-    use_sitemap: true
-
   # ── 學歷認可相關機構 ──────────────────────────────────────────────────
 
   - domain: "www.kmk.org"
@@ -235,12 +219,16 @@ domains:
 
   - domain: "www.arbeitsagentur.de"
     # BA: Bundesagentur für Arbeit (聯邦就業局)
+    # This domain was listed twice; the later block silently won, so the earlier
+    # max_pages: 100 never applied. Merged into one.
     seed_paths:
       - "/en/"
       - "/web/content/EN/findingajob/"
       - "/web/content/EN/institutionunternehmen/"
       # BA Fachliche Weisungen (Employment Guidelines)
       - "/datei/dok_ba033210.pdf"
+      # ZAV — annual EU Blue Card salary thresholds in euros
+      - "/vor-ort/zav/working-and-living-in-germany/"
     authority_level: "official"
     default_visa_types:
       - "work_visa"
@@ -360,6 +348,18 @@ extra_urls:
       - "skilled_worker"
       - "blue_card"
       - "student_visa"
+
+  # ── Annual salary thresholds, which no statute states in euros ─────────
+  # § 18g gives a percentage of the Beitragsbemessungsgrenze; the euro figure is
+  # published per calendar year. Pinned because its relevance score under the BA
+  # strategy is low enough to lose the max_pages cut.
+  - url: "https://www.arbeitsagentur.de/vor-ort/zav/working-and-living-in-germany/newsletter-iss/03-2026/blaue-karte"
+    title: "Blaue Karte EU - Mindestgehalt (ZAV, Bundesagentur für Arbeit)"
+    authority_level: "official"
+    visa_types:
+      - "blue_card"
+      - "work_visa"
+      - "skilled_worker"
 
   # ── Pinned statutes: the legal basis for skilled work and the Blue Card ─
   # Discovery shares one max_pages budget across eleven laws, so these three can

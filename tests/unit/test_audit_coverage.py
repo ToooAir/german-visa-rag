@@ -61,17 +61,29 @@ class TestExplainRejectionNamesTheRule:
 
 class TestTheRealBlindSpot:
     """The case that prompted the script: the Arbeitsagentur page carrying the
-    annual EU Blue Card salary thresholds."""
+    annual EU Blue Card salary thresholds. It was excluded by two rules at once --
+    allowed_path_patterns and language_prefixes -- because both assume the useful
+    pages sit under /en/, and this one is a German-language ZAV newsletter."""
 
     URL = "https://www.arbeitsagentur.de/vor-ort/zav/working-and-living-in-germany/newsletter-iss/03-2026/blaue-karte"
 
-    def test_current_strategy_excludes_it(self):
+    def test_the_strategy_now_admits_it(self):
         from src.ingestion.crawl_strategy import get_strategy_registry
 
         strategy = get_strategy_registry().get_strategy(self.URL)
-        reason = explain_rejection(strategy, self.URL)
-        assert reason is not None, "the ZAV path is reachable now — update this test and the audit note"
+        assert explain_rejection(strategy, self.URL) is None
 
-    def test_adding_the_path_pattern_would_admit_it(self):
-        s = _strategy(allowed_path_patterns=["/en/", "/vor-ort/zav/"], language_prefixes=["/en/", "/vor-ort/zav/"])
-        assert explain_rejection(s, self.URL) is None
+    def test_it_scores_above_zero_so_it_survives_the_max_pages_cut(self):
+        """Permitting a URL is not enough: discovery ranks by relevance and keeps
+        the top max_pages. At 0.0 this page lost the cut even when allowed."""
+        from src.ingestion.crawl_strategy import get_strategy_registry
+
+        strategy = get_strategy_registry().get_strategy(self.URL)
+        assert strategy.get_relevance_score(self.URL) > 0.0
+
+    def test_either_rule_alone_would_still_exclude_it(self):
+        """Both had to change, which is why fixing one was not enough."""
+        only_pattern = _strategy(allowed_path_patterns=["/en/", "/vor-ort/zav/"], language_prefixes=["/en/"])
+        only_prefix = _strategy(allowed_path_patterns=["/en/"], language_prefixes=["/en/", "/vor-ort/zav/"])
+        assert "language_prefixes" in explain_rejection(only_pattern, self.URL)
+        assert "allowed_path_patterns" in explain_rejection(only_prefix, self.URL)

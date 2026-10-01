@@ -290,6 +290,12 @@ BA_STRATEGY = DomainCrawlStrategy(
         # Positivliste / shortage occupations overview pages (HTML, not PDF)
         "/en/institutionen/arbeitgeber-und-unternehmen/fachkraefte-aus-dem-ausland/",
         "/web/content/EN/institutionunternehmen/internationalerarbeitsmarkt/",
+        # ZAV, the international placement service. Its newsletter carries the EU
+        # Blue Card salary thresholds in euros for each calendar year, which the
+        # statute does not: § 18g gives only a percentage of the
+        # Beitragsbemessungsgrenze. Nothing under /en/ links here, so it needs its
+        # own seed as well as a path pattern.
+        "/vor-ort/zav/working-and-living-in-germany/",
     ],
     authority_level="official",
     default_visa_types=["work_visa", "skilled_worker", "blue_card"],
@@ -299,6 +305,7 @@ BA_STRATEGY = DomainCrawlStrategy(
         r"/en/",
         r"/web/content/EN/",
         r"/en/institutionen/",
+        r"/vor-ort/zav/",
     ],
     blocked_path_patterns=[
         r"/en/press/",  # press releases
@@ -318,8 +325,14 @@ BA_STRATEGY = DomainCrawlStrategy(
         "labour",
         "market",
         "shortage",
+        # ZAV pages are German-language; without these the salary-threshold
+        # newsletter scores 0.0 and loses the max_pages cut even once allowed.
+        "blaue-karte",
+        "zav",
+        "gehalt",
+        "mindestgehalt",
     ],
-    language_prefixes=["/en/", "/web/content/EN/"],
+    language_prefixes=["/en/", "/web/content/EN/", "/vor-ort/zav/"],
     use_sitemap=True,
 )
 

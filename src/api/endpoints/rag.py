@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from src.api.auth import auth
 from src.api.endpoints.dependencies import get_generator, get_qdrant
 from src.api.sse import create_sse_response
 from src.logger import logger
@@ -50,7 +49,6 @@ class SourceInfo(BaseModel):
 @router.get("/sources", response_model=List[SourceInfo])
 async def get_sources(
     qdrant: QdrantWrapper = Depends(get_qdrant),
-    x_api_key: str = Depends(auth.verify_api_key),
 ):
     """Get unique sources from knowledge base."""
     return await qdrant.get_unique_sources()
@@ -60,7 +58,6 @@ async def get_sources(
 async def ask_question(
     request: QueryRequest,
     generator: AnswerGenerator = Depends(get_generator),
-    x_api_key: str = Depends(auth.verify_api_key),
 ):
     """Ask a question about German visa regulations."""
     logger.info(
@@ -83,7 +80,6 @@ async def ask_question(
 async def ask_question_stream(
     request: QueryRequest,
     generator: AnswerGenerator = Depends(get_generator),
-    x_api_key: str = Depends(auth.verify_api_key),
 ):
     """Ask a question with streaming response."""
     logger.info(

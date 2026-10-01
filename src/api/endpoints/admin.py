@@ -25,7 +25,7 @@ async def trigger_ingestion(
     auto_discover: Optional[bool] = Query(
         None, description="Override CRAWLER_DISCOVERY_ENABLED for this run only. If omitted, uses the env setting"
     ),
-    x_api_key: str = Depends(auth.verify_api_key),
+    x_admin_key: str = Depends(auth.verify_admin_key),
 ):
     """Manually trigger the full ingestion pipeline.
 
@@ -35,7 +35,7 @@ async def trigger_ingestion(
       Omit to use the server's `CRAWLER_DISCOVERY_ENABLED` setting.
     """
     client_ip = request.client.host if request.client else "unknown"
-    key_hint = hashlib.sha256(x_api_key.encode()).hexdigest()[:12]
+    key_hint = hashlib.sha256(x_admin_key.encode()).hexdigest()[:12]
     logger.info(
         "Admin action: trigger_ingestion | ip=%s key_hint=%s force=%s force_discover=%s auto_discover=%s ts=%s",
         client_ip,
@@ -64,14 +64,14 @@ async def ingest_single_url(
     request: Request,
     url: str = Query(..., description="URL to ingest (equivalent to CLI --source)"),
     force: bool = Query(False, description="Re-process even if this URL was already ingested"),
-    x_api_key: str = Depends(auth.verify_api_key),
+    x_admin_key: str = Depends(auth.verify_admin_key),
 ):
     """Ingest a single URL immediately.
 
     Equivalent to: `python -m src.ingestion.cli ingest --source <url> [--force]`
     """
     client_ip = request.client.host if request.client else "unknown"
-    key_hint = hashlib.sha256(x_api_key.encode()).hexdigest()[:12]
+    key_hint = hashlib.sha256(x_admin_key.encode()).hexdigest()[:12]
     logger.info(
         "Admin action: ingest_single | ip=%s key_hint=%s url=%s force=%s ts=%s",
         client_ip,
@@ -92,7 +92,7 @@ async def discover_urls(
         None,
         description="Limit discovery to a specific domain (e.g. make-it-in-germany.com). Omit to discover all configured domains",
     ),
-    x_api_key: str = Depends(auth.verify_api_key),
+    x_admin_key: str = Depends(auth.verify_admin_key),
 ):
     """Dry-run URL discovery — returns URLs that would be crawled without ingesting anything.
 
@@ -114,7 +114,7 @@ async def discover_urls(
 @router.get("/ingest/stats")
 async def get_ingestion_stats(
     request: Request,
-    x_api_key: str = Depends(auth.verify_api_key),
+    x_admin_key: str = Depends(auth.verify_admin_key),
 ):
     """Get ingestion statistics from the SQLite state store."""
     client_ip = request.client.host if request.client else "unknown"

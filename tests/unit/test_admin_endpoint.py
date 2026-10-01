@@ -36,7 +36,7 @@ class TestTriggerIngestion:
     @pytest.mark.asyncio
     async def test_returns_ingestion_started(self):
         with patch("src.api.endpoints.admin.get_scheduler", return_value=_make_scheduler()):
-            result = await trigger_ingestion(request=_make_request(), x_api_key="test-key")
+            result = await trigger_ingestion(request=_make_request(), x_admin_key="test-key")
 
         assert result["status"] == "ingestion_started"
 
@@ -47,7 +47,7 @@ class TestTriggerIngestion:
                 request=_make_request(),
                 force=True,
                 force_discover=True,
-                x_api_key="test-key",
+                x_admin_key="test-key",
             )
 
         assert result["force"] is True
@@ -63,7 +63,7 @@ class TestTriggerIngestion:
                 force=True,
                 force_discover=True,
                 auto_discover=False,
-                x_api_key="key",
+                x_admin_key="key",
             )
 
         mock_scheduler.trigger_manual_ingestion.assert_called_once_with(
@@ -82,7 +82,7 @@ class TestTriggerIngestion:
                 force=False,
                 force_discover=False,
                 auto_discover=None,
-                x_api_key="key",
+                x_admin_key="key",
             )
 
         mock_scheduler.trigger_manual_ingestion.assert_called_once_with(
@@ -98,7 +98,7 @@ class TestTriggerIngestion:
             await trigger_ingestion(
                 request=_make_request(),
                 auto_discover=True,
-                x_api_key="key",
+                x_admin_key="key",
             )
 
         call_kwargs = mock_scheduler.trigger_manual_ingestion.call_args.kwargs
@@ -109,7 +109,7 @@ class TestTriggerIngestion:
         req = MagicMock()
         req.client = None
         with patch("src.api.endpoints.admin.get_scheduler", return_value=_make_scheduler()):
-            result = await trigger_ingestion(request=req, x_api_key="key")
+            result = await trigger_ingestion(request=req, x_admin_key="key")
 
         assert result["status"] == "ingestion_started"
 
@@ -125,7 +125,7 @@ class TestIngestSingleUrl:
             result = await ingest_single_url(
                 request=_make_request(),
                 url="https://example.com/page",
-                x_api_key="key",
+                x_admin_key="key",
             )
 
         assert result["status"] == "ingestion_completed"
@@ -139,7 +139,7 @@ class TestIngestSingleUrl:
                 request=_make_request(),
                 url="https://example.com/page",
                 force=True,
-                x_api_key="key",
+                x_admin_key="key",
             )
 
         mock_scheduler.ingest_single_url.assert_called_once_with(
@@ -155,7 +155,7 @@ class TestIngestSingleUrl:
                 request=_make_request(),
                 url="https://example.com",
                 force=False,
-                x_api_key="key",
+                x_admin_key="key",
             )
 
         call_kwargs = mock_scheduler.ingest_single_url.call_args.kwargs
@@ -168,7 +168,7 @@ class TestIngestSingleUrl:
             result = await ingest_single_url(
                 request=_make_request(),
                 url="https://example.com",
-                x_api_key="key",
+                x_admin_key="key",
             )
 
         assert result["result"]["chunks_ingested"] == 3
@@ -182,7 +182,7 @@ class TestDiscoverUrls:
     async def test_returns_discovery_completed(self):
         mock_scheduler = _make_scheduler()
         with patch("src.api.endpoints.admin.get_scheduler", return_value=mock_scheduler):
-            result = await discover_urls(request=_make_request(), x_api_key="key")
+            result = await discover_urls(request=_make_request(), x_admin_key="key")
 
         assert result["status"] == "discovery_completed"
         assert result["total_urls"] == 1
@@ -195,7 +195,7 @@ class TestDiscoverUrls:
             await discover_urls(
                 request=_make_request(),
                 domain="make-it-in-germany.com",
-                x_api_key="key",
+                x_admin_key="key",
             )
 
         mock_scheduler.discover_urls.assert_called_once_with(domain="make-it-in-germany.com")
@@ -204,7 +204,7 @@ class TestDiscoverUrls:
     async def test_no_domain_passes_none(self):
         mock_scheduler = _make_scheduler()
         with patch("src.api.endpoints.admin.get_scheduler", return_value=mock_scheduler):
-            await discover_urls(request=_make_request(), domain=None, x_api_key="key")
+            await discover_urls(request=_make_request(), domain=None, x_admin_key="key")
 
         mock_scheduler.discover_urls.assert_called_once_with(domain=None)
 
@@ -218,7 +218,7 @@ class TestDiscoverUrls:
             ]
         )
         with patch("src.api.endpoints.admin.get_scheduler", return_value=mock_scheduler):
-            result = await discover_urls(request=_make_request(), x_api_key="key")
+            result = await discover_urls(request=_make_request(), x_admin_key="key")
 
         assert result["total_urls"] == 3
 
@@ -227,7 +227,7 @@ class TestDiscoverUrls:
         req = MagicMock()
         req.client = None
         with patch("src.api.endpoints.admin.get_scheduler", return_value=_make_scheduler()):
-            result = await discover_urls(request=req, x_api_key="key")
+            result = await discover_urls(request=req, x_admin_key="key")
 
         assert result["status"] == "discovery_completed"
 
@@ -242,7 +242,7 @@ class TestGetIngestionStats:
         mock_store.get_stats.return_value = {"ingested_documents": 10, "active_chunks": 200}
 
         with patch("src.api.endpoints.admin.get_state_store", return_value=mock_store):
-            result = await get_ingestion_stats(request=_make_request(), x_api_key="test-key")
+            result = await get_ingestion_stats(request=_make_request(), x_admin_key="test-key")
 
         assert result["statistics"]["ingested_documents"] == 10
 
@@ -252,7 +252,7 @@ class TestGetIngestionStats:
         mock_store.get_stats.return_value = {}
 
         with patch("src.api.endpoints.admin.get_state_store", return_value=mock_store):
-            await get_ingestion_stats(request=_make_request(), x_api_key="key")
+            await get_ingestion_stats(request=_make_request(), x_admin_key="key")
 
         mock_store.get_stats.assert_called_once()
 
@@ -264,6 +264,6 @@ class TestGetIngestionStats:
         req.client = None
 
         with patch("src.api.endpoints.admin.get_state_store", return_value=mock_store):
-            result = await get_ingestion_stats(request=req, x_api_key="key")
+            result = await get_ingestion_stats(request=req, x_admin_key="key")
 
         assert "statistics" in result

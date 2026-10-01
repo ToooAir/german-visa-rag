@@ -91,6 +91,10 @@ class Settings(BaseSettings):
     api_key: str = Field(..., validation_alias="API_KEY")
     api_key_header: str = Field(default="X-API-Key", validation_alias="API_KEY_HEADER")
     require_api_key: bool = Field(default=True, validation_alias="REQUIRE_API_KEY")
+    # Separate secret for /admin/*, which can rebuild the corpus and ingest an
+    # arbitrary URL. Never shipped to the browser: api_key reaches the frontend
+    # bundle, so anything it guards is effectively public.
+    admin_api_key: Optional[str] = Field(default=None, validation_alias="ADMIN_API_KEY")
     allowed_hosts: Union[List[str], str] = Field(default=["localhost", "127.0.0.1"], validation_alias="ALLOWED_HOSTS")
     allowed_origins: Union[List[str], str] = Field(
         default=["http://localhost:3000", "http://localhost:5173"], validation_alias="ALLOWED_ORIGINS"

@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from src.api.auth import auth
 from src.api.endpoints.dependencies import get_generator
 from src.llm.token_counter import get_token_counter
 from src.logger import logger
@@ -49,7 +48,6 @@ class ChatCompletionResponse(BaseModel):
 async def chat_completions(
     request: ChatCompletionRequest,
     generator: AnswerGenerator = Depends(get_generator),
-    x_api_key: str = Depends(auth.verify_api_key),
 ):
     """OpenAI-compatible chat completions endpoint.
 

@@ -104,8 +104,8 @@ services:
       # SQLite State Store
       SQLITE_DB_PATH: /app/data/state.db
 
-      # API Security
-      API_KEY: ${API_KEY:-dev-key-12345}
+      # API Security — only /admin/* is authenticated
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
 
       # Ingestion Config
       INGESTION_SCHEDULE_INTERVAL_HOURS: 24
@@ -132,7 +132,7 @@ services:
     networks:
       - visa-rag-net
     healthcheck:
-      test: [ "CMD", "curl", "-f", "-H", "X-API-Key: ${API_KEY:-dev-key-12345}", "http://localhost:8080/v1/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/v1/health" ]
       interval: 10s
       timeout: 5s
       retries: 5

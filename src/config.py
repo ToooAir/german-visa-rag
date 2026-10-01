@@ -88,12 +88,14 @@ class Settings(BaseSettings):
     # ============================================
     # API Security
     # ============================================
-    api_key: str = Field(..., validation_alias="API_KEY")
-    api_key_header: str = Field(default="X-API-Key", validation_alias="API_KEY_HEADER")
-    require_api_key: bool = Field(default=True, validation_alias="REQUIRE_API_KEY")
-    # Separate secret for /admin/*, which can rebuild the corpus and ingest an
-    # arbitrary URL. Never shipped to the browser: api_key reaches the frontend
-    # bundle, so anything it guards is effectively public.
+    # The only auth secret. It guards /admin/*, which can rebuild the corpus and
+    # ingest an arbitrary URL. Everything else is public: /query/* and
+    # /v1/chat/completions both just answer questions, and requiring a key for one
+    # while the other is open protects nothing. A browser frontend cannot hold a
+    # secret anyway -- Vite inlines import.meta.env into the bundle.
+    #
+    # Optional on purpose. Unset means the admin endpoints refuse to serve, not
+    # that they fall open, which is how production ended up unauthenticated.
     admin_api_key: Optional[str] = Field(default=None, validation_alias="ADMIN_API_KEY")
     allowed_hosts: Union[List[str], str] = Field(default=["localhost", "127.0.0.1"], validation_alias="ALLOWED_HOSTS")
     allowed_origins: Union[List[str], str] = Field(

@@ -66,7 +66,6 @@ jobs:
           QDRANT_URL: http://localhost:6333
           REDIS_URL: redis://localhost:6379/0
           SQLITE_DB_PATH: /tmp/test_state.db
-          API_KEY: test-key-12345
           ENVIRONMENT: test
         run: pytest tests/unit/ -v --cov=src --cov-report=xml --cov-report=html
 
@@ -76,7 +75,6 @@ jobs:
           QDRANT_URL: http://localhost:6333
           REDIS_URL: redis://localhost:6379/0
           SQLITE_DB_PATH: /tmp/test_state.db
-          API_KEY: test-key-12345
           ENVIRONMENT: test
         run: pytest tests/integration/ -v --tb=short
         continue-on-error: true

@@ -140,7 +140,7 @@ class TestHealthCheckDetailed:
             patch("src.api.endpoints.health.get_state_store", return_value=mock_store),
             patch("src.api.endpoints.health.query_cache", mock_cache),
         ):
-            response = await health_check_detailed(x_api_key="test-key")
+            response = await health_check_detailed()
 
         assert response.status == "healthy"
         assert "qdrant" in response.dependencies
@@ -157,7 +157,7 @@ class TestHealthCheckDetailed:
             patch("src.api.endpoints.health.get_state_store", return_value=mock_store),
             patch("src.api.endpoints.health.query_cache", mock_cache),
         ):
-            response = await health_check_detailed(x_api_key="test-key")
+            response = await health_check_detailed()
 
         assert response.status == "degraded"
         assert "✗" in response.dependencies["qdrant"]
@@ -170,7 +170,7 @@ class TestHealthCheckDetailed:
             patch("src.api.endpoints.health.get_state_store", return_value=mock_store),
             patch("src.api.endpoints.health.query_cache", mock_cache),
         ):
-            response = await health_check_detailed(x_api_key="test-key")
+            response = await health_check_detailed()
 
         assert "✗" in response.dependencies["sqlite"]
 
@@ -182,7 +182,7 @@ class TestHealthCheckDetailed:
             patch("src.api.endpoints.health.get_state_store", return_value=mock_store),
             patch("src.api.endpoints.health.query_cache", mock_cache),
         ):
-            response = await health_check_detailed(x_api_key="test-key")
+            response = await health_check_detailed()
 
         assert "✗" in response.dependencies["redis"]
 
@@ -194,14 +194,14 @@ class TestHealthCheckDetailed:
             patch("src.api.endpoints.health.get_state_store", return_value=mock_store),
             patch("src.api.endpoints.health.query_cache", mock_cache),
         ):
-            response = await health_check_detailed(x_api_key="test-key")
+            response = await health_check_detailed()
 
         assert "✓" in response.dependencies["redis"]
 
     @pytest.mark.asyncio
     async def test_exception_returns_unhealthy_with_error_key(self):
         with patch("src.api.endpoints.health.get_qdrant_client", side_effect=RuntimeError("crash")):
-            response = await health_check_detailed(x_api_key="test-key")
+            response = await health_check_detailed()
 
         assert response.status == "unhealthy"
         assert "error" in response.dependencies

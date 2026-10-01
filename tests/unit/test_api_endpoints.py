@@ -11,7 +11,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from httpx import ASGITransport, AsyncClient
 
-from src.api.auth import auth
+from src.api.endpoints.admin import router as admin_router
 from src.api.endpoints.chat import router as chat_router
 from src.api.endpoints.dependencies import get_generator, get_qdrant
 from src.api.endpoints.rag import router as rag_router
@@ -38,7 +38,7 @@ def _make_mock_generator(answer: str = "Test answer about Chancenkarte."):
     return gen
 
 
-def _make_test_app(generator=None, qdrant=None, bypass_auth: bool = True) -> FastAPI:
+def _make_test_app(generator=None, qdrant=None) -> FastAPI:
     """
     Minimal FastAPI app with mocked dependencies — no lifespan startup.
     Routers are mounted at their original prefixes.
@@ -48,6 +48,8 @@ def _make_test_app(generator=None, qdrant=None, bypass_auth: bool = True) -> Fas
     app.include_router(chat_router)
     # rag_router already has prefix="/query"
     app.include_router(rag_router)
+    # admin_router already has prefix="/admin"
+    app.include_router(admin_router)
 
     _gen = generator or _make_mock_generator()
     if qdrant is None:
@@ -58,10 +60,6 @@ def _make_test_app(generator=None, qdrant=None, bypass_auth: bool = True) -> Fas
 
     app.dependency_overrides[get_generator] = lambda: _gen
     app.dependency_overrides[get_qdrant] = lambda: _qdrant
-
-    if bypass_auth:
-        # Skip auth check; return a fixed key
-        app.dependency_overrides[auth.verify_api_key] = lambda: "test-key"
 
     return app
 
@@ -217,80 +215,62 @@ class TestRagEndpoints:
         assert "text/event-stream" in resp.headers["content-type"]
 
 
-# ─── Authentication (auth.py full flow via HTTP) ──────────────────────────────
+# ─── Authentication over HTTP ─────────────────────────────────────────────────
 
 
-class TestAuthentication:
+class TestPublicEndpointsNeedNoKey:
+    """A browser frontend cannot hold a secret, and /query/* and
+    /v1/chat/completions both only answer questions, so both are public."""
+
     @pytest.mark.asyncio
-    async def test_missing_api_key_returns_401(self):
-        """Missing X-API-Key header → 401."""
-        app = _make_test_app(bypass_auth=False)
-        with (patch("src.api.auth.settings") as s,):
-            s.require_api_key = True
-            s.api_key = "secret-key"
+    async def test_chat_completions_is_public(self):
+        app = _make_test_app()
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post(
+                "/v1/chat/completions",
+                json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "hello"}]},
+            )
+        assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_query_ask_is_public(self):
+        app = _make_test_app()
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post("/query/ask", json={"query": "hello"})
+        assert resp.status_code == 200
+
+
+class TestAdminEndpointsAreGuarded:
+    """/admin/* can rebuild the corpus and ingest an arbitrary URL. This is the
+    only authenticated surface, and it has no off switch."""
+
+    @pytest.mark.asyncio
+    async def test_missing_admin_key_returns_401(self):
+        app = _make_test_app()
+        with patch("src.api.auth.settings") as s:
+            s.admin_api_key = "admin-secret"
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-                resp = await client.post(
-                    "/v1/chat/completions",
-                    json={
-                        "model": "gpt-4o-mini",
-                        "messages": [{"role": "user", "content": "hello"}],
-                    },
-                )
+                resp = await client.get("/admin/ingest/stats")
         assert resp.status_code == 401
-        assert "Missing API key" in resp.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_wrong_api_key_returns_403(self):
-        """Wrong X-API-Key value → 403."""
-        app = _make_test_app(bypass_auth=False)
+    async def test_wrong_admin_key_returns_403(self):
+        app = _make_test_app()
         with patch("src.api.auth.settings") as s:
-            s.require_api_key = True
-            s.api_key = "correct-key"
+            s.admin_api_key = "admin-secret"
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-                resp = await client.post(
-                    "/v1/chat/completions",
-                    headers={"X-API-Key": "wrong-key"},
-                    json={
-                        "model": "gpt-4o-mini",
-                        "messages": [{"role": "user", "content": "hello"}],
-                    },
-                )
+                resp = await client.get("/admin/ingest/stats", headers={"X-Admin-Key": "guess"})
         assert resp.status_code == 403
-        assert "Invalid API key" in resp.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_valid_api_key_passes(self):
-        """Correct X-API-Key → request is processed normally."""
-        app = _make_test_app(bypass_auth=False)
+    async def test_unconfigured_admin_key_returns_503(self):
+        """Unset must mean closed. Production fell open on a missing setting."""
+        app = _make_test_app()
         with patch("src.api.auth.settings") as s:
-            s.require_api_key = True
-            s.api_key = "correct-key"
+            s.admin_api_key = None
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-                resp = await client.post(
-                    "/v1/chat/completions",
-                    headers={"X-API-Key": "correct-key"},
-                    json={
-                        "model": "gpt-4o-mini",
-                        "messages": [{"role": "user", "content": "hello"}],
-                    },
-                )
-        assert resp.status_code == 200
-
-    @pytest.mark.asyncio
-    async def test_auth_disabled_allows_any_key(self):
-        """require_api_key=False → any key (or no key) allowed."""
-        app = _make_test_app(bypass_auth=False)
-        with patch("src.api.auth.settings") as s:
-            s.require_api_key = False
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-                resp = await client.post(
-                    "/v1/chat/completions",
-                    json={
-                        "model": "gpt-4o-mini",
-                        "messages": [{"role": "user", "content": "hello"}],
-                    },
-                )
-        assert resp.status_code == 200
+                resp = await client.get("/admin/ingest/stats", headers={"X-Admin-Key": "anything"})
+        assert resp.status_code == 503
 
 
 # ─── dependencies.py — get_generator fallback (lines 8-17) ───────────────────

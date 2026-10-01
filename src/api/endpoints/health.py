@@ -1,9 +1,8 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel
 
-from src.api.auth import auth
 from src.logger import logger
 from src.storage.redis_cache import query_cache
 from src.storage.sqlite_state_store import get_state_store
@@ -77,7 +76,7 @@ async def health_check():
 
 
 @router.get("/health/detailed", response_model=HealthDetailedResponse)
-async def health_check_detailed(x_api_key: str = Depends(auth.verify_api_key)):
+async def health_check_detailed():
     """Detailed health check — includes per-dependency status. Requires X-API-Key."""
     try:
         dependencies, all_ok = await _check_dependencies()

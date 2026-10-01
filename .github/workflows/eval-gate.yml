@@ -42,7 +42,6 @@ jobs:
         env:
           # Required secrets — configure under repo Settings → Secrets → Actions.
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          API_KEY: ${{ secrets.API_KEY }}
           # Azure path (optional — only needed if USE_AZURE_OPENAI=true).
           USE_AZURE_OPENAI: ${{ vars.USE_AZURE_OPENAI }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
